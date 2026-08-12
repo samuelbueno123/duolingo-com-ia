@@ -1,0 +1,168 @@
+* {
+    box-sizing: border-box;
+}
+
+
+body {
+    margin: 0;
+
+    min-height: 100vh;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    background:
+        #f5f7fb;
+
+    color:
+        #202124;
+}
+
+
+.container {
+    min-height: 100vh;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding: 20px;
+}
+
+
+.login-card {
+    width: 100%;
+
+    max-width: 420px;
+
+    padding: 40px;
+
+    background: white;
+
+    border-radius: 16px;
+
+    box-shadow:
+        0 8px 30px
+        rgba(0, 0, 0, 0.08);
+
+    text-align: center;
+}
+
+
+.login-card h1 {
+    margin: 0;
+
+    font-size: 32px;
+}
+
+
+.subtitle {
+    margin-top: 8px;
+
+    margin-bottom: 28px;
+
+    color: #6b7280;
+}
+
+
+.status {
+    margin: 20px 0;
+
+    min-height: 20px;
+
+    font-size: 14px;
+}
+
+
+.status-success {
+    color: #188038;
+}
+
+
+.status-error {
+    color: #d93025;
+}
+
+
+.status-loading {
+    color: #5f6368;
+}
+
+
+.user-info {
+    margin-top: 30px;
+
+    padding-top: 25px;
+
+    border-top:
+        1px solid #e5e7eb;
+
+    text-align: left;
+}
+
+
+.user-info h2 {
+    margin-top: 0;
+
+    margin-bottom: 20px;
+
+    text-align: center;
+
+    font-size: 20px;
+}
+
+
+.user-picture-container {
+    display: flex;
+
+    justify-content: center;
+
+    margin-bottom: 20px;
+}
+
+
+.user-picture {
+    width: 90px;
+
+    height: 90px;
+
+    border-radius: 50%;
+
+    object-fit: cover;
+}
+
+
+.user-field {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 5px;
+
+    margin-bottom: 15px;
+
+    padding: 12px;
+
+    background:
+        #f8f9fa;
+
+    border-radius: 8px;
+}
+
+
+.user-field strong {
+    font-size: 13px;
+
+    color: #5f6368;
+}
+
+
+.user-field span {
+    word-break: break-word;
+
+    font-size: 14px;
+}

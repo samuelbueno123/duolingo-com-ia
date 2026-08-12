@@ -1,8 +1,11 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({
     super.key,
@@ -16,6 +19,7 @@ class LoginPage extends StatefulWidget {
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
+
 class _LoginPageState extends State<LoginPage> {
   // TROQUE os valores abaixo pelos seus IDs/URLs reais do Google Cloud e do seu backend.
   // - `_googleWebClientId`: necessário para o login funcionar no Web.
@@ -35,10 +39,12 @@ class _LoginPageState extends State<LoginPage> {
     scopes: const <String>['email', 'profile'],
     clientId: kIsWeb
         ? (_hasWebClientIdConfigured ? _googleWebClientId : null)
-        : (defaultTargetPlatform == TargetPlatform.iOS && _hasIosClientIdConfigured
-            ? _googleIosClientId
-            : null),
-    serverClientId: _hasServerClientIdConfigured &&
+        : (defaultTargetPlatform == TargetPlatform.iOS &&
+                  _hasIosClientIdConfigured
+              ? _googleIosClientId
+              : null),
+    serverClientId:
+        _hasServerClientIdConfigured &&
             _googleServerClientId != _googleWebClientId
         ? _googleServerClientId
         : null,
@@ -65,13 +71,17 @@ class _LoginPageState extends State<LoginPage> {
     super.initState();
     _restoreGoogleSession();
   }
+
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _describeError(Object error, StackTrace stackTrace) {
     return '${error.toString()}\n\nStack trace:\n$stackTrace';
   }
+
   Future<void> _restoreGoogleSession() async {
     try {
       final account = await _googleSignIn.signInSilently();
@@ -108,6 +118,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     }
   }
+
   Future<void> _handleGoogleSignIn() async {
     if (_isGoogleSigningIn) {
       return;
@@ -161,7 +172,9 @@ class _LoginPageState extends State<LoginPage> {
           _backendStatusMessage =
               'Erro ao autenticar com Google:\n${_describeError(error, stackTrace)}';
         });
-        _showMessage('Não foi possível entrar com Google. Veja o detalhe exibido na tela.');
+        _showMessage(
+          'Não foi possível entrar com Google. Veja o detalhe exibido na tela.',
+        );
       }
     } finally {
       if (mounted) {
@@ -169,6 +182,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     }
   }
+
   Future<void> _handleGoogleSignOut() async {
     await _googleSignIn.signOut();
     if (!mounted) {
@@ -182,6 +196,7 @@ class _LoginPageState extends State<LoginPage> {
     });
     _showMessage('Conta do Google desconectada.');
   }
+
   Future<String> _exchangeTokenWithBackend(
     GoogleSignInAccount account,
     GoogleSignInAuthentication auth,
@@ -206,10 +221,13 @@ class _LoginPageState extends State<LoginPage> {
       }),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw StateError('Backend respondeu ${response.statusCode}: ${response.body}');
+      throw StateError(
+        'Backend respondeu ${response.statusCode}: ${response.body}',
+      );
     }
     return 'Token do Google enviado ao backend com sucesso.';
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -252,6 +270,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
+
   Widget _buildLoginCard() {
     return Card(
       elevation: 0,
@@ -286,27 +305,30 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 32),
               TextFormField(
                 keyboardType: TextInputType.emailAddress,
-                decoration: _inputDecoration('Endereço de e-mail', Icons.email_outlined),
-                validator: (value) =>
-                    value == null || !value.contains('@')
-                        ? 'Digite um endereço de e-mail válido.'
-                        : null,
+                decoration: _inputDecoration(
+                  'Endereço de e-mail',
+                  Icons.email_outlined,
+                ),
+                validator: (value) => value == null || !value.contains('@')
+                    ? 'Digite um endereço de e-mail válido.'
+                    : null,
               ),
               const SizedBox(height: 14),
               TextFormField(
                 obscureText: _obscurePassword,
-                decoration: _inputDecoration('Senha', Icons.lock_outline).copyWith(
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
+                decoration: _inputDecoration('Senha', Icons.lock_outline)
+                    .copyWith(
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
+                      ),
                     ),
-                    onPressed: () => setState(
-                      () => _obscurePassword = !_obscurePassword,
-                    ),
-                  ),
-                ),
                 validator: (value) => value == null || value.length < 6
                     ? 'A senha deve ter pelo menos 6 caracteres.'
                     : null,
@@ -314,9 +336,8 @@ class _LoginPageState extends State<LoginPage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () => _showMessage(
-                    'Recuperação de senha disponível em breve.',
-                  ),
+                  onPressed: () =>
+                      _showMessage('Recuperação de senha disponível em breve.'),
                   child: Text(
                     'Esqueceu sua senha?',
                     style: TextStyle(color: widget.primaryColor),
@@ -377,7 +398,9 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                   label: Text(
-                    _isGoogleSigningIn ? 'CONECTANDO...' : 'CONTINUAR COM GOOGLE',
+                    _isGoogleSigningIn
+                        ? 'CONECTANDO...'
+                        : 'CONTINUAR COM GOOGLE',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -388,9 +411,8 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   const Text('Novo aqui?'),
                   TextButton(
-                    onPressed: () => _showMessage(
-                      'O cadastro estará disponível em breve.',
-                    ),
+                    onPressed: () =>
+                        _showMessage('O cadastro estará disponível em breve.'),
                     child: Text(
                       'Cadastrar',
                       style: TextStyle(color: widget.primaryColor),
@@ -404,6 +426,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
+
   Widget _buildAccountCard() {
     final account = _googleAccount;
     return Card(
@@ -510,7 +533,8 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 10),
               _InfoRow(
                 label: 'Token do Google',
-                value: (_googleAuth?.idToken != null ||
+                value:
+                    (_googleAuth?.idToken != null ||
                         _googleAuth?.accessToken != null)
                     ? 'Recebido e pronto para enviar ao backend'
                     : 'Ainda não disponível',
@@ -553,6 +577,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
+
   InputDecoration _inputDecoration(String label, IconData icon) =>
       InputDecoration(
         labelText: label,
@@ -568,36 +593,91 @@ class _LoginPageState extends State<LoginPage> {
         ),
       );
 }
+
 class _AccountAvatar extends StatelessWidget {
   const _AccountAvatar({required this.account, required this.color});
   final GoogleSignInAccount account;
   final Color color;
+  // A custom cache manager for avatars. Configure stalePeriod and cache size
+  // to avoid refetching images too often and triggering 429 responses.
+  static final CacheManager _avatarCacheManager = CacheManager(
+    Config(
+      'avatarCache',
+      stalePeriod: const Duration(days: 7),
+      maxNrOfCacheObjects: 200,
+    ),
+  );
   @override
   Widget build(BuildContext context) {
     final photoUrl = account.photoUrl;
     final initials = _buildInitials(account.displayName, account.email);
-    return CircleAvatar(
-      radius: 34,
-      backgroundColor: color.withValues(alpha: 0.14),
-      backgroundImage: photoUrl == null ? null : NetworkImage(photoUrl),
-      child: photoUrl == null
-          ? Text(
-              initials,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w800,
-                fontSize: 18,
+
+    // If there's no photo URL, show initials as before.
+    if (photoUrl == null) {
+      return CircleAvatar(
+        radius: 34,
+        backgroundColor: color.withValues(alpha: 0.14),
+        child: Text(
+          initials,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+          ),
+        ),
+      );
+    }
+
+    // Try to request a smaller size to reduce bandwidth and avoid rate limits.
+    final resizedUrl = photoUrl.contains('?') ? '$photoUrl&sz=200' : '$photoUrl?sz=200';
+
+    // Use CachedNetworkImage to cache responses and avoid repeated network requests
+    // that can trigger Google's "too many requests" responses. Provide a graceful
+    // error widget that falls back to initials.
+    return Container(
+      width: 68,
+      height: 68,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color.withValues(alpha: 0.14),
+      ),
+        child: ClipOval(
+          child: CachedNetworkImage(
+            cacheManager: _avatarCacheManager,
+            imageUrl: resizedUrl,
+            fit: BoxFit.cover,
+            width: 68,
+            height: 68,
+            placeholder: (context, url) => const Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
-            )
-          : null,
+            ),
+            errorWidget: (context, url, error) => Center(
+              child: Text(
+                initials,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ),
+        ),
     );
   }
+
   String _buildInitials(String? displayName, String email) {
     final name = displayName?.trim();
     if (name != null && name.isNotEmpty) {
       final parts = name.split(RegExp(r'\s+'));
       final first = parts.first.isNotEmpty ? parts.first[0] : '';
-      final last = parts.length > 1 && parts.last.isNotEmpty ? parts.last[0] : '';
+      final last = parts.length > 1 && parts.last.isNotEmpty
+          ? parts.last[0]
+          : '';
       final initials = '$first$last'.trim();
       if (initials.isNotEmpty) {
         return initials.toUpperCase();
@@ -606,6 +686,7 @@ class _AccountAvatar extends StatelessWidget {
     return email.isNotEmpty ? email[0].toUpperCase() : 'U';
   }
 }
+
 class _InfoRow extends StatelessWidget {
   const _InfoRow({required this.label, required this.value});
   final String label;

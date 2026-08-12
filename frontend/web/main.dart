@@ -1,5 +1,4 @@
 import 'package:web/web.dart' as web;
-import 'package:dio/dio.dart';
 
 void main() {
   final now = DateTime.now();

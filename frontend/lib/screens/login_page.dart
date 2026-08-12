@@ -21,19 +21,15 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // TROQUE os valores abaixo pelos seus IDs/URLs reais do Google Cloud e do seu backend.
-  // - `_googleWebClientId`: necessário para o login funcionar no Web.
-  // - `_googleIosClientId`: necessário no iOS.
-  // - `_googleServerClientId`: opcional, útil se seu backend validar o `idToken`.
-  // - `_backendAuthExchangeUrl`: URL do seu backend para trocar/validar o token do Google.
+  // Client ID do OAuth Web configurado no backend para validar o token.
   static const String _googleWebClientId =
       '367385027390-dmuj8neeqpgcbph3uk9qfb2cs5ubldhp.apps.googleusercontent.com';
   static const String _googleIosClientId =
       'COLOQUE_SEU_CLIENT_ID_IOS_AQUI.apps.googleusercontent.com';
   static const String _googleServerClientId =
-      'COLOQUE_SEU_CLIENT_ID_SERVER_AQUI.apps.googleusercontent.com';
+      '367385027390-dmuj8neeqpgcbph3uk9qfb2cs5ubldhp.apps.googleusercontent.com';
   static const String _backendAuthExchangeUrl =
-      'https://SUA_URL_DO_BACKEND_AQUI/api/auth/google';
+      'http://localhost:8080/api/auth/google';
   final _formKey = GlobalKey<FormState>();
   late final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: const <String>['email', 'profile'],
@@ -44,10 +40,7 @@ class _LoginPageState extends State<LoginPage> {
               ? _googleIosClientId
               : null),
     serverClientId:
-        _hasServerClientIdConfigured &&
-            _googleServerClientId != _googleWebClientId
-        ? _googleServerClientId
-        : null,
+        _hasServerClientIdConfigured ? _googleServerClientId : null,
   );
   GoogleSignInAccount? _googleAccount;
   GoogleSignInAuthentication? _googleAuth;
@@ -63,9 +56,6 @@ class _LoginPageState extends State<LoginPage> {
 
   bool get _hasServerClientIdConfigured =>
       !_googleServerClientId.contains('COLOQUE_SEU_CLIENT_ID_SERVER_AQUI');
-
-  bool get _hasBackendUrlConfigured =>
-      !_backendAuthExchangeUrl.contains('SUA_URL_DO_BACKEND_AQUI');
   @override
   void initState() {
     super.initState();
@@ -98,7 +88,7 @@ class _LoginPageState extends State<LoginPage> {
         _signedInAt = DateTime.now();
       });
       try {
-        final backendMessage = await _exchangeTokenWithBackend(account, auth);
+        final backendMessage = await _exchangeTokenWithBackend(auth);
         if (mounted) {
           setState(() => _backendStatusMessage = backendMessage);
         }
@@ -151,7 +141,7 @@ class _LoginPageState extends State<LoginPage> {
         _signedInAt = DateTime.now();
       });
       try {
-        final backendMessage = await _exchangeTokenWithBackend(account, auth);
+        final backendMessage = await _exchangeTokenWithBackend(auth);
         if (mounted) {
           setState(() => _backendStatusMessage = backendMessage);
         }
@@ -197,12 +187,10 @@ class _LoginPageState extends State<LoginPage> {
     _showMessage('Conta do Google desconectada.');
   }
 
-  Future<String> _exchangeTokenWithBackend(
-    GoogleSignInAccount account,
-    GoogleSignInAuthentication auth,
-  ) async {
-    if (!_hasBackendUrlConfigured) {
-      return 'Conectado com Google. Troque `_backendAuthExchangeUrl` pela URL real da sua API para validar o token no servidor.';
+  Future<String> _exchangeTokenWithBackend(GoogleSignInAuthentication auth) async {
+    final idToken = auth.idToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw StateError('Google não retornou o ID Token necessário para o backend.');
     }
     final response = await http.post(
       Uri.parse(_backendAuthExchangeUrl),
@@ -211,13 +199,7 @@ class _LoginPageState extends State<LoginPage> {
         'Accept': 'application/json',
       },
       body: jsonEncode(<String, dynamic>{
-        'role': widget.role,
-        'email': account.email,
-        'displayName': account.displayName,
-        'photoUrl': account.photoUrl,
-        'googleId': account.id,
-        'accessToken': auth.accessToken,
-        'idToken': auth.idToken,
+        'credential': idToken,
       }),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -225,7 +207,13 @@ class _LoginPageState extends State<LoginPage> {
         'Backend respondeu ${response.statusCode}: ${response.body}',
       );
     }
-    return 'Token do Google enviado ao backend com sucesso.';
+    final Map<String, dynamic> data =
+        jsonDecode(response.body) as Map<String, dynamic>;
+    if (data['success'] != true) {
+      throw StateError('Backend recusou o login: ${data['message'] ?? response.body}');
+    }
+    return (data['message'] as String?) ??
+        'Login com Google validado pelo backend com sucesso.';
   }
 
   @override
@@ -481,7 +469,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Configure os placeholders no código para apontar para o seu Client ID e para a sua URL de backend.',
+                'Depois do login, o ID Token é enviado ao backend para validação completa.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Color(0xFF7A7A7A)),
               ),

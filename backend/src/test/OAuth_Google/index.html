@@ -1,0 +1,181 @@
+<!-- Não irei me rebaixar para explicar HTML, se vira e vai para o app.js que vou explicar tudo-->
+
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Duolinfo - Login</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+</head>
+
+<body>
+
+    <main class="container">
+
+        <section class="login-card">
+
+            <h1>Duolinfo</h1>
+
+            <p class="subtitle">
+                Entre na sua conta
+            </p>
+
+
+            <!-- =========================================
+                 STATUS
+                 ========================================= -->
+
+            <p
+                id="status"
+                class="status"
+            >
+                Não autenticado.
+            </p>
+
+
+            <!-- =========================================
+                 GOOGLE IDENTITY SERVICES
+                 ========================================= -->
+
+            <div
+                id="g_id_onload"
+
+                data-client_id="367385027390-dmuj8neeqpgcbph3uk9qfb2cs5ubldhp.apps.googleusercontent.com"
+
+                data-callback="handleGoogleCredential"
+
+                data-auto_prompt="false"
+            >
+            </div>
+
+
+            <!-- =========================================
+                 BOTÃO GOOGLE
+                 ========================================= -->
+
+            <div
+                class="g_id_signin"
+
+                data-type="standard"
+
+                data-size="large"
+
+                data-theme="outline"
+
+                data-text="signin_with"
+
+                data-shape="rectangular"
+
+                data-logo_alignment="left"
+            >
+            </div>
+
+
+            <!-- =========================================
+                 USUÁRIO
+                 ========================================= -->
+
+            <section
+                id="userInfo"
+                class="user-info"
+                hidden
+            >
+
+                <h2>Usuário autenticado</h2>
+
+
+                <div class="user-picture-container">
+
+                    <img
+                        id="userPicture"
+                        class="user-picture"
+                        src=""
+                        alt="Foto do usuário"
+                        hidden
+                    >
+
+                </div>
+
+
+                <div class="user-field">
+
+                    <strong>Nome</strong>
+
+                    <span id="userName">
+                        -
+                    </span>
+
+                </div>
+
+
+                <div class="user-field">
+
+                    <strong>Email</strong>
+
+                    <span id="userEmail">
+                        -
+                    </span>
+
+                </div>
+
+
+                <div class="user-field">
+
+                    <strong>Google ID</strong>
+
+                    <span id="userGoogleId">
+                        -
+                    </span>
+
+                </div>
+
+
+                <div class="user-field">
+
+                    <strong>Domínio</strong>
+
+                    <span id="userHostedDomain">
+                        -
+                    </span>
+
+                </div>
+
+            </section>
+
+        </section>
+
+    </main>
+
+
+    <!-- =========================================
+         GOOGLE IDENTITY SERVICES
+         ========================================= -->
+
+    <!-- Configuração e nosso JavaScript -->
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+
+    <!-- Google Identity Services -->
+    <script
+        src="https://accounts.google.com/gsi/client"
+        async
+        defer
+    ></script>
+
+</body>
+
+</html>

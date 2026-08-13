@@ -1,6 +1,6 @@
 // Classe para carregar o que foi pego no google
 
-package com.duolingo.ia.proj.controller;
+package com.duolingo.ia.proj.requesters;
 
 public class GooglePayload {
 

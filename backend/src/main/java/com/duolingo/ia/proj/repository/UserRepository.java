@@ -6,7 +6,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.duolingo.ia.proj.entity.User;
+import com.duolingo.ia.proj.entities.User;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 

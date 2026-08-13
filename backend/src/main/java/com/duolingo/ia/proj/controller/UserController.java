@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.duolingo.ia.proj.entity.User;
+import com.duolingo.ia.proj.entities.User;
 import com.duolingo.ia.proj.repository.UserRepository;
 
 @RestController

@@ -1,0 +1,3 @@
+[submodule "sprint-java-frontend"]
+	path = sprint-java-frontend
+	url = https://github.com/samuelbueno123/sprint-java-frontend.git

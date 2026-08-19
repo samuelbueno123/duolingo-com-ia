@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="BackgroundAgentGlobalSettings">
+    <option name="selectedModelId" value="auto" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="6082caca-bf19-4d38-bba6-76fb519769d9" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Dart_Packages.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Dart_Packages.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/linux/flutter/generated_plugins.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/linux/flutter/generated_plugins.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/macos/Flutter/GeneratedPluginRegistrant.swift" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/macos/Flutter/GeneratedPluginRegistrant.swift" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/windows/flutter/generated_plugins.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/windows/flutter/generated_plugins.cmake" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_C:/Users/Joseir/source/repos/duolingo-com-ia" value="3HhyiFliWVNN1LQA6ZqHf5LQGdh" />
+    </persistenceIdMap>
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="260" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;samuelbueno123&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/samuelbueno123/duolingo-com-ia.git&quot;,
+    &quot;accountId&quot;: &quot;56212930-127d-411b-9cab-7d2a11a5861b&quot;
+  }
+}</component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0" />
+      <entry key="S2" value="1.0" />
+      <entry key="S5" value="1.0" />
+      <entry key="S10" value="1.0" />
+      <entry key="S30" value="1.0000000097568849" />
+      <entry key="S60" value="1.00105977730654" />
+      <entry key="M2" value="1.3536603513758907" />
+      <entry key="M5" value="12.652473807317998" />
+      <entry key="M10" value="39.499578523058936" />
+      <entry key="M15" value="59.68557323449835" />
+      <entry key="M30" value="93.10926550053657" />
+      <entry key="H1" value="118.395265419294" />
+      <entry key="H2" value="134.28897860463522" />
+      <entry key="H4" value="143.2552227244417" />
+      <entry key="D1" value="151.3182836243135" />
+      <entry key="W1" value="152.7582958184818" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="5.946298330395285E-167" />
+      <entry key="S10" value="7.711224500943594E-84" />
+      <entry key="S30" value="1.9756398717960887E-28" />
+      <entry key="S60" value="1.405574569987694E-14" />
+      <entry key="M2" value="1.1855693020602742E-7" />
+      <entry key="M5" value="0.0016965660740522854" />
+      <entry key="M10" value="0.04118939273711479" />
+      <entry key="M15" value="0.11926790555574494" />
+      <entry key="M30" value="0.34535185761154585" />
+      <entry key="H1" value="0.5876664509835031" />
+      <entry key="H2" value="0.7665940587974212" />
+      <entry key="H4" value="0.8755535727740564" />
+      <entry key="D1" value="0.9780936831322244" />
+      <entry key="W1" value="0.9968407405656606" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="0.0015645896046672298" />
+      <entry key="MS500" value="0.2747135543942199" />
+      <entry key="S2" value="0.7239690861897795" />
+      <entry key="S5" value="0.8787958731783425" />
+      <entry key="S10" value="0.9374411305134539" />
+      <entry key="S30" value="0.9786964337298953" />
+      <entry key="S60" value="0.9903505495836414" />
+      <entry key="M2" value="1.348274790342795" />
+      <entry key="M5" value="12.651784566585402" />
+      <entry key="M10" value="39.539193810117474" />
+      <entry key="M15" value="59.80350254090292" />
+      <entry key="M30" value="93.45361048817455" />
+      <entry key="H1" value="118.98226459179784" />
+      <entry key="H2" value="135.0551807767638" />
+      <entry key="H4" value="144.13056290614432" />
+      <entry key="D1" value="152.2963390308214" />
+      <entry key="W1" value="153.75513102046776" />
+    </decayedShown>
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 3
+}</component>
+  <component name="ProjectId" id="3HhxM420tiPbDvFoW7kguICrSxa" />
+  <component name="ProjectSessionTemplates">
+    <option name="panelTemplate">
+      <template>
+        <option name="modeId" value="Agent" />
+        <option name="model">
+          <model>
+            <option name="modelType" value="builtin_id" />
+            <option name="modelValue" value="auto" />
+          </model>
+        </option>
+        <option name="targetType" value="LOCAL" />
+      </template>
+    </option>
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "Flutter.Duolinfo.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "copilot.chat.legacySessionMetadata.migrated": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "d0cfa26b",
+    "ignore.virus.scanning.warn.message": "true",
+    "io.flutter.reload.alreadyRun": "true",
+    "kotlin-language-version-configured": "true",
+    "project.structure.last.edited": "Global Libraries",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "ml.llm.LLMThirdPartyAiProvidersConfigurable",
+    "show.migrate.to.gradle.popup": "false"
+  }
+}]]></component>
+  <component name="RunManager">
+    <configuration name="Duolinfo" type="FlutterRunConfigurationType" factoryName="Flutter">
+      <option name="filePath" value="$PROJECT_DIR$/frontend/lib/main.dart" />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="6082caca-bf19-4d38-bba6-76fb519769d9" name="Changes" comment="" />
+      <created>1786334050202</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1786334050202</updated>
+    </task>
+    <servers />
+  </component>
+</project>

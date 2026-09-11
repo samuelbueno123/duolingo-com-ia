@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.duolingo.ia</groupId>
 	<artifactId>proj</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>0.0.2</version>
 	<name/>
 	<description/>
 	<url/>
@@ -73,6 +73,15 @@
 			<artifactId>spring-boot-devtools</artifactId>
 			<scope>runtime</scope>
 			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.1.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-docker-compose</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>com.h2database</groupId>

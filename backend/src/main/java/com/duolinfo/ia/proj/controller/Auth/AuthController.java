@@ -1,6 +1,6 @@
 // Controller que recebe os endpoints do login
 
-package com.duolingo.ia.proj.controller;
+package com.duolinfo.ia.proj.controller.Auth;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.duolingo.ia.proj.config.GoogleTokenVerifier;
+import com.duolinfo.ia.proj.config.GoogleTokenVerifier;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 

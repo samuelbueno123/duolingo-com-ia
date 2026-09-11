@@ -1,5 +1,5 @@
 // Aqui é aonde gere o funcionamento dos dados e seguranção do backend
-package com.duolingo.ia.proj.config;
+package com.duolinfo.ia.proj.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -46,7 +46,13 @@ public class SecurityConfig {
                 // ------------------------------------------
 
                 .requestMatchers(
-                        "/api/auth/google"
+                        "/api/auth/google",
+                        "/users",
+                        "/users/**",
+                        "/students",
+                        "/students/**",
+                        "/teachers",
+                        "/teachers/**"
                 ).permitAll()
 
                 // Preflight do navegador para o POST de login.
@@ -63,7 +69,12 @@ public class SecurityConfig {
                         "/index.html",
                         "/app.js",
                         "/style.css",
-                        "/favicon.ico"
+                        "/favicon.ico",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**",
+                        "/v3/api-docs.yaml",
+                        "/webjars/**"
                 ).permitAll()
 
 

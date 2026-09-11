@@ -1,6 +1,6 @@
 // Classe para carregar o que foi pego no google
 
-package com.duolingo.ia.proj.controller;
+package com.duolinfo.ia.proj.controller.Auth;
 
 public class GooglePayload {
 

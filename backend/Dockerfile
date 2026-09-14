@@ -1,4 +1,4 @@
-FROM eclipse-temurin:25-jdk-jammy AS build
+FROM eclipse-temurin:17-jdk-jammy AS build
 
 WORKDIR /workspace
 
@@ -9,7 +9,7 @@ COPY src src
 
 RUN chmod +x mvnw && ./mvnw -DskipTests package
 
-FROM eclipse-temurin:25-jre-jammy
+FROM eclipse-temurin:17-jre-jammy
 
 WORKDIR /app
 

@@ -37,3 +37,7 @@ build/
 
 # Database files
 *.db
+
+# Configurações locais e credenciais
+.env
+src/test/OAuth_Google/*.rar

@@ -2,22 +2,20 @@
 
 package com.duolinfo.ia.proj.controller.Auth;
 
-public class GooglePayload {
+import java.io.Serializable;
+
+public class GooglePayload implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private String googleId;
-
     private String email;
-
     private String name;
-
     private String picture;
-
     private String hostedDomain;
-
 
     public GooglePayload() {
     }
-
 
     public GooglePayload(
             String googleId,

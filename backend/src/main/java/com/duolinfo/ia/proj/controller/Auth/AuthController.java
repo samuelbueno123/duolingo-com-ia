@@ -26,12 +26,18 @@ import com.duolinfo.ia.proj.service.TeacherService;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
 @RestController
 @RequestMapping("/api/auth")
+@Tag(
+        name = "Auth",
+        description = "Autenticação via Google e gerenciamento da sessão do usuário"
+)
 public class AuthController {
 
     private final GoogleTokenVerifier googleTokenVerifier;
@@ -52,6 +58,10 @@ public class AuthController {
     }
 
     @PostMapping("/google")
+    @Operation(
+            summary = "Realiza login com Google",
+            description = "Valida o token do Google, cria a sessão autenticada e retorna os dados do usuário e o tipo de perfil."
+    )
     public ResponseEntity<?> loginGoogle(
             @RequestBody GoogleLoginRequest request,
             HttpServletRequest httpRequest,
@@ -166,6 +176,10 @@ public class AuthController {
     }
 
     @GetMapping("/me")
+    @Operation(
+            summary = "Retorna o usuário autenticado",
+            description = "Informa se existe uma sessão autenticada e retorna o principal e o perfil atual."
+    )
     public ResponseEntity<?> me(Authentication authentication) {
         return ResponseEntity.ok(
                 authenticatedResponse(authentication)
@@ -173,6 +187,10 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @Operation(
+            summary = "Encerra a sessão",
+            description = "Invalida a sessão HTTP atual e limpa o contexto de segurança."
+    )
     public ResponseEntity<?> logout(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
 

@@ -13,7 +13,7 @@ public class SwaggerConfiguration{
         return new OpenAPI()
                 .info(new io.swagger.v3.oas.models.info.Info()
                         .title("Duolinfo API")
-                        .version("Alpha 0.0.2")
+                        .version("Alpha 0.0.3")
                         .description("API para gerenciamento do Duolinfo."));                
     }
         

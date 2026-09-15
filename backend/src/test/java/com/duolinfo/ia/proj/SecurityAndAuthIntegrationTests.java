@@ -1,26 +1,26 @@
 package com.duolinfo.ia.proj;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
@@ -28,7 +28,6 @@ import com.duolinfo.ia.proj.config.GoogleTokenVerifier;
 import com.duolinfo.ia.proj.controller.Auth.GooglePayload;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import jakarta.servlet.http.HttpSession;
 
@@ -87,6 +86,33 @@ class SecurityAndAuthIntegrationTests {
         mockMvc.perform(get("/api/teachers"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void shouldNotExposeLegacyUserPaths() throws Exception {
+        GooglePayload user = new GooglePayload(
+                "legacy-user-google-id",
+                "legacy@example.com",
+                "Usuário Legado",
+                null,
+                null
+        );
+
+        Authentication authentication =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        user,
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                );
+
+        mockMvc.perform(get("/User/students").with(authentication(authentication)))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/User/teachers").with(authentication(authentication)))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/User").with(authentication(authentication)))
+                .andExpect(status().isNotFound());
     }
 
     @Test

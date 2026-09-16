@@ -15,75 +15,40 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 public class CorsConfig {
 
-        @Value("${cors.allowed-origins:http://127.0.0.1:5501,http://localhost:5501,http://127.0.0.1:5500,http://localhost:5500}")
-        private String[] allowedOrigins;
+	@Value("${CORS_ALLOWED_ORIGINS}")
+	private String allowedOrigins;
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+	@Bean
+	public CorsConfigurationSource corsConfigurationSource() {
 
-        CorsConfiguration configuration =
-                new CorsConfiguration();
+		CorsConfiguration configuration = new CorsConfiguration();
 
+		configuration.setAllowedOrigins(
+				Arrays.stream(allowedOrigins.split(","))
+				      .map(String::trim)
+				      .filter(origin -> !origin.isBlank())
+				      .toList()
+		                               );
 
-        // ==================================================
-        // FRONTEND
-        // ==================================================
+		configuration.setAllowedMethods(
+				List.of(
+						"GET",
+						"POST",
+						"PUT",
+						"DELETE",
+						"PATCH",
+						"OPTIONS"
+				       )
+		                               );
 
-        configuration.setAllowedOrigins(
-                Arrays.stream(allowedOrigins)
-                        .map(String::trim)
-                        .filter(origin -> !origin.isBlank())
-                        .toList()
-        );
+		configuration.setAllowedHeaders(List.of("*"));
+		configuration.setAllowCredentials(true);
 
+		UrlBasedCorsConfigurationSource source =
+				new UrlBasedCorsConfigurationSource();
 
-        // ==================================================
-        // MÉTODOS
-        // ==================================================
+		source.registerCorsConfiguration("/**", configuration);
 
-        configuration.setAllowedMethods(
-                List.of(
-                        "GET",
-                        "POST",
-                        "PUT",
-                        "DELETE",
-                        "PATCH",
-                        "OPTIONS"
-                )
-        );
-
-
-        // ==================================================
-        // HEADERS
-        // ==================================================
-
-        configuration.setAllowedHeaders(
-                List.of("*")
-        );
-
-
-        // ==================================================
-        // CREDENCIAIS
-        // ==================================================
-
-        configuration.setAllowCredentials(
-                true
-        );
-
-
-        // ==================================================
-        // REGISTRAR CONFIGURAÇÃO
-        // ==================================================
-
-        UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
-
-        source.registerCorsConfiguration(
-                "/**",
-                configuration
-        );
-
-
-        return source;
-    }
+		return source;
+	}
 }

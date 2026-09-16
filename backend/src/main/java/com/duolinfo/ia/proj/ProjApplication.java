@@ -1,6 +1,6 @@
 // Aqui é o main kkkk
 
-package com.duolingo.ia.proj;
+package com.duolinfo.ia.proj;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

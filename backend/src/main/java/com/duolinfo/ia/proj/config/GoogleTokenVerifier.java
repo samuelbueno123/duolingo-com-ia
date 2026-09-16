@@ -1,6 +1,6 @@
 // Bagulho para verificar o token do google que foi enviado para o back e saber se realmente é um ip_token válido ou não
 
-package com.duolingo.ia.proj.config;
+package com.duolinfo.ia.proj.config;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;

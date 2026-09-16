@@ -1,6 +1,6 @@
 // lugar para a classe de requisição usada no authControlle.java
 
-package com.duolingo.ia.proj.controller;
+package com.duolinfo.ia.proj.controller.Auth;
 
 public class GoogleLoginRequest {
 

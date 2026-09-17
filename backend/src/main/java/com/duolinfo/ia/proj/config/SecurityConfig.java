@@ -6,127 +6,143 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.web.cors.CorsConfigurationSource;
-
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 public class SecurityConfig {
 
-	@Bean
-	public SecurityContextRepository securityContextRepository() {
-		return new HttpSessionSecurityContextRepository();
-	}
+    @Bean
+    public SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
+    }
 
-	@Bean
-	public SecurityFilterChain securityFilterChain(
-			HttpSecurity http,
-			SecurityContextRepository securityContextRepository,
-			CorsConfigurationSource corsConfigurationSource) throws Exception {
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            SecurityContextRepository securityContextRepository,
+            CorsConfigurationSource corsConfigurationSource) throws Exception {
 
-		http
-				// usa explicitamente o CorsConfigurationSource
-				.cors(cors -> cors
-						.configurationSource(corsConfigurationSource)
-				     )
+        http
+                // CORS
+                .cors(cors -> cors
+                        .configurationSource(corsConfigurationSource)
+                )
 
-				// csrf desabilitado porque a api usa autenticação própria
-				.csrf(csrf -> csrf.disable())
+                // CSRF desabilitado porque a API utiliza autenticação própria
+                .csrf(csrf -> csrf.disable())
 
-				// persistência da autenticação na sessão
-				.securityContext(context -> context
-								.securityContextRepository(securityContextRepository)
-								.requireExplicitSave(true)
-				                )
+                // Persistência da autenticação na sessão
+                .securityContext(context -> context
+                        .securityContextRepository(securityContextRepository)
+                        .requireExplicitSave(true)
+                )
 
-				.sessionManagement(session -> session
-								.sessionCreationPolicy(
-										SessionCreationPolicy.IF_REQUIRED
-								                      )
-				                  )
+                // Controle de sessão
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(
+                                SessionCreationPolicy.IF_REQUIRED
+                        )
+                )
 
-				.authorizeHttpRequests(authorize -> authorize
+                .authorizeHttpRequests(authorize -> authorize
 
-								// preflight do cors
-								.requestMatchers(
-										HttpMethod.OPTIONS,
-										"/**"
-								                ).permitAll()
+                        // ==========================================
+                        // CORS - Preflight
+                        // ==========================================
+                        .requestMatchers(
+                                HttpMethod.OPTIONS,
+                                "/**"
+                        ).permitAll()
 
-								// login google
-								.requestMatchers(
-										HttpMethod.POST,
-										"/api/auth/google"
-								                ).permitAll()
+                        // ==========================================
+                        // API - TUDO PÚBLICO
+                        // ==========================================
+                        .requestMatchers(
+                                "/api/**"
+                        ).permitAll()
 
-								// recursos públicos
-								.requestMatchers(
-										"/",
-										"/index.html",
-										"/favicon.ico",
-										"/error",
-										"/h2-console/**",
-										"/swagger-ui/**",
-										"/swagger-ui.html",
-										"/v3/api-docs/**",
-										"/webjars/**"
-								                ).permitAll()
+                        // ==========================================
+                        // Swagger
+                        // ==========================================
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
+                                "/webjars/**"
+                        ).permitAll()
 
-								// todo o restante exige autenticação
-								.anyRequest().authenticated()
-				                      )
+                        // ==========================================
+                        // Recursos públicos
+                        // ==========================================
+                        .requestMatchers(
+                                "/",
+                                "/index.html",
+                                "/favicon.ico",
+                                "/error",
+                                "/h2-console/**"
+                        ).permitAll()
 
-				.exceptionHandling(exceptions -> exceptions
+                        // ==========================================
+                        // Todo o restante exige autenticação
+                        // ==========================================
+                        .anyRequest().authenticated()
+                )
 
-								.authenticationEntryPoint(
-										(request, response, exception) ->
-												writeError(
-														response,
-														HttpServletResponse.SC_UNAUTHORIZED,
-														"Autenticação necessária."
-												          )
-								                         )
+                // ==========================================
+                // Tratamento de erros de autenticação/autorização
+                // ==========================================
+                .exceptionHandling(exceptions -> exceptions
 
-								.accessDeniedHandler(
-										(request, response, exception) ->
-												writeError(
-														response,
-														HttpServletResponse.SC_FORBIDDEN,
-														"Acesso negado."
-												          )
-								                    )
-				                  )
+                        .authenticationEntryPoint(
+                                (request, response, exception) ->
+                                        writeError(
+                                                response,
+                                                HttpServletResponse.SC_UNAUTHORIZED,
+                                                "Autenticação necessária."
+                                        )
+                        )
 
-				// logout controlado pelo AuthController
-				.logout(logout -> logout.disable())
+                        .accessDeniedHandler(
+                                (request, response, exception) ->
+                                        writeError(
+                                                response,
+                                                HttpServletResponse.SC_FORBIDDEN,
+                                                "Acesso negado."
+                                        )
+                        )
+                )
 
-				// necessário para o h2 console em ambiente local
-				.headers(headers ->
-								headers.frameOptions(frameOptions ->
-												frameOptions.sameOrigin()
-								                    )
-				        );
+                // Logout controlado pelo AuthController
+                .logout(logout -> logout.disable())
 
-		return http.build();
-	}
+                // Necessário para o H2 Console em ambiente local
+                .headers(headers ->
+                        headers.frameOptions(frameOptions ->
+                                frameOptions.sameOrigin()
+                        )
+                );
 
-	private static void writeError(
-			HttpServletResponse response,
-			int status,
-			String message) throws IOException {
+        return http.build();
+    }
 
-		response.setStatus(status);
-		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-		response.setCharacterEncoding("UTF-8");
+    private static void writeError(
+            HttpServletResponse response,
+            int status,
+            String message) throws IOException {
 
-		response.getWriter().write(
-				"{\"success\":false,\"message\":\"" + message + "\"}"
-		                          );
-	}
+        response.setStatus(status);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
+
+        response.getWriter().write(
+                "{\"success\":false,\"message\":\"" + message + "\"}"
+        );
+    }
 }

@@ -1,10 +1,9 @@
-// Bagulho para verificar o token do google que foi enviado para o back e saber se realmente é um ip_token válido ou não
-
 package com.duolinfo.ia.proj.config;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -20,16 +19,19 @@ public class GoogleTokenVerifier {
     private final GoogleIdTokenVerifier verifier;
 
     public GoogleTokenVerifier(
-            @Value("${google.client-id}") String clientId)
+            @Value("${GOOGLE_CLIENT_ID}") String clientId)
             throws GeneralSecurityException, IOException {
+
+        List<String> audienceList = Arrays.stream(clientId.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
 
         this.verifier = new GoogleIdTokenVerifier.Builder(
                 GoogleNetHttpTransport.newTrustedTransport(),
                 GsonFactory.getDefaultInstance()
         )
-                .setAudience(
-                        Collections.singletonList(clientId)
-                )
+                .setAudience(audienceList)
                 .build();
     }
 

@@ -6,22 +6,28 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.web.cors.CorsConfigurationSource;
-
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 public class SecurityConfig {
 
+	private final JwtAuthenticationFilter jwtAuthFilter; // Seu filtro de validação JWT
+
+	public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter) {
+		this.jwtAuthFilter = jwtAuthFilter;
+	}
+
 	@Bean
 	public SecurityContextRepository securityContextRepository() {
-		return new HttpSessionSecurityContextRepository();
+		return new NullSecurityContextRepository(); // Não usa sessão HTTP
 	}
 
 	@Bean
@@ -31,102 +37,56 @@ public class SecurityConfig {
 			CorsConfigurationSource corsConfigurationSource) throws Exception {
 
 		http
-				// usa explicitamente o CorsConfigurationSource
-				.cors(cors -> cors
-						.configurationSource(corsConfigurationSource)
-				     )
-
-				// csrf desabilitado porque a api usa autenticação própria
+				.cors(cors -> cors.configurationSource(corsConfigurationSource))
 				.csrf(csrf -> csrf.disable())
 
-				// persistência da autenticação na sessão
 				.securityContext(context -> context
 								.securityContextRepository(securityContextRepository)
-								.requireExplicitSave(true)
 				                )
-
 				.sessionManagement(session -> session
-								.sessionCreationPolicy(
-										SessionCreationPolicy.IF_REQUIRED
-								                      )
+								.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
 				                  )
 
 				.authorizeHttpRequests(authorize -> authorize
+								// Preflight do CORS
+								.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-								// preflight do cors
+								// Endpoints públicos de cadastro e autenticação
+								.requestMatchers(HttpMethod.POST, "/api/users").permitAll() // Criação de usuário
+								.requestMatchers(HttpMethod.POST, "/api/auth/google").permitAll() // Login/Cadastro Google
+								.requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll() // Login por email/senha
+
+								// Documentação pública
 								.requestMatchers(
-										HttpMethod.OPTIONS,
-										"/**"
+										"/", "/index.html", "/favicon.ico", "/error",
+										"/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/webjars/**"
 								                ).permitAll()
 
-								// login google
-								.requestMatchers(
-										HttpMethod.POST,
-										"/api/auth/google"
-								                ).permitAll()
-
-								// recursos públicos
-								.requestMatchers(
-										"/",
-										"/index.html",
-										"/favicon.ico",
-										"/error",
-										"/h2-console/**",
-										"/swagger-ui/**",
-										"/swagger-ui.html",
-										"/v3/api-docs/**",
-										"/webjars/**"
-								                ).permitAll()
-
-								// todo o restante exige autenticação
+								// Todos os outros endpoints exigem o Token JWT
 								.anyRequest().authenticated()
 				                      )
 
+				// Adiciona o filtro JWT antes do filtro padrão do Spring
+				.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+
 				.exceptionHandling(exceptions -> exceptions
-
-								.authenticationEntryPoint(
-										(request, response, exception) ->
-												writeError(
-														response,
-														HttpServletResponse.SC_UNAUTHORIZED,
-														"Autenticação necessária."
-												          )
+								.authenticationEntryPoint((request, response, exception) ->
+												writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "Token ausente ou inválido.")
 								                         )
-
-								.accessDeniedHandler(
-										(request, response, exception) ->
-												writeError(
-														response,
-														HttpServletResponse.SC_FORBIDDEN,
-														"Acesso negado."
-												          )
+								.accessDeniedHandler((request, response, exception) ->
+												writeError(response, HttpServletResponse.SC_FORBIDDEN, "Acesso negado.")
 								                    )
 				                  )
 
-				// logout controlado pelo AuthController
-				.logout(logout -> logout.disable())
-
-				// necessário para o h2 console em ambiente local
-				.headers(headers ->
-								headers.frameOptions(frameOptions ->
-												frameOptions.sameOrigin()
-								                    )
-				        );
+				.headers(headers -> headers.frameOptions(frameOptions -> frameOptions.sameOrigin()));
 
 		return http.build();
 	}
 
-	private static void writeError(
-			HttpServletResponse response,
-			int status,
-			String message) throws IOException {
-
+	private static void writeError(HttpServletResponse response, int status, String message) throws IOException {
 		response.setStatus(status);
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 		response.setCharacterEncoding("UTF-8");
-
-		response.getWriter().write(
-				"{\"success\":false,\"message\":\"" + message + "\"}"
-		                          );
+		response.getWriter().write("{\"success\":false,\"message\":\"" + message + "\"}");
 	}
 }

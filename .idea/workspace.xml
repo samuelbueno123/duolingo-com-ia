@@ -8,22 +8,31 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6082caca-bf19-4d38-bba6-76fb519769d9" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/sprint-java-frontend/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/duolingo-com-ia.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/duolingo-com-ia.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/.env" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/ProjApplication.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/ProjApplication.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/GoogleTokenVerifier.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/GoogleTokenVerifier.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/SecurityConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/SwaggerConfiguration.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/SwaggerConfiguration.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/Auth/AuthController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/Auth/AuthController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/User.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/User.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/test/java/com/duolinfo/ia/proj/ProjApplicationTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/test/java/com/duolinfo/ia/proj/ProjApplicationTests.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/test/java/com/duolinfo/ia/proj/SecurityAndAuthIntegrationTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/test/java/com/duolinfo/ia/proj/SecurityAndAuthIntegrationTests.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/core/config/app_config.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/core/config/app_config.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/core/network/api_client.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/core/network/api_client.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/access/presentation/pages/access_selection_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/access/presentation/pages/access_selection_page.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/auth_dependencies.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/auth_dependencies.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/datasources/auth_remote_datasource.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/datasources/auth_remote_datasource.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/datasources/google_identity_datasource.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/datasources/google_identity_datasource.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/models/backend_auth_session_model.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/models/backend_auth_session_model.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/repositories/auth_repository_impl.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/repositories/auth_repository_impl.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/domain/repositories/auth_repository.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/domain/repositories/auth_repository.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/domain/usecases/sign_in_with_google.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/domain/usecases/sign_in_with_google.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/pages/login_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/pages/login_page.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/viewmodels/login_view_model.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/viewmodels/login_view_model.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/widgets/google_account_card.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/widgets/google_account_card.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/viewmodels/dashboard_view_model.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/viewmodels/dashboard_view_model.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/pubspec.yaml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -40,10 +49,16 @@
     </persistenceIdMap>
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="330" />
+    <option name="cachedIndexableFilesCount" value="473" />
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$/sprint-java-frontend" value="8f0098377a4c53b798b4e59795b6be842453746c" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/sprint-java-frontend" />
+    <option name="ROOT_SYNC" value="DONT_SYNC" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
   &quot;lastFilter&quot;: {
@@ -63,67 +78,70 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0002776563265772" />
-      <entry key="MS500" value="1.3380771723604774" />
-      <entry key="S2" value="2.2823379601965605" />
-      <entry key="S5" value="2.6742375565349112" />
-      <entry key="S10" value="2.8298825607611997" />
-      <entry key="S30" value="2.941605533142601" />
-      <entry key="S60" value="2.9716304129619164" />
-      <entry key="M2" value="3.336253360830475" />
-      <entry key="M5" value="14.61160887266961" />
-      <entry key="M10" value="41.43884151440416" />
-      <entry key="M15" value="61.62487140967461" />
-      <entry key="M30" value="95.06217907105852" />
-      <entry key="H1" value="120.3653908855505" />
-      <entry key="H2" value="136.27205140449706" />
-      <entry key="H4" value="145.24619780738655" />
-      <entry key="D1" value="153.31669534063442" />
-      <entry key="W1" value="154.75806677432723" />
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0005501070451648" />
+      <entry key="S2" value="1.1531481664880845" />
+      <entry key="S5" value="1.4721116536111072" />
+      <entry key="S10" value="1.6871038157448315" />
+      <entry key="S30" value="1.8824176869680649" />
+      <entry key="S60" value="1.9402029907504665" />
+      <entry key="M2" value="2.0299694301342224" />
+      <entry key="M5" value="2.824623733488975" />
+      <entry key="M10" value="4.160168481980077" />
+      <entry key="M15" value="5.635818647744099" />
+      <entry key="M30" value="11.90045679500814" />
+      <entry key="H1" value="25.955894095618028" />
+      <entry key="H2" value="62.02026038652345" />
+      <entry key="H4" value="125.24700827769831" />
+      <entry key="D1" value="256.23908965512317" />
+      <entry key="W1" value="292.4234027281897" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="0.0" />
-      <entry key="S2" value="0.0" />
-      <entry key="S5" value="4.965681901030185E-167" />
-      <entry key="S10" value="7.046759468741771E-84" />
-      <entry key="S30" value="1.9171811453375113E-28" />
-      <entry key="S60" value="1.3846231058802657E-14" />
-      <entry key="M2" value="1.1767000917312184E-7" />
-      <entry key="M5" value="0.0016914778495090493" />
-      <entry key="M10" value="0.0411275801562534" />
-      <entry key="M15" value="0.1191485527853442" />
-      <entry key="M30" value="0.3451790155634387" />
-      <entry key="H1" value="0.5875193746281385" />
-      <entry key="H2" value="0.7664981243474374" />
-      <entry key="H4" value="0.8754987860342418" />
-      <entry key="D1" value="0.9780834823550659" />
-      <entry key="W1" value="0.9968392553740529" />
+      <entry key="MS100" value="1.0726720336905429E-11" />
+      <entry key="MS500" value="0.006398724202029903" />
+      <entry key="S2" value="0.2828286157130258" />
+      <entry key="S5" value="0.6034334028705453" />
+      <entry key="S10" value="0.7842096955800683" />
+      <entry key="S30" value="1.2284769475543371" />
+      <entry key="S60" value="1.7456056564126339" />
+      <entry key="M2" value="2.265680898329831" />
+      <entry key="M5" value="3.035963967044359" />
+      <entry key="M10" value="3.6950351393264733" />
+      <entry key="M15" value="4.031322611323173" />
+      <entry key="M30" value="4.457134478252484" />
+      <entry key="H1" value="4.720382641288096" />
+      <entry key="H2" value="4.9439174758359945" />
+      <entry key="H4" value="5.22865072948462" />
+      <entry key="D1" value="5.807297017231476" />
+      <entry key="W1" value="5.970230036312532" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.7901635731658192" />
-      <entry key="MS500" value="1.164208877921634" />
-      <entry key="S2" value="2.0869372114872626" />
-      <entry key="S5" value="2.56425742657726" />
-      <entry key="S10" value="2.768140712455467" />
-      <entry key="S30" value="2.919362005983457" />
-      <entry key="S60" value="2.9602897211126216" />
-      <entry key="M2" value="3.330511040809625" />
-      <entry key="M5" value="14.610762517565725" />
-      <entry key="M10" value="41.47831769983695" />
-      <entry key="M15" value="61.74262958853136" />
-      <entry key="M30" value="95.40632515666614" />
-      <entry key="H1" value="120.95222986506431" />
-      <entry key="H2" value="137.03815104897868" />
-      <entry key="H4" value="146.12147989447718" />
-      <entry key="D1" value="154.29473999321226" />
-      <entry key="W1" value="155.7549004120506" />
+      <entry key="MS100" value="1.2793622037336004E-8" />
+      <entry key="MS500" value="0.02736024248639092" />
+      <entry key="S2" value="0.6990765286590147" />
+      <entry key="S5" value="1.6264665553261648" />
+      <entry key="S10" value="2.205326046355191" />
+      <entry key="S30" value="3.003558342469591" />
+      <entry key="S60" value="3.6246772603370547" />
+      <entry key="M2" value="4.261425610687501" />
+      <entry key="M5" value="5.844158204856435" />
+      <entry key="M10" value="7.845614988461566" />
+      <entry key="M15" value="9.660257237899073" />
+      <entry key="M30" value="16.353817911153094" />
+      <entry key="H1" value="30.674259904192983" />
+      <entry key="H2" value="66.96306172682735" />
+      <entry key="H4" value="130.4750091664241" />
+      <entry key="D1" value="262.0462461130371" />
+      <entry key="W1" value="298.39361139766606" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 3
 }</component>
   <component name="ProjectId" id="3HhxM420tiPbDvFoW7kguICrSxa" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
   <component name="ProjectSessionTemplates">
     <option name="panelTemplate">
       <template>
@@ -134,7 +152,8 @@
             <option name="modelValue" value="auto" />
           </model>
         </option>
-        <option name="targetType" value="LOCAL" />
+        <option name="targetType" value="BACKGROUND" />
+        <option name="worktreeMode" value="WORKSPACE" />
       </template>
     </option>
   </component>
@@ -142,33 +161,36 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "Flutter.Duolinfo.executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.MCP Project settings loaded": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "copilot.chat.legacySessionMetadata.migrated": "true",
-    "dart.analysis.tool.window.visible": "false",
-    "git-widget-placeholder": "main",
-    "ignore.virus.scanning.warn.message": "true",
-    "io.flutter.reload.alreadyRun": "true",
-    "kotlin-language-version-configured": "true",
-    "project.structure.last.edited": "Global Libraries",
-    "project.structure.proportion": "0.0",
-    "project.structure.side.proportion": "0.2",
-    "settings.editor.selected.configurable": "templates.modelproviders.configurable",
-    "show.migrate.to.gradle.popup": "false"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;Flutter.Duolinfo.executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;copilot.chat.legacySessionMetadata.migrated&quot;: &quot;true&quot;,
+    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;io.flutter.reload.alreadyRun&quot;: &quot;true&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;show.migrate.to.gradle.popup&quot;: &quot;false&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager">
     <configuration name="Duolinfo" type="FlutterRunConfigurationType" factoryName="Flutter">
       <option name="additionalArgs" value="--dart-define-from-file=.env --web-port=5500" />

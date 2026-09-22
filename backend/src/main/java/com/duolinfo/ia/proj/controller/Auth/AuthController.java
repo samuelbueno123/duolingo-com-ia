@@ -8,12 +8,8 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,253 +17,296 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.duolinfo.ia.proj.config.GoogleTokenVerifier;
+import com.duolinfo.ia.proj.entity.User;
+import com.duolinfo.ia.proj.service.JwtService;
 import com.duolinfo.ia.proj.service.StudentService;
 import com.duolinfo.ia.proj.service.TeacherService;
+import com.duolinfo.ia.proj.service.UserService;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-
-import org.springframework.web.bind.annotation.CrossOrigin;
 
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*", allowedHeaders = "*")
 @Tag(
-        name = "Auth",
-        description = "Autenticação via Google e gerenciamento da sessão do usuário"
+		name = "Auth",
+		description = "Autenticação via Google e emissão de Tokens JWT"
 )
 public class AuthController {
 
-    private final GoogleTokenVerifier googleTokenVerifier;
-    private final StudentService studentService;
-    private final TeacherService teacherService;
-    private final SecurityContextRepository securityContextRepository;
+	private final GoogleTokenVerifier googleTokenVerifier;
+	private final StudentService studentService;
+	private final TeacherService teacherService;
+	private final UserService userService;
+	private final JwtService jwtService; // Injeção do serviço de JWT
 
-    public AuthController(
-            GoogleTokenVerifier googleTokenVerifier,
-            StudentService studentService,
-            TeacherService teacherService,
-            SecurityContextRepository securityContextRepository) {
+	public AuthController(
+			GoogleTokenVerifier googleTokenVerifier,
+			StudentService studentService,
+			TeacherService teacherService,
+			UserService userService,
+			JwtService jwtService) {
 
-        this.googleTokenVerifier = googleTokenVerifier;
-        this.studentService = studentService;
-        this.teacherService = teacherService;
-        this.securityContextRepository = securityContextRepository;
-    }
+		this.googleTokenVerifier = googleTokenVerifier;
+		this.studentService = studentService;
+		this.teacherService = teacherService;
+		this.userService = userService;
+		this.jwtService = jwtService;
+	}
 
-    @PostMapping("/google")
-    @Operation(
-            summary = "Realiza login com Google",
-            description = "Valida o token do Google, cria a sessão autenticada e retorna os dados do usuário e o tipo de perfil."
-    )
-    public ResponseEntity<?> loginGoogle(
-            @RequestBody GoogleLoginRequest request,
-            HttpServletRequest httpRequest,
-            HttpServletResponse httpResponse) {
+	@PostMapping("/google")
+	@Operation(
+			summary = "Realiza login com Google",
+			description = "Valida o token do Google, cadastra/atualiza o usuário e retorna o Token JWT da aplicação."
+	)
+	public ResponseEntity<?> loginGoogle(@RequestBody GoogleLoginRequest request) {
 
-        try {
-            if (request == null
-                    || request.getCredential() == null
-                    || request.getCredential().isBlank()) {
+		try {
+			if (request == null
+					|| request.getCredential() == null
+					|| request.getCredential().isBlank()) {
 
-                return ResponseEntity.badRequest().body(
-                        Map.of(
-                                "success", false,
-                                "message", "Credencial do Google não informada."
-                        )
-                );
-            }
+				return ResponseEntity.badRequest().body(
+						Map.of(
+								"success", false,
+								"message", "Credencial do Google não informada."
+						      )
+				                                       );
+			}
 
-            GoogleIdToken idToken =
-                    googleTokenVerifier.verify(request.getCredential());
+			GoogleIdToken idToken = googleTokenVerifier.verify(request.getCredential());
 
-            if (idToken == null) {
-                return ResponseEntity
-                        .status(HttpStatus.UNAUTHORIZED)
-                        .body(
-                                Map.of(
-                                        "success", false,
-                                        "message", "Token do Google inválido."
-                                )
-                        );
-            }
+			if (idToken == null) {
+				return ResponseEntity
+						.status(HttpStatus.UNAUTHORIZED)
+						.body(
+								Map.of(
+										"success", false,
+										"message", "Token do Google inválido."
+								      )
+						     );
+			}
 
-            Payload payload = idToken.getPayload();
+			Payload payload = idToken.getPayload();
 
-            if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
-                return ResponseEntity
-                        .status(HttpStatus.UNAUTHORIZED)
-                        .body(
-                                Map.of(
-                                        "success", false,
-                                        "message",
-                                        "O Google não confirmou este endereço de email."
-                                )
-                        );
-            }
+			if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
+				return ResponseEntity
+						.status(HttpStatus.UNAUTHORIZED)
+						.body(
+								Map.of(
+										"success", false,
+										"message", "O Google não confirmou este endereço de email."
+								      )
+						     );
+			}
 
-            String googleId = payload.getSubject();
-            String email = payload.getEmail();
-            String name = (String) payload.get("name");
-            String picture = (String) payload.get("picture");
-            String hostedDomain = (String) payload.get("hd");
+			String googleId = payload.getSubject();
+			String email = payload.getEmail();
+			String name = (String) payload.get("name");
+			String picture = (String) payload.get("picture");
+			String hostedDomain = (String) payload.get("hd");
 
-            GooglePayload googlePayload = new GooglePayload(
-                    googleId,
-                    email,
-                    name,
-                    picture,
-                    hostedDomain
-            );
+			// Garante que o usuário existe no banco de dados
+			User user = userService.findByEmail(email);
+			if (user == null) {
+				user = new User();
+				user.setEmail(email);
+				user.setName(name);
+				user.setGoogleId(googleId);
+				user.setProfilePicture(picture);
+				user = userService.create(user);
+			} else if (user.getGoogleId() == null || user.getGoogleId().isBlank()) {
+				user.setGoogleId(googleId);
+				user.setProfilePicture(picture);
+				userService.update(user);
+			}
 
-            String profileType = resolveProfileType(googleId, email);
+			String profileType = resolveProfileType(googleId, email);
 
-            Authentication authentication =
-                    UsernamePasswordAuthenticationToken.authenticated(
-                            googlePayload,
-                            null,
-                            List.of(
-                                    new SimpleGrantedAuthority(
-                                            "ROLE_" + profileType
-                                    )
-                            )
-                    );
+			// Gera o Token JWT da sua aplicação
+			String token = jwtService.generateToken(user, profileType);
 
-            SecurityContext context =
-                    SecurityContextHolder.createEmptyContext();
+			GooglePayload googlePayload = new GooglePayload(
+					googleId,
+					email,
+					name,
+					picture,
+					hostedDomain
+			);
 
-            context.setAuthentication(authentication);
-            SecurityContextHolder.setContext(context);
+			Map<String, Object> response = new LinkedHashMap<>();
+			response.put("success", true);
+			response.put("message", "Login Google realizado com sucesso.");
+			response.put("token", token); // <-- O front-end precisa desse campo
+			response.put("user", googlePayload);
+			response.put("profileType", profileType);
 
-            securityContextRepository.saveContext(
-                    context,
-                    httpRequest,
-                    httpResponse
-            );
+			return ResponseEntity.ok(response);
 
-            Map<String, Object> response = new LinkedHashMap<>();
+		} catch (GeneralSecurityException | IOException | IllegalArgumentException exception) {
+			return ResponseEntity
+					.status(HttpStatus.UNAUTHORIZED)
+					.body(
+							Map.of(
+									"success", false,
+									"message", "Não foi possível validar o token do Google."
+							      )
+					     );
+		}
+	}
 
-            response.put("success", true);
-            response.put(
-                    "message",
-                    "Login Google realizado com sucesso."
-            );
-            response.put("user", googlePayload);
-            response.put("profileType", profileType);
+	@PostMapping("/login")
+	@Operation(
+			summary = "Realiza login com email e senha",
+			description = "Valida as credenciais, busca/cria o usuário e retorna o Token JWT."
+	)
+	public ResponseEntity<?> loginWithPassword(@RequestBody PasswordLoginRequest request) {
 
-            return ResponseEntity.ok(response);
+		if (request == null
+				|| request.getEmail() == null
+				|| request.getEmail().isBlank()
+				|| request.getPassword() == null
+				|| request.getPassword().isBlank()) {
 
-        } catch (GeneralSecurityException
-                 | IOException
-                 | IllegalArgumentException exception) {
+			return ResponseEntity.badRequest().body(
+					Map.of(
+							"success", false,
+							"message", "Email e senha são obrigatórios."
+					      )
+			                                       );
+		}
 
-            return ResponseEntity
-                    .status(HttpStatus.UNAUTHORIZED)
-                    .body(
-                            Map.of(
-                                    "success", false,
-                                    "message",
-                                    "Não foi possível validar o token do Google."
-                            )
-                    );
-        }
-    }
+		String email = request.getEmail().trim().toLowerCase();
+		String rawPassword = request.getPassword();
 
-    @GetMapping("/me")
-    @Operation(
-            summary = "Retorna o usuário autenticado",
-            description = "Informa se existe uma sessão autenticada e retorna o principal e o perfil atual."
-    )
-    public ResponseEntity<?> me(Authentication authentication) {
-        return ResponseEntity.ok(
-                authenticatedResponse(authentication)
-        );
-    }
+		User user = userService.findByEmail(email);
 
-    @PostMapping("/logout")
-    @Operation(
-            summary = "Encerra a sessão",
-            description = "Invalida a sessão HTTP atual e limpa o contexto de segurança."
-    )
-    public ResponseEntity<?> logout(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
+		if (user == null) {
+			String defaultName = email.contains("@")
+			                     ? email.substring(0, email.indexOf("@"))
+			                     : email;
+			if (!defaultName.isEmpty()) {
+				defaultName = Character.toUpperCase(defaultName.charAt(0)) + defaultName.substring(1);
+			}
 
-        if (session != null) {
-            session.invalidate();
-        }
+			user = new User();
+			user.setEmail(email);
+			user.setName(defaultName);
+			user.setPasswordHash(rawPassword);
 
-        SecurityContextHolder.clearContext();
+			user = userService.create(user);
+		} else {
+			if (user.getPasswordHash() != null && !user.getPasswordHash().isBlank()) {
+				if (!user.getPasswordHash().equals(rawPassword)) {
+					return ResponseEntity
+							.status(HttpStatus.UNAUTHORIZED)
+							.body(
+									Map.of(
+											"success", false,
+											"message", "Senha incorreta."
+									      )
+							     );
+				}
+			} else {
+				user.setPasswordHash(rawPassword);
+				userService.update(user);
+			}
+		}
 
-        return ResponseEntity.ok(
-                Map.of(
-                        "success", true,
-                        "message", "Logout realizado com sucesso."
-                )
-        );
-    }
+		String googleId = user.getGoogleId() != null ? user.getGoogleId() : "";
+		String profileType = resolveProfileType(googleId, email);
 
-    private Map<String, Object> authenticatedResponse(
-            Authentication authentication) {
+		// Gera o Token JWT
+		String token = jwtService.generateToken(user, profileType);
 
-        Map<String, Object> response = new LinkedHashMap<>();
+		GooglePayload userPayload = new GooglePayload(
+				googleId,
+				email,
+				user.getName(),
+				user.getProfilePicture(),
+				null
+		);
 
-        response.put("success", true);
-        response.put(
-                "authenticated",
-                authentication != null && authentication.isAuthenticated()
-        );
-        response.put(
-                "user",
-                authentication != null
-                        ? authentication.getPrincipal()
-                        : null
-        );
-        response.put(
-                "profileType",
-                authentication == null
-                        ? null
-                        : getProfileType(authentication)
-        );
+		Map<String, Object> response = new LinkedHashMap<>();
+		response.put("success", true);
+		response.put("message", "Login realizado com sucesso.");
+		response.put("token", token); // <-- O front-end precisa desse campo
+		response.put("user", userPayload);
+		response.put("profileType", profileType);
 
-        return response;
-    }
+		return ResponseEntity.ok(response);
+	}
 
-    private String getProfileType(Authentication authentication) {
-        return authentication
-                .getAuthorities()
-                .stream()
-                .findFirst()
-                .map(authority ->
-                        authority
-                                .getAuthority()
-                                .replaceFirst("^ROLE_", "")
-                )
-                .orElse("USER");
-    }
+	@GetMapping("/me")
+	@Operation(
+			summary = "Retorna o usuário autenticado",
+			description = "Retorna os dados do usuário a partir da autenticação resolvida pelo filtro JWT."
+	)
+	public ResponseEntity<?> me(Authentication authentication) {
+		return ResponseEntity.ok(
+				authenticatedResponse(authentication)
+		                        );
+	}
 
-    private String resolveProfileType(
-            String googleId,
-            String email) {
+	@PostMapping("/logout")
+	@Operation(
+			summary = "Encerra a sessão",
+			description = "Em arquitetura JWT, o logout é concluído limpando o token no front-end."
+	)
+	public ResponseEntity<?> logout() {
+		return ResponseEntity.ok(
+				Map.of(
+						"success", true,
+						"message", "Logout realizado com sucesso."
+				      )
+		                        );
+	}
 
-        if (teacherService.findByGoogleId(googleId) != null
-                || (email != null
-                && teacherService.findByEmail(email) != null)) {
+	private Map<String, Object> authenticatedResponse(Authentication authentication) {
 
-            return "TEACHER";
-        }
+		Map<String, Object> response = new LinkedHashMap<>();
 
-        if (studentService.findByGoogleId(googleId) != null
-                || (email != null
-                && studentService.findByEmail(email) != null)) {
+		response.put("success", true);
+		response.put(
+				"authenticated",
+				authentication != null && authentication.isAuthenticated()
+		            );
+		response.put(
+				"user",
+				authentication != null ? authentication.getPrincipal() : null
+		            );
+		response.put(
+				"profileType",
+				authentication == null ? null : getProfileType(authentication)
+		            );
 
-            return "STUDENT";
-        }
+		return response;
+	}
 
-        return "USER";
-    }
+	private String getProfileType(Authentication authentication) {
+		return authentication
+				.getAuthorities()
+				.stream()
+				.findFirst()
+				.map(authority -> authority.getAuthority().replaceFirst("^ROLE_", ""))
+				.orElse("USER");
+	}
+
+	private String resolveProfileType(String googleId, String email) {
+
+		if (teacherService.findByGoogleId(googleId) != null
+				|| (email != null && teacherService.findByEmail(email) != null)) {
+			return "TEACHER";
+		}
+
+		if (studentService.findByGoogleId(googleId) != null
+				|| (email != null && studentService.findByEmail(email) != null)) {
+			return "STUDENT";
+		}
+
+		return "USER";
+	}
 }

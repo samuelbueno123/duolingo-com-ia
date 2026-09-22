@@ -31,18 +31,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 
 import jakarta.servlet.http.HttpSession;
 
-@SpringBootTest(
-        classes = ProjApplication.class,
-        properties = {
-                "spring.datasource.url=jdbc:h2:mem:duolingo-test;DB_CLOSE_DELAY=-1",
-                "spring.datasource.driver-class-name=org.h2.Driver",
-                "spring.datasource.username=sa",
-                "spring.datasource.password=",
-                "spring.jpa.hibernate.ddl-auto=create-drop",
-                "spring.jpa.show-sql=false",
-                "spring.h2.console.enabled=false"
-        }
-)
+@SpringBootTest()
 class SecurityAndAuthIntegrationTests {
 
     @Autowired
@@ -305,6 +294,56 @@ class SecurityAndAuthIntegrationTests {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message")
                         .value("Logout realizado com sucesso."));
+    }
+
+    @Test
+    void shouldLoginWithPasswordAndCreateSession() throws Exception {
+        MvcResult loginResult = mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "email": "user.senha@example.com",
+                                          "password": "secretPassword123"
+                                        }
+                                        """)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.user.email")
+                        .value("user.senha@example.com"))
+                .andExpect(jsonPath("$.profileType")
+                        .value("USER"))
+                .andReturn();
+
+        HttpSession session = loginResult.getRequest().getSession(false);
+
+        if (session == null) {
+            throw new AssertionError("O login por senha deveria ter criado uma sessão.");
+        }
+
+        mockMvc.perform(
+                        get("/api/auth/me")
+                                .session((org.springframework.mock.web.MockHttpSession) session)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.authenticated").value(true))
+                .andExpect(jsonPath("$.user.email").value("user.senha@example.com"));
+
+        mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "email": "user.senha@example.com",
+                                          "password": "wrongPassword"
+                                        }
+                                        """)
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Senha incorreta."));
     }
 
     private GoogleIdToken createGoogleIdToken() {

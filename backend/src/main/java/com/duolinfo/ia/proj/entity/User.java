@@ -1,5 +1,3 @@
-// Não preciso dar detalhes sobre essa parte, claro kkk
-
 package com.duolinfo.ia.proj.entity;
 
 import jakarta.persistence.*;
@@ -33,9 +31,8 @@ public class User {
     @Column(name = "google_id", unique = true)
     private String googleId;
 
-
     // ==========================================
-    // NOME
+    // NOME DO USUÁRIO
     // ==========================================
 
     @Column(nullable = false)
@@ -67,5 +64,4 @@ public class User {
 
     @Column(name = "password_hash") // Não é nullable porque o usuário pode logar com o Google, então não precisa de senha
     private String passwordHash;
-
-}
+	}

@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -18,6 +19,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "student_languages")
 public class StudentLanguage {
@@ -27,15 +29,16 @@ public class StudentLanguage {
     private Long id;
 
     @Column(name = "language_name", nullable = false)
-    private String languageName; // ex: "Ingles", "Espanhol"
+    private String languageName;
 
+    @Builder.Default
     @Column(name = "level", nullable = false)
-    private String level; // ex: "1", "2" ou "A1", "B2", "S"
+    private String level = "1";
 
-    @Column(name = "score")
-    private Integer score; // ex: 1500 (pontuação acumulada)
+    @Builder.Default
+    @Column(name = "score", nullable = false)
+    private Integer score = 0;
 
-    // Relacionamento Muitos-para-Um com o estudante
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
     private Student student;

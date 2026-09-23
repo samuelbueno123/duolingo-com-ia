@@ -15,9 +15,27 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
 
     Optional<Teacher> findByEmail(String email);
 
-    List<Teacher> findByInstitutionContainingIgnoreCase(String institution);
+    List<Teacher> findByNameContainingIgnoreCase(String name);
+    boolean existsByNameIgnoreCase(String name);
 
-    List<Teacher> findByTaughtLanguagesContainingIgnoreCase(String language);
+    Optional<Teacher> findByInstitutionIdAndEmail(
+        Long institutionId,
+        String email
+    );
 
-    List<Teacher> findBySpecializationAreasContainingIgnoreCase(String specializationArea);
+    List<Teacher> findByInstitutionId(Long institutionId);
+
+    List<Teacher> findByInstitutionIdAndTaughtLanguagesContaining(
+        Long institutionId,
+        String language
+    );
+
+    List<Teacher> findByInstitutionIdAndSpecializationAreasContaining(
+        Long institutionId,
+        String specializationArea
+    );
+
+    List<Teacher> findByInstitution_NameContainingIgnoreCase(
+        String institutionName
+    );
 }

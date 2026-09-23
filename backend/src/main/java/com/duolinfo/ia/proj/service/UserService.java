@@ -2,7 +2,10 @@ package com.duolinfo.ia.proj.service;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.repository.UserRepository;
@@ -11,9 +14,11 @@ import com.duolinfo.ia.proj.repository.UserRepository;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
 
@@ -23,11 +28,75 @@ public class UserService {
     // ==========================================
 
     public User create(User user) {
+
+        if (userRepository
+                .findByEmail(user.getEmail())
+                .isPresent()) {
+
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "E-mail já cadastrado no sistema."
+            );
+        }
+
+        /*
+        * Usuários Google podem não possuir senha.
+        */
+        if (user.getPasswordHash() != null
+                && !user.getPasswordHash().isBlank()) {
+
+            user.setPasswordHash(
+                passwordEncoder.encode(
+                    user.getPasswordHash()
+                )
+            );
+        }
+
         return userRepository.save(user);
     }
     
     public User update(User user) {
-        return userRepository.save(user);
+
+        User existingUser =
+            userRepository.findById(user.getId())
+                .orElseThrow(() ->
+                    new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Usuário não encontrado."
+                    )
+                );
+
+        existingUser.setName(
+            user.getName()
+        );
+
+        existingUser.setEmail(
+            user.getEmail()
+        );
+
+        existingUser.setGoogleId(
+            user.getGoogleId()
+        );
+
+        existingUser.setProfilePicture(
+            user.getProfilePicture()
+        );
+
+        /*
+        * Só altera a senha quando uma nova senha
+        * realmente foi informada.
+        */
+        if (user.getPasswordHash() != null
+                && !user.getPasswordHash().isBlank()) {
+
+            existingUser.setPasswordHash(
+                passwordEncoder.encode(
+                    user.getPasswordHash()
+                )
+            );
+        }
+
+        return userRepository.save(existingUser);
     }
     
     public void delete(User user) {

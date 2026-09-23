@@ -3,6 +3,7 @@ package com.duolinfo.ia.proj.controller;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,15 +14,24 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.duolinfo.ia.proj.dto.request.StudentRequestDTO;
+import com.duolinfo.ia.proj.dto.response.EnrollmentResponseDTO;
+import com.duolinfo.ia.proj.dto.response.StudentResponseDTO;
 import com.duolinfo.ia.proj.entity.Student;
+import com.duolinfo.ia.proj.entity.StudentLanguage;
+import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.service.StudentService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/students")
-@Tag(name = "Students", description = "API para gerenciamento de estudantes")
+@Tag(
+    name = "Students",
+    description = "Gerenciamento de estudantes"
+)
 public class StudentController {
 
     private final StudentService studentService;
@@ -32,74 +42,213 @@ public class StudentController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Cria um novo estudante", description = "Cria um novo estudante com os dados fornecidos.")
-    public Student create(@RequestBody Student student) {
-        return studentService.create(student);
+    @Operation(
+        summary = "Cria um novo estudante",
+        description = "Cria um novo estudante."
+    )
+    public StudentResponseDTO create(
+            @Valid @RequestBody StudentRequestDTO request) {
+
+        Student student = new Student();
+
+        student.setName(request.name());
+        student.setEmail(request.email());
+        student.setGoogleId(request.googleId());
+
+        if (request.languages() != null) {
+            for (String languageName : request.languages()) {
+
+                if (languageName == null || languageName.isBlank()) {
+                    continue;
+                }
+
+                StudentLanguage language = new StudentLanguage();
+
+                language.setLanguageName(languageName.trim());
+
+                student.addLanguage(language);
+            }
+        }
+
+        return DtoMapper.toStudentResponse(
+            studentService.create(student)
+        );
     }
 
     @GetMapping
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "Lista todos os estudantes", description = "Retorna todos os estudantes cadastrados.")
-    public List<Student> listAll() {
-        return studentService.findAll();
+    @Operation(summary = "Lista estudantes")
+    public List<StudentResponseDTO> listAll() {
+
+        return studentService.findAll()
+            .stream()
+            .map(DtoMapper::toStudentResponse)
+            .toList();
     }
 
     @GetMapping("/{id}")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "Busca um estudante por ID", description = "Retorna os dados de um estudante com base no ID informado.")
-    public Student findById(@PathVariable Long id) {
-        return studentService.findById(id);
+    @Operation(summary = "Busca estudante por ID")
+    public StudentResponseDTO findById(
+            @PathVariable Long id) {
+
+        Student student = studentService.findById(id);
+
+        if (student == null) {
+            throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Estudante não encontrado."
+            );
+        }
+
+        return DtoMapper.toStudentResponse(student);
     }
 
     @GetMapping("/google/{googleId}")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "Busca um estudante por Google ID", description = "Retorna o estudante associado ao Google ID informado.")
-    public Student findByGoogleId(@PathVariable String googleId) {
-        return studentService.findByGoogleId(googleId);
+    @Operation(summary = "Busca estudante por Google ID")
+    public StudentResponseDTO findByGoogleId(
+            @PathVariable String googleId) {
+
+        Student student =
+            studentService.findByGoogleId(googleId);
+
+        if (student == null) {
+            throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Estudante não encontrado."
+            );
+        }
+
+        return DtoMapper.toStudentResponse(student);
     }
 
     @GetMapping("/email/{email}")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "Busca um estudante por email", description = "Retorna o estudante associado ao email informado.")
-    public Student findByEmail(@PathVariable String email) {
-        return studentService.findByEmail(email);
+    @Operation(summary = "Busca estudante por email")
+    public StudentResponseDTO findByEmail(
+            @PathVariable String email) {
+
+        Student student =
+            studentService.findByEmail(email);
+
+        if (student == null) {
+            throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Estudante não encontrado."
+            );
+        }
+
+        return DtoMapper.toStudentResponse(student);
     }
 
     @GetMapping("/name/{name}")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "Busca estudantes por nome", description = "Retorna estudantes cujo nome contenha o valor informado.")
-    public List<Student> findByName(@PathVariable String name) {
-        return studentService.findByName(name);
+    @Operation(summary = "Busca estudantes por nome")
+    public List<StudentResponseDTO> findByName(
+            @PathVariable String name) {
+
+        return studentService.findByName(name)
+            .stream()
+            .map(DtoMapper::toStudentResponse)
+            .toList();
     }
 
     @GetMapping("/language/{language}")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "Busca estudantes por idioma", description = "Retorna estudantes que tenham o idioma informado em suas preferências.")
-    public List<Student> findByPreferredLanguage(@PathVariable String language) {
-        return studentService.findByPreferredLanguage(language);
+    @Operation(summary = "Busca estudantes por idioma")
+    public List<StudentResponseDTO> findByPreferredLanguage(
+            @PathVariable String language) {
+
+        return studentService.findByPreferredLanguage(language)
+            .stream()
+            .map(DtoMapper::toStudentResponse)
+            .toList();
+    }
+
+    @GetMapping("/{studentId}/enrollments")
+    @Operation(summary = "Lista matrículas do estudante")
+    public List<EnrollmentResponseDTO> findEnrollments(
+            @PathVariable Long studentId) {
+
+        verifyStudent(studentId);
+
+        return studentService.findEnrollments(studentId)
+            .stream()
+            .map(DtoMapper::toEnrollmentResponse)
+            .toList();
+    }
+
+    @GetMapping("/{studentId}/enrollments/active")
+    @Operation(summary = "Lista matrículas ativas")
+    public List<EnrollmentResponseDTO> findActiveEnrollments(
+            @PathVariable Long studentId) {
+
+        verifyStudent(studentId);
+
+        return studentService.findActiveEnrollments(studentId)
+            .stream()
+            .map(DtoMapper::toEnrollmentResponse)
+            .toList();
+    }
+
+    @GetMapping("/class/{schoolClassId}")
+    @Operation(summary = "Lista estudantes da turma")
+    public List<StudentResponseDTO> findByClass(
+            @PathVariable Long schoolClassId) {
+
+        return studentService.findByClass(schoolClassId)
+            .stream()
+            .map(DtoMapper::toStudentResponse)
+            .toList();
+    }
+
+    @GetMapping("/class/{schoolClassId}/active")
+    @Operation(summary = "Lista estudantes ativos da turma")
+    public List<StudentResponseDTO> findActiveByClass(
+            @PathVariable Long schoolClassId) {
+
+        return studentService.findActiveByClass(schoolClassId)
+            .stream()
+            .map(DtoMapper::toStudentResponse)
+            .toList();
     }
 
     @PutMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Atualiza um estudante por ID", description = "Atualiza os dados de um estudante existente com base no ID informado.")
-    public void update(@PathVariable Long id, @RequestBody Student student) {
-        Student existingStudent = studentService.findById(id);
-        if (existingStudent == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Estudante não encontrado com o ID: " + id);
+    @Operation(summary = "Atualiza estudante")
+    public void update(
+            @PathVariable Long id,
+            @Valid @RequestBody StudentRequestDTO request) {
+
+        Student existing = studentService.findById(id);
+
+        if (existing == null) {
+            throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Estudante não encontrado."
+            );
         }
 
-        student.setId(id);
-        studentService.update(student);
+        existing.setName(request.name());
+        existing.setEmail(request.email());
+        existing.setGoogleId(request.googleId());
+
+        studentService.update(existing);
     }
 
+    @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Deleta um estudante por ID", description = "Deleta um estudante específico com base no ID informado.")
-    public void deleteById(@PathVariable Long id) {
-        Student existingStudent = studentService.findById(id);
-        if (existingStudent == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Estudante não encontrado com o ID: " + id);
-        }
+    @Operation(summary = "Exclui estudante")
+    public void deleteById(
+            @PathVariable Long id) {
+
+        verifyStudent(id);
 
         studentService.deleteById(id);
+    }
+
+    private void verifyStudent(Long id) {
+
+        if (studentService.findById(id) == null) {
+            throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Estudante não encontrado."
+            );
+        }
     }
 }

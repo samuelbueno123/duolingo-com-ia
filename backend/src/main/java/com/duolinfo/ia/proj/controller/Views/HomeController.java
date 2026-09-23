@@ -1,4 +1,4 @@
-package com.duolinfo.ia.proj.controller;
+package com.duolinfo.ia.proj.controller.Views;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

@@ -35,3 +35,25 @@ Se quiser usar `docker compose` depois do `docker load`, o jeito mais simples é
 ## Observação importante
 
 O `.tar` carrega a imagem da aplicação, mas não inclui automaticamente os dados do volume `duolingo-data`. Se você quiser distribuir também o banco H2 já preenchido, o ideal é copiar a pasta de dados junto ou fazer um backup separado do volume.
+
+
+
+
+
+# MER (Modelo Entidade Relacionamento)
+
+## Tipos de Relacionamentos
+
+| Entidade A | Cardinalidade | Entidade B |
+| :--- | :---: | :--- |
+| Institution | 1:N | Teacher |
+| Institution | 1:N | School |
+| School | 1:N | SchoolClass |
+| SchoolClass | 1:N | Enrollment |
+| Student | 1:N | Enrollment |
+| Student | 1:N | StudentLanguage |
+| SchoolClass | 1:N | ClassTeacherAssignment |
+| Teacher | 1:N | ClassTeacherAssignment |
+| Teacher | 1:N | TeacherDocument |
+| User | 1:N | Student |
+| User | 1:N | Teacher |

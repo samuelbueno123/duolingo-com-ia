@@ -120,6 +120,7 @@ public class SecurityConfig {
                     "/index.html",
                     "/favicon.ico",
                     "/error",
+					"/h2-console/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
                     "/v3/api-docs/**",

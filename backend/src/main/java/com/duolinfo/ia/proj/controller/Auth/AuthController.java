@@ -11,12 +11,14 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.config.GoogleTokenVerifier;
+import com.duolinfo.ia.proj.dto.request.UserRequestDTO;
 import com.duolinfo.ia.proj.dto.response.AuthResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AuthenticatedUserResponseDTO;
 import com.duolinfo.ia.proj.dto.response.ApiErrorResponse;
@@ -347,92 +349,25 @@ public class AuthController {
         String rawPassword =
             request.getPassword();
 
-        User user =
-            userService.findByEmail(email);
-
-        /*
-         * Primeiro acesso usando email/senha.
-         */
-        if (user == null) {
-
-            String defaultName =
-                email.contains("@")
-                    ? email.substring(
-                        0,
-                        email.indexOf("@")
+        User user;
+        try {
+            user = authService.authenticate(
+                email,
+                rawPassword
+            );
+        } catch (ResponseStatusException exception) {
+            String message = exception.getReason() != null
+                ? exception.getReason()
+                : "Credenciais inválidas.";
+            return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(
+                    createError(
+                        HttpStatus.UNAUTHORIZED,
+                        message,
+                        "/api/auth/login"
                     )
-                    : email;
-
-            if (!defaultName.isEmpty()) {
-
-                defaultName =
-                    Character.toUpperCase(
-                        defaultName.charAt(0)
-                    )
-                    + defaultName.substring(1);
-            }
-
-            user = new User();
-
-            user.setEmail(email);
-            user.setName(defaultName);
-
-            /*
-             * IMPORTANTE:
-             * enviamos a senha pura para o UserService.
-             *
-             * O UserService é quem gera o hash.
-             */
-            user.setPasswordHash(rawPassword);
-
-            user =
-                userService.create(user);
-
-        } else if (
-                user.getPasswordHash() == null
-                || user.getPasswordHash().isBlank()) {
-
-            /*
-             * Usuário criado anteriormente apenas com Google.
-             *
-             * Aqui mantive o comportamento que você já tinha:
-             * permite definir uma senha.
-             *
-             * IMPORTANTE:
-             * a senha é enviada pura ao UserService para que
-             * ele faça UMA única criptografia.
-             */
-            user.setPasswordHash(rawPassword);
-
-            user =
-                userService.update(user);
-
-        } else {
-
-            /*
-             * Usuário já possui senha.
-             * AuthService utiliza BCrypt.matches().
-             */
-            try {
-
-                user =
-                    authService.authenticate(
-                        email,
-                        rawPassword
-                    );
-
-            } catch (ResponseStatusException exception) {
-
-                return ResponseEntity
-                    .status(HttpStatus.UNAUTHORIZED)
-                    .body(
-                        createError(
-                            HttpStatus.UNAUTHORIZED,
-                            "Credenciais inválidas.",
-                            "/api/auth/login"
-                        )
-                    );
-            }
+                );
         }
 
         String googleId =
@@ -565,6 +500,76 @@ public class AuthController {
                 "success", true,
                 "message", "Logout realizado com sucesso."
             )
+        );
+    }
+
+    @PutMapping("/me")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+        summary = "Atualiza os dados do próprio usuário autenticado",
+        description = "Atualiza foto de perfil, nome e/ou senha do usuário autenticado no JWT."
+    )
+    public ResponseEntity<?> updateMe(
+            Authentication authentication,
+            @Valid @RequestBody UserRequestDTO request) {
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(
+                    createError(
+                        HttpStatus.UNAUTHORIZED,
+                        "Usuário não autenticado.",
+                        "/api/auth/me"
+                    )
+                );
+        }
+
+        User user = findAuthenticatedUser(authentication);
+
+        if (user == null) {
+            return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(
+                    createError(
+                        HttpStatus.UNAUTHORIZED,
+                        "Usuário autenticado não foi encontrado.",
+                        "/api/auth/me"
+                    )
+                );
+        }
+
+        if (request.name() != null && !request.name().isBlank()) {
+            user.setName(request.name().trim());
+        }
+
+        if (request.profilePicture() != null) {
+            user.setProfilePicture(request.profilePicture());
+        }
+
+        if (request.password() != null && !request.password().isBlank()) {
+            if (user.getPasswordHash() != null && !user.getPasswordHash().isBlank()) {
+                if (request.currentPassword() == null
+                        || request.currentPassword().isBlank()
+                        || !passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+                    return ResponseEntity
+                        .badRequest()
+                        .body(
+                            createError(
+                                HttpStatus.BAD_REQUEST,
+                                "A senha atual informada está incorreta.",
+                                "/api/auth/me"
+                            )
+                        );
+                }
+            }
+            user.setPasswordHash(request.password());
+        }
+
+        User updatedUser = userService.update(user);
+
+        return ResponseEntity.ok(
+            DtoMapper.toUserResponse(updatedUser)
         );
     }
 

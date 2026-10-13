@@ -55,6 +55,7 @@ public class TeacherController {
         teacher.setName(request.name());
         teacher.setEmail(request.email());
         teacher.setGoogleId(request.googleId());
+        teacher.setPasswordHash(request.password());
         teacher.setTaughtLanguages(request.taughtLanguages());
         teacher.setSpecializationAreas(request.specializationAreas());
         teacher.setBibliography(request.bibliography());

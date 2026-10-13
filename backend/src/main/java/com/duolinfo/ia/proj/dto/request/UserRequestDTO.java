@@ -23,20 +23,26 @@ public record UserRequestDTO(
     String email,
 
     @Schema(
-        description = "ID do usuário no Google. Pode ficar vazio para usuários que utilizam senha.",
+        description = "ID do usuário no Google.",
         example = "109876543210987654321"
     )
     String googleId,
 
     @Schema(
-        description = "URL da foto de perfil",
-        example = "https://lh3.googleusercontent.com/..."
+        description = "URL ou Data URL da foto de perfil",
+        example = "data:image/png;base64,..."
     )
     String profilePicture,
 
     @Schema(
-        description = "Senha em texto puro. Será armazenada como hash e nunca retornada pela API.",
-        example = "MinhaSenha123!"
+        description = "Senha atual do usuário (necessária ao alterar a senha)",
+        example = "SenhaAtual123!"
+    )
+    String currentPassword,
+
+    @Schema(
+        description = "Nova senha do usuário",
+        example = "MinhaNovaSenha123!"
     )
     String password
 ) {

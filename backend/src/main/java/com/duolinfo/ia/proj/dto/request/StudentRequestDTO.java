@@ -24,6 +24,12 @@ public record StudentRequestDTO(
     String email,
 
     @Schema(
+        description = "Senha do estudante",
+        example = "senha123"
+    )
+    String password,
+
+    @Schema(
         description = "ID da conta Google",
         example = "12345678901234567890"
     )

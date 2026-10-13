@@ -54,7 +54,8 @@ public class User {
     // FOTO DE PERFIL
     // ==========================================
 
-    @Column(name = "profile_picture", length = 1000)
+    @Lob
+    @Column(name = "profile_picture", columnDefinition = "TEXT")
     private String profilePicture;
 
 

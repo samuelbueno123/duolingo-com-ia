@@ -111,6 +111,18 @@ public class SecurityConfig {
                     "/api/auth/login"
                 ).permitAll()
 
+                // Instituições para busca e cadastro público no registro de professor
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/institutions",
+                    "/api/institutions/**"
+                ).permitAll()
+
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/institutions"
+                ).permitAll()
+
                 // ==========================================
                 // 3. SWAGGER / DOCUMENTAÇÃO
                 // ==========================================

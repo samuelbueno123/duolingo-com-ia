@@ -1,19 +1,26 @@
 package com.duolinfo.ia.proj.service;
 
 import java.util.List;
+import java.util.Optional;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.duolinfo.ia.proj.entity.ClassTeacherAssignment;
 import com.duolinfo.ia.proj.entity.Institution;
 import com.duolinfo.ia.proj.entity.Teacher;
+import com.duolinfo.ia.proj.entity.User;
+import com.duolinfo.ia.proj.exception.BusinessException;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.repository.ClassTeacherAssignmentRepository;
-import com.duolinfo.ia.proj.repository.TeacherRepository;
 import com.duolinfo.ia.proj.repository.InstitutionRepository;
+import com.duolinfo.ia.proj.repository.StudentRepository;
+import com.duolinfo.ia.proj.repository.TeacherRepository;
+import com.duolinfo.ia.proj.repository.UserRepository;
 
-import org.springframework.http.HttpStatus;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 @Service
 public class TeacherService {
@@ -21,21 +28,34 @@ public class TeacherService {
     private final TeacherRepository teacherRepository;
     private final ClassTeacherAssignmentRepository assignmentRepository;
     private final InstitutionRepository institutionRepository;
+    private final UserRepository userRepository;
+    private final StudentRepository studentRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public TeacherService(
             TeacherRepository teacherRepository,
             ClassTeacherAssignmentRepository assignmentRepository,
-            InstitutionRepository institutionRepository) {
+            InstitutionRepository institutionRepository,
+            UserRepository userRepository,
+            StudentRepository studentRepository,
+            PasswordEncoder passwordEncoder) {
 
         this.teacherRepository = teacherRepository;
         this.assignmentRepository = assignmentRepository;
         this.institutionRepository = institutionRepository;
+        this.userRepository = userRepository;
+        this.studentRepository = studentRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     // ==========================================
     // CRUD
     // ==========================================
 
+    @Transactional
     public Teacher create(
             Long institutionId,
             Teacher teacher) {
@@ -48,11 +68,102 @@ public class TeacherService {
                     )
                 );
 
+        if (teacher.getEmail() != null && !teacher.getEmail().isBlank()) {
+            String email = teacher.getEmail().trim().toLowerCase();
+            teacher.setEmail(email);
+
+            if (teacherRepository.findByEmail(email).isPresent()) {
+                throw new BusinessException("Já existe um professor cadastrado com o e-mail: " + email);
+            }
+
+            Optional<User> baseUserOpt = userRepository.findByEmail(email);
+            if (baseUserOpt.isPresent()) {
+                User baseUser = baseUserOpt.get();
+
+                if (studentRepository.existsById(baseUser.getId()) || teacherRepository.existsById(baseUser.getId())) {
+                    throw new BusinessException("E-mail já cadastrado com outro perfil no sistema.");
+                }
+
+                // Proteção contra hijacking de conta com senha existente
+                if (baseUser.getPasswordHash() != null && !baseUser.getPasswordHash().isBlank()) {
+                    if (teacher.getPasswordHash() == null ||
+                        teacher.getPasswordHash().isBlank() ||
+                        !passwordEncoder.matches(teacher.getPasswordHash(), baseUser.getPasswordHash())) {
+                        throw new BusinessException("Este e-mail já possui uma conta cadastrada. Faça login para continuar.");
+                    }
+                } else if (teacher.getPasswordHash() != null && !teacher.getPasswordHash().isBlank()) {
+                    baseUser.setPasswordHash(encodePasswordIfNeeded(teacher.getPasswordHash()));
+                }
+
+                if ((baseUser.getName() == null || baseUser.getName().isBlank()) &&
+                    teacher.getName() != null && !teacher.getName().isBlank()) {
+                    baseUser.setName(teacher.getName().trim());
+                }
+
+                Long userId = baseUser.getId();
+                userRepository.save(baseUser);
+
+                entityManager.createNativeQuery(
+                    "INSERT INTO teachers (id, institution_id, bibliography) VALUES (:id, :institutionId, :bibliography)"
+                )
+                .setParameter("id", userId)
+                .setParameter("institutionId", institutionId)
+                .setParameter("bibliography", teacher.getBibliography())
+                .executeUpdate();
+
+                if (teacher.getTaughtLanguages() != null && !teacher.getTaughtLanguages().isEmpty()) {
+                    for (String lang : teacher.getTaughtLanguages()) {
+                        if (lang != null && !lang.isBlank()) {
+                            entityManager.createNativeQuery(
+                                "INSERT INTO teacher_taught_languages (teacher_id, language_name) VALUES (:teacherId, :lang)"
+                            )
+                            .setParameter("teacherId", userId)
+                            .setParameter("lang", lang.trim())
+                            .executeUpdate();
+                        }
+                    }
+                }
+
+                if (teacher.getSpecializationAreas() != null && !teacher.getSpecializationAreas().isEmpty()) {
+                    for (String area : teacher.getSpecializationAreas()) {
+                        if (area != null && !area.isBlank()) {
+                            entityManager.createNativeQuery(
+                                "INSERT INTO teacher_specialization_areas (teacher_id, specialization_area) VALUES (:teacherId, :area)"
+                            )
+                            .setParameter("teacherId", userId)
+                            .setParameter("area", area.trim())
+                            .executeUpdate();
+                        }
+                    }
+                }
+
+                entityManager.flush();
+                entityManager.clear();
+
+                return teacherRepository.findById(userId).orElseThrow();
+            }
+
+            if (teacher.getPasswordHash() != null && !teacher.getPasswordHash().isBlank()) {
+                teacher.setPasswordHash(encodePasswordIfNeeded(teacher.getPasswordHash()));
+            }
+        }
+
         teacher.setInstitution(institution);
 
         return teacherRepository.save(teacher);
     }
 
+    private String encodePasswordIfNeeded(String password) {
+        if (password == null || password.isBlank()) {
+            return null;
+        }
+        if (password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$")) {
+            return password;
+        }
+        return passwordEncoder.encode(password);
+    }
+
+    @Transactional
     public Teacher update(
             Long id,
             Long institutionId,
@@ -99,19 +210,23 @@ public class TeacherService {
         return teacherRepository.save(current);
     }
 
+    @Transactional
     public void delete(Teacher teacher) {
         teacherRepository.delete(teacher);
     }
 
+    @Transactional
     public void deleteById(Long id) {
         teacherRepository.deleteById(id);
     }
 
+    @Transactional
     public void deleteByGoogleId(String googleId) {
         teacherRepository.findByGoogleId(googleId)
                 .ifPresent(teacherRepository::delete);
     }
 
+    @Transactional
     public void deleteByEmail(String email) {
         teacherRepository.findByEmail(email)
                 .ifPresent(teacherRepository::delete);
@@ -121,49 +236,48 @@ public class TeacherService {
     // Busca
     // ==========================================
 
+    @Transactional(readOnly = true)
     public List<Teacher> findAll() {
         return teacherRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<Teacher> findAllById(Iterable<Long> ids) {
         return teacherRepository.findAllById(ids);
     }
 
+    @Transactional(readOnly = true)
     public Teacher findById(Long id) {
         return teacherRepository.findById(id).orElse(null);
     }
 
+    @Transactional(readOnly = true)
     public Teacher findByGoogleId(String googleId) {
         return teacherRepository.findByGoogleId(googleId).orElse(null);
     }
 
+    @Transactional(readOnly = true)
     public Teacher findByEmail(String email) {
         return teacherRepository.findByEmail(email).orElse(null);
     }
 
+    @Transactional(readOnly = true)
     public List<Teacher> findByName(String name) {
-        // O filtro é feito direto no banco de dados (muito mais rápido)
         return teacherRepository.findByNameContainingIgnoreCase(name);
     }
 
-    /**
-     * Busca professores pelo nome da instituição.
-     *
-     * Antes:
-     * findByInstitutionContainingIgnoreCase(...)
-     *
-     * Agora:
-     * institution é uma entidade relacionada.
-     */
+    @Transactional(readOnly = true)
     public List<Teacher> findByInstitution(String institution) {
         return teacherRepository
                 .findByInstitution_NameContainingIgnoreCase(institution);
     }
 
+    @Transactional(readOnly = true)
     public List<Teacher> findByInstitutionId(Long institutionId) {
         return teacherRepository.findByInstitutionId(institutionId);
     }
 
+    @Transactional(readOnly = true)
     public List<Teacher> findByTaughtLanguage(
             Long institutionId,
             String language) {
@@ -175,6 +289,7 @@ public class TeacherService {
                 );
     }
 
+    @Transactional(readOnly = true)
     public List<Teacher> findBySpecializationArea(
             Long institutionId,
             String specializationArea) {
@@ -190,9 +305,7 @@ public class TeacherService {
     // Turmas / Histórico
     // ==========================================
 
-    /**
-     * Todas as atribuições de turma do professor.
-     */
+    @Transactional(readOnly = true)
     public List<ClassTeacherAssignment> findClassAssignments(
             Long teacherId) {
 
@@ -200,9 +313,7 @@ public class TeacherService {
                 .findByTeacherIdOrderByStartDateDesc(teacherId);
     }
 
-    /**
-     * Verifica se o professor possui histórico de turmas.
-     */
+    @Transactional(readOnly = true)
     public boolean hasClassAssignments(Long teacherId) {
         return !assignmentRepository
                 .findByTeacherId(teacherId)
@@ -213,20 +324,23 @@ public class TeacherService {
     // Verificações de existência
     // ==========================================
 
+    @Transactional(readOnly = true)
     public boolean existsById(Long id) {
         return teacherRepository.existsById(id);
     }
 
+    @Transactional(readOnly = true)
     public boolean existsByGoogleId(String googleId) {
         return teacherRepository.findByGoogleId(googleId).isPresent();
     }
 
+    @Transactional(readOnly = true)
     public boolean existsByEmail(String email) {
         return teacherRepository.findByEmail(email).isPresent();
     }
 
+    @Transactional(readOnly = true)
     public boolean existsByName(String name) {
-        // O banco de dados retorna apenas um true/false de forma super otimizada
         return teacherRepository.existsByNameIgnoreCase(name);
     }
 }

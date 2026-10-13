@@ -54,6 +54,7 @@ public class StudentController {
         student.setName(request.name());
         student.setEmail(request.email());
         student.setGoogleId(request.googleId());
+        student.setPasswordHash(request.password());
 
         if (request.languages() != null) {
             for (String languageName : request.languages()) {

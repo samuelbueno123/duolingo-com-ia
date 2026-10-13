@@ -25,6 +25,12 @@ public record TeacherRequestDTO(
     String email,
 
     @Schema(
+        description = "Senha do professor",
+        example = "senha123"
+    )
+    String password,
+
+    @Schema(
         description = "Google ID do professor",
         example = "123456789"
     )

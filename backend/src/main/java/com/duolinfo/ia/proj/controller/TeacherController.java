@@ -1,5 +1,6 @@
 package com.duolinfo.ia.proj.controller;
 
+import java.util.Base64;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -15,10 +16,12 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.duolinfo.ia.proj.dto.request.TeacherDocumentRequestDTO;
 import com.duolinfo.ia.proj.dto.request.TeacherRequestDTO;
 import com.duolinfo.ia.proj.dto.response.ClassTeacherAssignmentResponseDTO;
 import com.duolinfo.ia.proj.dto.response.TeacherResponseDTO;
 import com.duolinfo.ia.proj.entity.Teacher;
+import com.duolinfo.ia.proj.entity.TeacherDocument;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.service.TeacherService;
 
@@ -59,6 +62,33 @@ public class TeacherController {
         teacher.setTaughtLanguages(request.taughtLanguages());
         teacher.setSpecializationAreas(request.specializationAreas());
         teacher.setBibliography(request.bibliography());
+
+        if (request.documents() != null) {
+            for (TeacherDocumentRequestDTO docDto : request.documents()) {
+                if (docDto == null || docDto.fileName() == null || docDto.fileData() == null || docDto.fileData().isBlank()) {
+                    continue;
+                }
+
+                byte[] bytes;
+                try {
+                    String base64Data = docDto.fileData();
+                    if (base64Data.contains(",")) {
+                        base64Data = base64Data.split(",", 2)[1];
+                    }
+                    bytes = Base64.getDecoder().decode(base64Data);
+                } catch (Exception e) {
+                    continue;
+                }
+
+                TeacherDocument doc = new TeacherDocument();
+                doc.setFileName(docDto.fileName().trim());
+                doc.setContentType(docDto.contentType() != null && !docDto.contentType().isBlank() ? docDto.contentType().trim() : "application/pdf");
+                doc.setFileSize(docDto.fileSize() != null ? docDto.fileSize() : (long) bytes.length);
+                doc.setFileData(bytes);
+
+                teacher.addDocument(doc);
+            }
+        }
 
         return DtoMapper.toTeacherResponse(
             teacherService.create(

@@ -15,54 +15,71 @@ import lombok.NoArgsConstructor;
 @Inheritance(strategy = jakarta.persistence.InheritanceType.JOINED)
 public class User {
 
-    // ==========================================
-    // ID INTERNO DO NOSSO SISTEMA
-    // ==========================================
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
-    // ==========================================
-    // ID DO USUÁRIO NO GOOGLE
-    // ==========================================
-
     @Column(name = "google_id", unique = true)
     private String googleId;
 
-    // ==========================================
-    // NOME DO USUÁRIO
-    // ==========================================
-
     @Column(nullable = false)
-    private String name; 
-    /* 
-        Por favor, tratem o nome do usuário do jeito que vcs quiserem no front, 
-        apenas faça um método para juntar nome e sobrenome e que vcs consiguam saber separar isso depois.
-    */
-
-    // ==========================================
-    // EMAIL
-    // ==========================================
+    private String name;
 
     @Column(nullable = false, unique = true)
     private String email;
-
-
-    // ==========================================
-    // FOTO DE PERFIL
-    // ==========================================
 
     @Lob
     @Column(name = "profile_picture", columnDefinition = "TEXT")
     private String profilePicture;
 
-
-    // ==========================================
-    // Password-Hash do usuário
-    // ==========================================
-
-    @Column(name = "password_hash") // Não é nullable porque o usuário pode logar com o Google, então não precisa de senha
+    @Column(name = "password_hash")
     private String passwordHash;
-	}
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getGoogleId() {
+        return googleId;
+    }
+
+    public void setGoogleId(String googleId) {
+        this.googleId = googleId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getProfilePicture() {
+        return profilePicture;
+    }
+
+    public void setProfilePicture(String profilePicture) {
+        this.profilePicture = profilePicture;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+}

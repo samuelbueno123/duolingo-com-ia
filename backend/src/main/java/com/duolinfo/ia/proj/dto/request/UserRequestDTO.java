@@ -2,7 +2,6 @@ package com.duolinfo.ia.proj.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 
 @Schema(description = "Dados para criação ou atualização de usuário")
 public record UserRequestDTO(
@@ -11,14 +10,12 @@ public record UserRequestDTO(
         description = "Nome completo do usuário",
         example = "João Pedro da Silva"
     )
-    @NotBlank(message = "O nome é obrigatório.")
     String name,
 
     @Schema(
         description = "Email do usuário",
         example = "joao@exemplo.com"
     )
-    @NotBlank(message = "O email é obrigatório.")
     @Email(message = "Email inválido.")
     String email,
 

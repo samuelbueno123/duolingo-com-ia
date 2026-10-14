@@ -543,7 +543,12 @@ public class AuthController {
             user.setName(request.name().trim());
         }
 
-        if (request.profilePicture() != null) {
+        boolean isGoogleUser = user.getGoogleId() != null && !user.getGoogleId().isBlank();
+        if (!isGoogleUser && request.email() != null && !request.email().isBlank()) {
+            user.setEmail(request.email().trim().toLowerCase());
+        }
+
+        if (request.profilePicture() != null && !request.profilePicture().isBlank()) {
             user.setProfilePicture(request.profilePicture());
         }
 

@@ -59,6 +59,11 @@ public record TeacherRequestDTO(
         description = "Currículo ou biografia do professor",
         example = "Professor com 10 anos de experiência..."
     )
-    String bibliography
+    String bibliography,
+
+    @Schema(
+        description = "Anexos do professor (diploma, currículo, etc.)"
+    )
+    List<TeacherDocumentRequestDTO> documents
 ) {
 }

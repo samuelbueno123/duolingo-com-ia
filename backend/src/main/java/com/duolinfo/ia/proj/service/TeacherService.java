@@ -137,6 +137,22 @@ public class TeacherService {
                     }
                 }
 
+                if (teacher.getDocuments() != null && !teacher.getDocuments().isEmpty()) {
+                    for (com.duolinfo.ia.proj.entity.TeacherDocument doc : teacher.getDocuments()) {
+                        if (doc.getFileName() != null && doc.getFileData() != null) {
+                            entityManager.createNativeQuery(
+                                "INSERT INTO teacher_documents (teacher_id, file_name, content_type, file_size, file_data) VALUES (:teacherId, :fileName, :contentType, :fileSize, :fileData)"
+                            )
+                            .setParameter("teacherId", userId)
+                            .setParameter("fileName", doc.getFileName())
+                            .setParameter("contentType", doc.getContentType())
+                            .setParameter("fileSize", doc.getFileSize())
+                            .setParameter("fileData", doc.getFileData())
+                            .executeUpdate();
+                        }
+                    }
+                }
+
                 entityManager.flush();
                 entityManager.clear();
 

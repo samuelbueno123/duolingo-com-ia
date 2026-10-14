@@ -36,9 +36,8 @@ public record StudentRequestDTO(
     String googleId,
 
     @Schema(
-        description = "Idiomas de preferência do estudante",
-        example = "[\"Inglês\", \"Espanhol\"]"
+        description = "Idiomas de preferência e proficiência do estudante"
     )
-    List<String> languages
+    List<StudentLanguageRequestDTO> languages
 ) {
 }

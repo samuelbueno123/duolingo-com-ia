@@ -28,6 +28,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
+
 @RestController
 @RequestMapping("/api/users")
 @Validated
@@ -39,13 +41,16 @@ public class UserController {
 
     private final UserService userService;
     private final JwtService jwtService;
+    private final PasswordEncoder passwordEncoder;
 
     public UserController(
             UserService userService,
-            JwtService jwtService) {
+            JwtService jwtService,
+            PasswordEncoder passwordEncoder) {
 
         this.userService = userService;
         this.jwtService = jwtService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     // ==========================================
@@ -215,20 +220,31 @@ public class UserController {
             );
         }
 
-        existingUser.setName(request.name());
-        existingUser.setEmail(request.email());
-        existingUser.setGoogleId(request.googleId());
-        existingUser.setProfilePicture(request.profilePicture());
+        if (request.name() != null && !request.name().isBlank()) {
+            existingUser.setName(request.name().trim());
+        }
 
-        /*
-         * Só altera a senha se uma nova senha for enviada.
-         */
-        if (request.password() != null
-                && !request.password().isBlank()) {
+        boolean isGoogleUser = existingUser.getGoogleId() != null && !existingUser.getGoogleId().isBlank();
+        if (!isGoogleUser && request.email() != null && !request.email().isBlank()) {
+            existingUser.setEmail(request.email().trim().toLowerCase());
+        }
 
-            existingUser.setPasswordHash(
-                request.password()
-            );
+        if (request.profilePicture() != null && !request.profilePicture().isBlank()) {
+            existingUser.setProfilePicture(request.profilePicture());
+        }
+
+        if (request.password() != null && !request.password().isBlank()) {
+            if (existingUser.getPasswordHash() != null && !existingUser.getPasswordHash().isBlank()) {
+                if (request.currentPassword() == null
+                        || request.currentPassword().isBlank()
+                        || !passwordEncoder.matches(request.currentPassword(), existingUser.getPasswordHash())) {
+                    throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "A senha atual informada está incorreta."
+                    );
+                }
+            }
+            existingUser.setPasswordHash(request.password());
         }
 
         userService.update(existingUser);

@@ -29,9 +29,6 @@ public class Teacher extends User {
 
     /*
      * Instituição à qual o professor pertence.
-     *
-     * Uma instituição pode ter vários professores.
-     * Cada professor pertence a uma instituição.
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "institution_id", nullable = false)
@@ -78,9 +75,6 @@ public class Teacher extends User {
 
     /*
      * Histórico de turmas atribuídas ao professor.
-     *
-     * Não usamos cascade/orphanRemoval aqui porque
-     * queremos preservar o histórico de atribuições.
      */
     @OneToMany(mappedBy = "teacher")
     private List<ClassTeacherAssignment> classAssignments = new ArrayList<>();

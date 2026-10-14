@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.duolinfo.ia.proj.dto.request.StudentLanguageRequestDTO;
 import com.duolinfo.ia.proj.dto.request.StudentRequestDTO;
 import com.duolinfo.ia.proj.dto.response.EnrollmentResponseDTO;
 import com.duolinfo.ia.proj.dto.response.StudentResponseDTO;
@@ -57,15 +58,25 @@ public class StudentController {
         student.setPasswordHash(request.password());
 
         if (request.languages() != null) {
-            for (String languageName : request.languages()) {
+            for (StudentLanguageRequestDTO langDto : request.languages()) {
 
-                if (languageName == null || languageName.isBlank()) {
+                if (langDto == null || langDto.languageName() == null || langDto.languageName().isBlank()) {
                     continue;
                 }
 
                 StudentLanguage language = new StudentLanguage();
 
-                language.setLanguageName(languageName.trim());
+                language.setLanguageName(langDto.languageName().trim());
+
+                if (langDto.level() != null && !langDto.level().isBlank()) {
+                    language.setLevel(langDto.level().trim());
+                } else {
+                    language.setLevel("Iniciante");
+                }
+
+                if (langDto.score() != null) {
+                    language.setScore(langDto.score());
+                }
 
                 student.addLanguage(language);
             }

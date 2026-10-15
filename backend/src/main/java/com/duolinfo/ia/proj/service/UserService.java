@@ -2,7 +2,10 @@ package com.duolinfo.ia.proj.service;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.repository.UserRepository;
@@ -11,9 +14,11 @@ import com.duolinfo.ia.proj.repository.UserRepository;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
 
@@ -23,11 +28,86 @@ public class UserService {
     // ==========================================
 
     public User create(User user) {
+
+        if (userRepository
+                .findByEmail(user.getEmail())
+                .isPresent()) {
+
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "E-mail já cadastrado no sistema."
+            );
+        }
+
+        /*
+        * Usuários Google podem não possuir senha.
+        */
+        if (user.getPasswordHash() != null
+                && !user.getPasswordHash().isBlank()) {
+
+            user.setPasswordHash(
+                passwordEncoder.encode(
+                    user.getPasswordHash()
+                )
+            );
+        }
+
         return userRepository.save(user);
     }
     
     public User update(User user) {
-        return userRepository.save(user);
+
+        User existingUser =
+            userRepository.findById(user.getId())
+                .orElseThrow(() ->
+                    new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Usuário não encontrado."
+                    )
+                );
+
+        if (user.getName() != null && !user.getName().isBlank()) {
+            existingUser.setName(user.getName().trim());
+        }
+
+        if (user.getEmail() != null && !user.getEmail().isBlank()) {
+            existingUser.setEmail(user.getEmail().trim().toLowerCase());
+        }
+
+        if (user.getGoogleId() != null && !user.getGoogleId().isBlank()) {
+            existingUser.setGoogleId(user.getGoogleId().trim());
+        }
+
+        if (user.getProfilePicture() != null) {
+            existingUser.setProfilePicture(user.getProfilePicture());
+        }
+
+        /*
+        * A senha só deve ser alterada se uma nova senha em texto puro for fornecida.
+        * Se user.getPasswordHash() for nulo, em branco ou um hash BCrypt existente ($2a$, $2b$, $2y$),
+        * a senha atual no banco (existingUser.getPasswordHash()) permanece 100% intacta.
+        */
+        if (user.getPasswordHash() != null && !user.getPasswordHash().isBlank()) {
+            String candidate = user.getPasswordHash();
+            if (!candidate.startsWith("$2a$") && !candidate.startsWith("$2b$") && !candidate.startsWith("$2y$")) {
+                existingUser.setPasswordHash(
+                    passwordEncoder.encode(candidate)
+                );
+            }
+        }
+
+        return userRepository.save(existingUser);
+    }
+
+    public User updateProfilePicture(Long userId, String profilePicture) {
+        User existingUser = userRepository.findById(userId)
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Usuário não encontrado."
+            ));
+
+        existingUser.setProfilePicture(profilePicture);
+        return userRepository.save(existingUser);
     }
     
     public void delete(User user) {

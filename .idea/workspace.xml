@@ -8,23 +8,42 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6082caca-bf19-4d38-bba6-76fb519769d9" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/sprint-java-frontend/.env" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/CatalogDataInitializer.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/CatalogController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/LearningExerciseController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/EnrollmentStatusRequestDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/ExerciseFeedbackRequestDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/ExerciseQuestionRequestDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/ExerciseSubmissionRequestDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/LearningExerciseRequestDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/ExerciseQuestionResponseDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/ExerciseSubmissionResponseDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/LearningExerciseResponseDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/LearningRankingEntryResponseDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/CatalogOption.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/ExerciseSubmission.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/LearningExercise.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/CatalogOptionRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/ExerciseSubmissionRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/LearningExerciseRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/LearningExerciseService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/duolingo-com-ia.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/duolingo-com-ia.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/.env" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/SecurityConfig.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/Auth/AuthController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/Auth/AuthController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/EnrollmentController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/EnrollmentController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/StudentController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/StudentController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/UserController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/UserController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/StudentResponseDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/StudentResponseDTO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/EnrollmentStatus.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/EnrollmentStatus.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/mapper/DtoMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/mapper/DtoMapper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/EnrollmentService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/EnrollmentService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/StudentService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/StudentService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/UserService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/UserService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/core/config/app_config.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/core/config/app_config.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/core/network/api_client.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/core/network/api_client.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/access/presentation/pages/access_selection_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/access/presentation/pages/access_selection_page.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/datasources/auth_remote_datasource.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/datasources/auth_remote_datasource.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/datasources/google_identity_datasource.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/datasources/google_identity_datasource.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/models/backend_auth_session_model.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/models/backend_auth_session_model.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/repositories/auth_repository_impl.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/repositories/auth_repository_impl.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/domain/repositories/auth_repository.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/domain/repositories/auth_repository.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/domain/usecases/sign_in_with_google.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/domain/usecases/sign_in_with_google.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/pages/login_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/pages/login_page.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/viewmodels/login_view_model.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/viewmodels/login_view_model.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/widgets/google_account_card.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/widgets/google_account_card.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/pubspec.yaml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -40,10 +59,16 @@
     </persistenceIdMap>
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="330" />
+    <option name="cachedIndexableFilesCount" value="471" />
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$/sprint-java-frontend" value="8f0098377a4c53b798b4e59795b6be842453746c" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/sprint-java-frontend" />
+    <option name="ROOT_SYNC" value="DONT_SYNC" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
   &quot;lastFilter&quot;: {
@@ -53,7 +78,7 @@
 }</component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/samuelbueno123/duolingo-com-ia.git&quot;,
+    &quot;url&quot;: &quot;https://github.com/samuelbueno123/sprint-java-frontend.git&quot;,
     &quot;accountId&quot;: &quot;56212930-127d-411b-9cab-7d2a11a5861b&quot;
   }
 }</component>
@@ -63,67 +88,70 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0002776563265772" />
-      <entry key="MS500" value="1.3380771723604774" />
-      <entry key="S2" value="2.2823379601965605" />
-      <entry key="S5" value="2.6742375565349112" />
-      <entry key="S10" value="2.8298825607611997" />
-      <entry key="S30" value="2.941605533142601" />
-      <entry key="S60" value="2.9716304129619164" />
-      <entry key="M2" value="3.336253360830475" />
-      <entry key="M5" value="14.61160887266961" />
-      <entry key="M10" value="41.43884151440416" />
-      <entry key="M15" value="61.62487140967461" />
-      <entry key="M30" value="95.06217907105852" />
-      <entry key="H1" value="120.3653908855505" />
-      <entry key="H2" value="136.27205140449706" />
-      <entry key="H4" value="145.24619780738655" />
-      <entry key="D1" value="153.31669534063442" />
-      <entry key="W1" value="154.75806677432723" />
+      <entry key="MS100" value="1.6713467875871344" />
+      <entry key="MS500" value="6.072452960461352" />
+      <entry key="S2" value="18.538423310631057" />
+      <entry key="S5" value="33.80212842035404" />
+      <entry key="S10" value="54.859921650826415" />
+      <entry key="S30" value="122.49912335842167" />
+      <entry key="S60" value="174.2764991137831" />
+      <entry key="M2" value="222.4450878524675" />
+      <entry key="M5" value="271.04467677556465" />
+      <entry key="M10" value="294.46767328184467" />
+      <entry key="M15" value="304.2627990295375" />
+      <entry key="M30" value="318.82242802871986" />
+      <entry key="H1" value="336.8904920101356" />
+      <entry key="H2" value="374.17077815350774" />
+      <entry key="H4" value="438.43987724513266" />
+      <entry key="D1" value="574.7505192017214" />
+      <entry key="W1" value="613.0205943163177" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="0.0" />
-      <entry key="S2" value="0.0" />
-      <entry key="S5" value="4.965681901030185E-167" />
-      <entry key="S10" value="7.046759468741771E-84" />
-      <entry key="S30" value="1.9171811453375113E-28" />
-      <entry key="S60" value="1.3846231058802657E-14" />
-      <entry key="M2" value="1.1767000917312184E-7" />
-      <entry key="M5" value="0.0016914778495090493" />
-      <entry key="M10" value="0.0411275801562534" />
-      <entry key="M15" value="0.1191485527853442" />
-      <entry key="M30" value="0.3451790155634387" />
-      <entry key="H1" value="0.5875193746281385" />
-      <entry key="H2" value="0.7664981243474374" />
-      <entry key="H4" value="0.8754987860342418" />
-      <entry key="D1" value="0.9780834823550659" />
-      <entry key="W1" value="0.9968392553740529" />
+      <entry key="MS500" value="2.0784033047152037E-78" />
+      <entry key="S2" value="5.800654472951554E-20" />
+      <entry key="S5" value="3.6816274547406886E-8" />
+      <entry key="S10" value="3.3890851903380846E-4" />
+      <entry key="S30" value="0.16518891200751157" />
+      <entry key="S60" value="0.8036143347558933" />
+      <entry key="M2" value="1.7908686211861724" />
+      <entry key="M5" value="3.128872638017458" />
+      <entry key="M10" value="4.426939711304966" />
+      <entry key="M15" value="5.304825847758125" />
+      <entry key="M30" value="6.6960039336699655" />
+      <entry key="H1" value="7.705079755072357" />
+      <entry key="H2" value="8.38895943620281" />
+      <entry key="H4" value="8.929556253141506" />
+      <entry key="D1" value="9.75128502527471" />
+      <entry key="W1" value="9.961992588328535" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.7901635731658192" />
-      <entry key="MS500" value="1.164208877921634" />
-      <entry key="S2" value="2.0869372114872626" />
-      <entry key="S5" value="2.56425742657726" />
-      <entry key="S10" value="2.768140712455467" />
-      <entry key="S30" value="2.919362005983457" />
-      <entry key="S60" value="2.9602897211126216" />
-      <entry key="M2" value="3.330511040809625" />
-      <entry key="M5" value="14.610762517565725" />
-      <entry key="M10" value="41.47831769983695" />
-      <entry key="M15" value="61.74262958853136" />
-      <entry key="M30" value="95.40632515666614" />
-      <entry key="H1" value="120.95222986506431" />
-      <entry key="H2" value="137.03815104897868" />
-      <entry key="H4" value="146.12147989447718" />
-      <entry key="D1" value="154.29473999321226" />
-      <entry key="W1" value="155.7549004120506" />
+      <entry key="MS100" value="1.597129919269892" />
+      <entry key="MS500" value="5.995009796124625" />
+      <entry key="S2" value="18.48624440024067" />
+      <entry key="S5" value="33.76591958886872" />
+      <entry key="S10" value="54.83138290398567" />
+      <entry key="S30" value="122.61508039953193" />
+      <entry key="S60" value="174.98773858131392" />
+      <entry key="M2" value="224.1344457755337" />
+      <entry key="M5" value="274.10550726952425" />
+      <entry key="M10" value="298.852349179305" />
+      <entry key="M15" value="309.5367246502197" />
+      <entry key="M30" value="325.50114441101107" />
+      <entry key="H1" value="344.5863079640431" />
+      <entry key="H2" value="382.554860041553" />
+      <entry key="H4" value="447.3668657459025" />
+      <entry key="D1" value="584.5013376006417" />
+      <entry key="W1" value="622.9825187560647" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 3
 }</component>
   <component name="ProjectId" id="3HhxM420tiPbDvFoW7kguICrSxa" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
   <component name="ProjectSessionTemplates">
     <option name="panelTemplate">
       <template>
@@ -134,7 +162,8 @@
             <option name="modelValue" value="auto" />
           </model>
         </option>
-        <option name="targetType" value="LOCAL" />
+        <option name="targetType" value="BACKGROUND" />
+        <option name="worktreeMode" value="WORKSPACE" />
       </template>
     </option>
   </component>
@@ -145,6 +174,7 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "CidrDebugProfileConversion": "true",
     "Flutter.Duolinfo.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.MCP Project settings loaded": "true",
@@ -156,23 +186,37 @@
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
     "copilot.chat.legacySessionMetadata.migrated": "true",
     "dart.analysis.tool.window.visible": "false",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "develop",
     "ignore.virus.scanning.warn.message": "true",
     "io.flutter.reload.alreadyRun": "true",
+    "junie.onboarding.icon.badge.shown": "true",
     "kotlin-language-version-configured": "true",
-    "project.structure.last.edited": "Global Libraries",
-    "project.structure.proportion": "0.0",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
     "project.structure.side.proportion": "0.2",
-    "settings.editor.selected.configurable": "templates.modelproviders.configurable",
-    "show.migrate.to.gradle.popup": "false"
+    "settings.editor.selected.configurable": "AndroidSdkUpdater",
+    "show.migrate.to.gradle.popup": "false",
+    "to.speed.mode.migration.done": "true"
   }
 }]]></component>
   <component name="RunManager">
     <configuration name="Duolinfo" type="FlutterRunConfigurationType" factoryName="Flutter">
       <option name="additionalArgs" value="--dart-define-from-file=.env --web-port=5500" />
       <option name="filePath" value="$PROJECT_DIR$/sprint-java-frontend/lib/main.dart" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="JetRunConfigurationType">
+      <module name="duolingo-com-ia" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration default="true" type="KotlinStandaloneScriptRunConfigurationType">
+      <module name="duolingo-com-ia" />
+      <option name="filePath" />
       <method v="2" />
     </configuration>
   </component>

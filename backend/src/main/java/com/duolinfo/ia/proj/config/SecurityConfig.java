@@ -6,127 +6,236 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.web.cors.CorsConfigurationSource;
-
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
-	@Bean
-	public SecurityContextRepository securityContextRepository() {
-		return new HttpSessionSecurityContextRepository();
-	}
+    private final JwtAuthenticationFilter jwtAuthFilter;
 
-	@Bean
-	public SecurityFilterChain securityFilterChain(
-			HttpSecurity http,
-			SecurityContextRepository securityContextRepository,
-			CorsConfigurationSource corsConfigurationSource) throws Exception {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
 
-		http
-				// usa explicitamente o CorsConfigurationSource
-				.cors(cors -> cors
-						.configurationSource(corsConfigurationSource)
-				     )
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
-				// csrf desabilitado porque a api usa autenticação própria
-				.csrf(csrf -> csrf.disable())
+    @Bean
+    public SecurityContextRepository securityContextRepository() {
+        return new NullSecurityContextRepository();
+    }
 
-				// persistência da autenticação na sessão
-				.securityContext(context -> context
-								.securityContextRepository(securityContextRepository)
-								.requireExplicitSave(true)
-				                )
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            SecurityContextRepository securityContextRepository,
+            CorsConfigurationSource corsConfigurationSource) throws Exception {
 
-				.sessionManagement(session -> session
-								.sessionCreationPolicy(
-										SessionCreationPolicy.IF_REQUIRED
-								                      )
-				                  )
+        http
+            .cors(cors -> cors
+                .configurationSource(corsConfigurationSource)
+            )
 
-				.authorizeHttpRequests(authorize -> authorize
+            .csrf(csrf -> csrf.disable())
 
-								// preflight do cors
-								.requestMatchers(
-										HttpMethod.OPTIONS,
-										"/**"
-								                ).permitAll()
+            .securityContext(context -> context
+                .securityContextRepository(
+                    securityContextRepository
+                )
+            )
 
-								// login google
-								.requestMatchers(
-										HttpMethod.POST,
-										"/api/auth/google"
-								                ).permitAll()
+            .sessionManagement(session -> session
+                .sessionCreationPolicy(
+                    SessionCreationPolicy.STATELESS
+                )
+            )
 
-								// recursos públicos
-								.requestMatchers(
-										"/",
-										"/index.html",
-										"/favicon.ico",
-										"/error",
-										"/h2-console/**",
-										"/swagger-ui/**",
-										"/swagger-ui.html",
-										"/v3/api-docs/**",
-										"/webjars/**"
-								                ).permitAll()
+            .authorizeHttpRequests(authorize -> authorize
 
-								// todo o restante exige autenticação
-								.anyRequest().authenticated()
-				                      )
+                // ==========================================
+                // 1. CORS / PRE-FLIGHT
+                // ==========================================
 
-				.exceptionHandling(exceptions -> exceptions
+                .requestMatchers(
+                    HttpMethod.OPTIONS,
+                    "/**"
+                ).permitAll()
 
-								.authenticationEntryPoint(
-										(request, response, exception) ->
-												writeError(
-														response,
-														HttpServletResponse.SC_UNAUTHORIZED,
-														"Autenticação necessária."
-												          )
-								                         )
+                // ==========================================
+                // 2. CADASTRO E AUTENTICAÇÃO PÚBLICOS
+                // ==========================================
 
-								.accessDeniedHandler(
-										(request, response, exception) ->
-												writeError(
-														response,
-														HttpServletResponse.SC_FORBIDDEN,
-														"Acesso negado."
-												          )
-								                    )
-				                  )
+                // Cadastro de usuário
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/users"
+                ).permitAll()
 
-				// logout controlado pelo AuthController
-				.logout(logout -> logout.disable())
+                // Cadastro de aluno
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/students"
+                ).permitAll()
 
-				// necessário para o h2 console em ambiente local
-				.headers(headers ->
-								headers.frameOptions(frameOptions ->
-												frameOptions.sameOrigin()
-								                    )
-				        );
+                // Cadastro de professor
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/teachers"
+                ).permitAll()
 
-		return http.build();
-	}
+                // Login com Google
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/auth/google"
+                ).permitAll()
 
-	private static void writeError(
-			HttpServletResponse response,
-			int status,
-			String message) throws IOException {
+                // Login com email e senha
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/auth/login"
+                ).permitAll()
 
-		response.setStatus(status);
-		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-		response.setCharacterEncoding("UTF-8");
+                // Instituições para busca e cadastro público no registro de professor
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/institutions",
+                    "/api/institutions/**"
+                ).permitAll()
 
-		response.getWriter().write(
-				"{\"success\":false,\"message\":\"" + message + "\"}"
-		                          );
-	}
+                .requestMatchers(
+                    HttpMethod.POST,
+                    "/api/institutions"
+                ).permitAll()
+
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/catalog/languages",
+                    "/api/catalog/proficiency-levels"
+                ).permitAll()
+
+                .requestMatchers(HttpMethod.POST, "/api/exercises")
+                    .hasRole("TEACHER")
+                .requestMatchers(HttpMethod.PATCH, "/api/exercises/submissions/**")
+                    .hasRole("TEACHER")
+                .requestMatchers(HttpMethod.POST, "/api/exercises/*/submissions")
+                    .hasRole("STUDENT")
+                .requestMatchers(HttpMethod.GET, "/api/exercises/**")
+                    .hasAnyRole("STUDENT", "TEACHER")
+                .requestMatchers("/api/exercises/**")
+                    .hasAnyRole("STUDENT", "TEACHER")
+
+                // ==========================================
+                // 3. SWAGGER / DOCUMENTAÇÃO
+                // ==========================================
+
+                .requestMatchers(
+                    "/",
+                    "/index.html",
+                    "/favicon.ico",
+                    "/error",
+					"/h2-console/**",
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/v3/api-docs/**",
+                    "/webjars/**"
+                ).permitAll()
+
+                // ==========================================
+                // 4. OPERAÇÕES DE PROFESSOR
+                // ==========================================
+
+                .requestMatchers(
+                    HttpMethod.DELETE,
+                    "/api/teachers/**"
+                ).hasRole("TEACHER")
+
+                .requestMatchers(
+                    HttpMethod.PUT,
+                    "/api/teachers/**"
+                ).hasRole("TEACHER")
+
+                // ==========================================
+                // 5. RESTANTE DA API
+                // ==========================================
+
+                .anyRequest().authenticated()
+            )
+
+            // ==========================================
+            // JWT FILTER
+            // ==========================================
+
+            .addFilterBefore(
+                jwtAuthFilter,
+                UsernamePasswordAuthenticationFilter.class
+            )
+
+            // ==========================================
+            // TRATAMENTO DE ERROS
+            // ==========================================
+
+            .exceptionHandling(exceptions -> exceptions
+
+                .authenticationEntryPoint(
+                    (request, response, exception) ->
+                        writeError(
+                            response,
+                            HttpServletResponse.SC_UNAUTHORIZED,
+                            "Token ausente ou inválido."
+                        )
+                )
+
+                .accessDeniedHandler(
+                    (request, response, exception) ->
+                        writeError(
+                            response,
+                            HttpServletResponse.SC_FORBIDDEN,
+                            "Acesso negado para o seu perfil."
+                        )
+                )
+            )
+
+            .headers(headers ->
+                headers.frameOptions(
+                    frameOptions ->
+                        frameOptions.sameOrigin()
+                )
+            );
+
+        return http.build();
+    }
+
+    private static void writeError(
+            HttpServletResponse response,
+            int status,
+            String message) throws IOException {
+
+        response.setStatus(status);
+        response.setContentType(
+            MediaType.APPLICATION_JSON_VALUE
+        );
+        response.setCharacterEncoding("UTF-8");
+
+        response.getWriter().write(
+            "{\"success\":false,\"message\":\""
+            + message
+            + "\"}"
+        );
+    }
 }

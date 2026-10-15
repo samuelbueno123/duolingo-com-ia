@@ -7,6 +7,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -234,20 +235,36 @@ public class UserController {
         }
 
         if (request.password() != null && !request.password().isBlank()) {
-            if (existingUser.getPasswordHash() != null && !existingUser.getPasswordHash().isBlank()) {
-                if (request.currentPassword() == null
-                        || request.currentPassword().isBlank()
-                        || !passwordEncoder.matches(request.currentPassword(), existingUser.getPasswordHash())) {
-                    throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "A senha atual informada está incorreta."
-                    );
-                }
+            if (existingUser.getPasswordHash() == null
+                    || existingUser.getPasswordHash().isBlank()
+                    || request.currentPassword() == null
+                    || request.currentPassword().isBlank()
+                    || !passwordEncoder.matches(request.currentPassword(), existingUser.getPasswordHash())) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A senha atual informada está incorreta."
+                );
             }
             existingUser.setPasswordHash(request.password());
         }
-
         userService.update(existingUser);
+    }
+
+    @PatchMapping("/{id}/profile-picture")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Atualiza somente a foto de perfil")
+    public void updateProfilePicture(
+            @PathVariable Long id,
+            @RequestBody UserRequestDTO request) {
+
+        if (request.profilePicture() == null || request.profilePicture().isBlank()) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "A foto de perfil não pode estar vazia."
+            );
+        }
+
+        userService.updateProfilePicture(id, request.profilePicture());
     }
 
     // ==========================================

@@ -55,12 +55,38 @@ public final class DtoMapper {
                     .map(language -> language.getLanguageName())
                     .toList();
 
+        var languageLevels =
+            student.getLanguages() == null
+                ? Collections.<String, String>emptyMap()
+                : student.getLanguages().stream().collect(
+                    java.util.stream.Collectors.toMap(
+                        language -> language.getLanguageName(),
+                        language -> language.getLevel(),
+                        (first, second) -> second,
+                        java.util.LinkedHashMap::new
+                    )
+                );
+
+        var languageScores =
+            student.getLanguages() == null
+                ? Collections.<String, Integer>emptyMap()
+                : student.getLanguages().stream().collect(
+                    java.util.stream.Collectors.toMap(
+                        language -> language.getLanguageName(),
+                        language -> language.getScore(),
+                        (first, second) -> second,
+                        java.util.LinkedHashMap::new
+                    )
+                );
+
         return new StudentResponseDTO(
             student.getId(),
             student.getName(),
             student.getEmail(),
             student.getGoogleId(),
-            languages
+            languages,
+            languageLevels,
+            languageScores
         );
     }
 

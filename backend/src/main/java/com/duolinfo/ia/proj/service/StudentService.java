@@ -155,6 +155,14 @@ public class StudentService {
         current.setEmail(student.getEmail());
         current.setGoogleId(student.getGoogleId());
 
+        if (student.getLanguages() != null && !student.getLanguages().isEmpty()) {
+            current.getLanguages().clear();
+            for (StudentLanguage language : student.getLanguages()) {
+                if (language.getLanguageName() == null || language.getLanguageName().isBlank()) continue;
+                current.addLanguage(language);
+            }
+        }
+
         return studentRepository.save(current);
     }
 

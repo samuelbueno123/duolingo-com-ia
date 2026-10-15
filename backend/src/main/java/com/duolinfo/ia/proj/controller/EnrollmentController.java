@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.duolinfo.ia.proj.dto.request.EnrollmentActionDTO;
 import com.duolinfo.ia.proj.dto.request.EnrollmentRequestDTO;
 import com.duolinfo.ia.proj.dto.request.EnrollmentTransferDTO;
+import com.duolinfo.ia.proj.dto.request.EnrollmentStatusRequestDTO;
 import com.duolinfo.ia.proj.dto.response.EnrollmentResponseDTO;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.service.EnrollmentService;
@@ -157,6 +159,16 @@ public class EnrollmentController {
                 request.date(),
                 request.notes()
             )
+        );
+    }
+
+    @PutMapping("/{id}/status")
+    @Operation(summary = "Atualiza o estado da matrÃ­cula")
+    public EnrollmentResponseDTO updateStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody EnrollmentStatusRequestDTO request) {
+        return DtoMapper.toEnrollmentResponse(
+            enrollmentService.updateStatus(id, request.status(), request.notes())
         );
     }
 

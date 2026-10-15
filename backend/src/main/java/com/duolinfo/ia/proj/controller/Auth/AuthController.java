@@ -569,6 +569,9 @@ public class AuthController {
                 }
             }
             user.setPasswordHash(request.password());
+        } else {
+            // Garante que se não houver troca de senha, o hash atual da conta é preservado intacto no banco
+            //user.setPasswordHash(null);
         }
 
         User updatedUser = userService.update(user);

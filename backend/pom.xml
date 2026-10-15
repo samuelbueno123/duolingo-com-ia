@@ -155,10 +155,10 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- JJWT Jackson Integration (para mapear JSON) -->
+        <!-- JJWT Gson evita trazer Jackson 2 apenas para serializar tokens. -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
+            <artifactId>jjwt-gson</artifactId>
             <version>0.12.5</version>
             <scope>runtime</scope>
         </dependency>

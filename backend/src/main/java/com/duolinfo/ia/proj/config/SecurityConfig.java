@@ -123,6 +123,23 @@ public class SecurityConfig {
                     "/api/institutions"
                 ).permitAll()
 
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/catalog/languages",
+                    "/api/catalog/proficiency-levels"
+                ).permitAll()
+
+                .requestMatchers(HttpMethod.POST, "/api/exercises")
+                    .hasRole("TEACHER")
+                .requestMatchers(HttpMethod.PATCH, "/api/exercises/submissions/**")
+                    .hasRole("TEACHER")
+                .requestMatchers(HttpMethod.POST, "/api/exercises/*/submissions")
+                    .hasRole("STUDENT")
+                .requestMatchers(HttpMethod.GET, "/api/exercises/**")
+                    .hasAnyRole("STUDENT", "TEACHER")
+                .requestMatchers("/api/exercises/**")
+                    .hasAnyRole("STUDENT", "TEACHER")
+
                 // ==========================================
                 // 3. SWAGGER / DOCUMENTAÇÃO
                 // ==========================================
@@ -132,6 +149,7 @@ public class SecurityConfig {
                     "/index.html",
                     "/favicon.ico",
                     "/error",
+					"/h2-console/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
                     "/v3/api-docs/**",

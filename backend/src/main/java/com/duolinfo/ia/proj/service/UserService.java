@@ -66,36 +66,47 @@ public class UserService {
                     )
                 );
 
-        existingUser.setName(
-            user.getName()
-        );
-
-        existingUser.setEmail(
-            user.getEmail()
-        );
-
-        existingUser.setGoogleId(
-            user.getGoogleId()
-        );
-
-        existingUser.setProfilePicture(
-            user.getProfilePicture()
-        );
-
-        /*
-        * Só altera a senha quando uma nova senha
-        * realmente foi informada.
-        */
-        if (user.getPasswordHash() != null
-                && !user.getPasswordHash().isBlank()) {
-
-            existingUser.setPasswordHash(
-                passwordEncoder.encode(
-                    user.getPasswordHash()
-                )
-            );
+        if (user.getName() != null && !user.getName().isBlank()) {
+            existingUser.setName(user.getName().trim());
         }
 
+        if (user.getEmail() != null && !user.getEmail().isBlank()) {
+            existingUser.setEmail(user.getEmail().trim().toLowerCase());
+        }
+
+        if (user.getGoogleId() != null && !user.getGoogleId().isBlank()) {
+            existingUser.setGoogleId(user.getGoogleId().trim());
+        }
+
+        if (user.getProfilePicture() != null) {
+            existingUser.setProfilePicture(user.getProfilePicture());
+        }
+
+        /*
+        * A senha só deve ser alterada se uma nova senha em texto puro for fornecida.
+        * Se user.getPasswordHash() for nulo, em branco ou um hash BCrypt existente ($2a$, $2b$, $2y$),
+        * a senha atual no banco (existingUser.getPasswordHash()) permanece 100% intacta.
+        */
+        if (user.getPasswordHash() != null && !user.getPasswordHash().isBlank()) {
+            String candidate = user.getPasswordHash();
+            if (!candidate.startsWith("$2a$") && !candidate.startsWith("$2b$") && !candidate.startsWith("$2y$")) {
+                existingUser.setPasswordHash(
+                    passwordEncoder.encode(candidate)
+                );
+            }
+        }
+
+        return userRepository.save(existingUser);
+    }
+
+    public User updateProfilePicture(Long userId, String profilePicture) {
+        User existingUser = userRepository.findById(userId)
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Usuário não encontrado."
+            ));
+
+        existingUser.setProfilePicture(profilePicture);
         return userRepository.save(existingUser);
     }
     

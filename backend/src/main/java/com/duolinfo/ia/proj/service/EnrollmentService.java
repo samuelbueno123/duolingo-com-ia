@@ -192,6 +192,26 @@ public class EnrollmentService {
     }
 
     @Transactional
+    public Enrollment updateStatus(Long enrollmentId, EnrollmentStatus status, String notes) {
+        Enrollment enrollment = findById(enrollmentId);
+        if (status == EnrollmentStatus.ACTIVE) {
+            List<Enrollment> active = enrollmentRepository.findByStudentIdAndStatus(
+                enrollment.getStudent().getId(), EnrollmentStatus.ACTIVE);
+            if (active.stream().anyMatch(item -> !item.getId().equals(enrollmentId))) {
+                throw new BusinessException("O aluno jÃ¡ possui outra matrÃ­cula ativa.");
+            }
+            enrollment.setCancellationDate(null);
+        } else if (status == EnrollmentStatus.CANCELLED || status == EnrollmentStatus.COMPLETED || status == EnrollmentStatus.TRANSFERRED) {
+            enrollment.setCancellationDate(LocalDate.now());
+        } else if (status == EnrollmentStatus.SUSPENDED) {
+            enrollment.setCancellationDate(null);
+        }
+        enrollment.setStatus(status);
+        if (notes != null) enrollment.setNotes(notes);
+        return enrollmentRepository.save(enrollment);
+    }
+
+    @Transactional
     public Enrollment transfer(
         Long studentId,
         Long newSchoolClassId,

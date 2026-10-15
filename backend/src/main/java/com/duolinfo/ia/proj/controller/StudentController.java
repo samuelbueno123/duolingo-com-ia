@@ -236,11 +236,23 @@ public class StudentController {
             );
         }
 
-        existing.setName(request.name());
-        existing.setEmail(request.email());
-        existing.setGoogleId(request.googleId());
+        Student updates = new Student();
+        updates.setId(id);
+        updates.setName(request.name());
+        updates.setEmail(request.email());
+        updates.setGoogleId(request.googleId());
+        if (request.languages() != null) {
+            for (StudentLanguageRequestDTO langDto : request.languages()) {
+                if (langDto == null || langDto.languageName() == null || langDto.languageName().isBlank()) continue;
+                StudentLanguage language = new StudentLanguage();
+                language.setLanguageName(langDto.languageName().trim());
+                language.setLevel(langDto.level() == null || langDto.level().isBlank() ? "Iniciante" : langDto.level().trim());
+                language.setScore(langDto.score() == null ? 0 : langDto.score());
+                updates.addLanguage(language);
+            }
+        }
 
-        studentService.update(existing);
+        studentService.update(updates);
     }
 
     @DeleteMapping("/{id}")

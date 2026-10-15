@@ -1,6 +1,7 @@
 package com.duolinfo.ia.proj.dto.response;
 
 import java.util.List;
+import java.util.Map;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -20,6 +21,10 @@ public record StudentResponseDTO(
     String googleId,
 
     @Schema(example = "[\"Inglês\", \"Espanhol\"]")
-    List<String> languages
+    List<String> languages,
+
+    Map<String, String> languageLevels,
+
+    Map<String, Integer> languageScores
 ) {
 }

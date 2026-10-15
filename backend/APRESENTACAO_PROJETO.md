@@ -31,7 +31,7 @@ O objetivo do sistema é:
 ## 3. Stack tecnológico
 
 ### Backend
-- Java 17
+- Java 25
 - Spring Boot 3 / Spring Framework
 - Maven
 - Spring Web MVC
@@ -41,8 +41,8 @@ O objetivo do sistema é:
 - Hibernate / JPA
 
 ### Banco de dados
-- H2 Database em desenvolvimento/local
-- PostgreSQL como dependência para uso futuro/prod
+- PostgreSQL 17 em Docker para desenvolvimento local
+- PostgreSQL em desenvolvimento e produção
 
 ### Autenticação
 - Google OAuth / Google ID Token
@@ -160,7 +160,6 @@ A segurança da API foi configurada com Spring Security e tem os seguintes atrib
 - permite requisições OPTIONS para evitar erro de preflight do navegador
 - permite acesso público apenas para:
   - `/api/auth/google`
-  - `/h2-console/**`
   - `/swagger-ui/**`
   - `/v3/api-docs/**`
   - recursos gerais da documentação
@@ -173,7 +172,7 @@ A segurança da API foi configurada com Spring Security e tem os seguintes atrib
 A lógica da aplicação é:
 
 - rota pública para login com Google
-- rota pública para documentação e console H2
+- rota publica para documentação Swagger
 - resto do sistema protegido por autenticação
 
 Isso é importante porque o backend não é anônimo: ele exige que o cliente tenha sessão autenticada para acessar dados de perfil e endpoints de gestão.
@@ -520,8 +519,8 @@ Configurações principais:
 - `server.port=8080`
 - `spring.jpa.hibernate.ddl-auto=update`
 - `spring.jpa.show-sql=true`
-- H2 em arquivo local em `./data/duolingo`
-- console H2 habilitado em `/h2-console`
+- PostgreSQL acessado em `localhost:5432` quando Java roda no host
+
 - `google.client-id` configurado por variável de ambiente
 - `spring.docker.compose.enabled=false`
 
@@ -529,8 +528,8 @@ Configurações principais:
 
 Versão específica para execução em container:
 
-- usa H2 em `/app/data/duolingo`
-- desativa console H2 em produção
+- conecta ao serviço PostgreSQL pelo nome de rede `postgres`
+
 - mantém porta 8080
 - cookie de sessão definido para uso em Docker
 
@@ -538,15 +537,13 @@ Versão específica para execução em container:
 
 ## 14. Docker e deploy
 
+### `compose.yaml`
+
+Inicia o PostgreSQL 17 em Docker, publica a porta 5432, verifica a disponibilidade do banco e mantém os dados no volume `postgres-data`.
+
 ### `docker-compose.yml`
 
-O projeto possui um `docker-compose.yml` que:
-
-- monta o backend em container
-- expõe a porta 8080
-- usa variável `GOOGLE_CLIENT_ID`
-- usa variável `CORS_ALLOWED_ORIGINS`
-- monta volume persistente `duolingo-data`
+Define a API em container. Combinado com `compose.yaml`, aguarda o PostgreSQL ficar saudável e conecta ao serviço `postgres`.
 
 ### `package-image.ps1`
 
@@ -669,7 +666,7 @@ A validação do Google fica isolada em uma classe específica, o que facilita m
 - documentação automática com Swagger
 - integração pronta com Docker
 - testes de segurança e sessão já adicionados
-- banco local em H2 para desenvolvimento rápido
+- PostgreSQL em Docker para desenvolvimento local
 
 ---
 
@@ -733,8 +730,8 @@ Esses pontos podem ser usados em apresentação para mostrar que o sistema já e
 - exemplos de rotas para autenticação, home, aluno e professor
 
 ### Slide 7: Infraestrutura e deploy
-- H2 local
-- PostgreSQL em futuro/prod
+- PostgreSQL em Docker
+- PostgreSQL persistente em desenvolvimento e produção
 - Docker e Docker Compose
 - exportação de imagem via script
 
@@ -777,11 +774,9 @@ docker compose up --build
 http://localhost:8080/swagger-ui/index.html
 ```
 
-### Console H2
+### PostgreSQL local
 
-```text
-http://localhost:8080/h2-console
-```
+Inicie o banco com `docker compose up -d postgres`. Com a aplicação iniciada no host, conecte em `jdbc:postgresql://localhost:5432/duolingo`.
 
 ---
 
@@ -797,7 +792,7 @@ Ele não é apenas um backend genérico: ele já foi pensado para o contexto de 
 
 Se você quiser usar este material como input para uma IA criar a apresentação, aqui vai um resumo bem enxuto:
 
-> Backend de plataforma de idiomas em Java com Spring Boot. O sistema autentica usuários via Google, separa perfis de aluno e professor, armazena dados em JPA/Hibernate, usa Spring Security com sessão HTTP, oferece endpoints REST documentados em Swagger e suporta deploy com Docker. O banco principal em desenvolvimento é H2, com arquitetura preparada para futura expansão para PostgreSQL. O domínio inclui `User`, `Student`, `Teacher`, `StudentLanguage`, `TeacherDocument`, além de cadastro e busca por idioma, instituição e especialização. A aplicação está pronta como base para um produto educacional e já conta com testes de integração da camada de autenticação.
+> Backend de plataforma de idiomas em Java com Spring Boot. O sistema autentica usuários via Google, separa perfis de aluno e professor, armazena dados em JPA/Hibernate, usa Spring Security com sessão HTTP, oferece endpoints REST documentados em Swagger e suporta deploy com Docker. O banco principal é PostgreSQL, executado em Docker para desenvolvimento local e conectado pela API via JDBC. O domínio inclui `User`, `Student`, `Teacher`, `StudentLanguage`, `TeacherDocument`, além de cadastro e busca por idioma, instituição e especialização. A aplicação está pronta como base para um produto educacional e já conta com testes de integração da camada de autenticação.
 
 ---
 

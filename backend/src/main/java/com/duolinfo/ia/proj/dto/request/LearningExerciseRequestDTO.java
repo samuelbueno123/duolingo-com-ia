@@ -18,6 +18,6 @@ public record LearningExerciseRequestDTO(
     String mediaUrl,
     LocalDate dueDate,
     @NotNull Long schoolClassId,
-    @NotNull List<@Valid ExerciseQuestionRequestDTO> questions
+    List<@Valid ExerciseQuestionRequestDTO> questions
 ) {
 }

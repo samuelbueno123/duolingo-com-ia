@@ -1,6 +1,7 @@
 package com.duolinfo.ia.proj.service;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -13,6 +14,7 @@ import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.entity.StudentLanguage;
 import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.exception.BusinessException;
+import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.repository.EnrollmentRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
 import com.duolinfo.ia.proj.repository.TeacherRepository;
@@ -58,11 +60,11 @@ public class StudentService {
             student.setEmail(email);
 
             // Bloqueia se já for um estudante cadastrado
-            if (studentRepository.findByEmail(email).isPresent()) {
+            if (studentRepository.findByEmailIgnoreCase(email).isPresent()) {
                 throw new BusinessException("Já existe um estudante cadastrado com o e-mail: " + email);
             }
 
-            Optional<User> baseUserOpt = userRepository.findByEmail(email);
+            Optional<User> baseUserOpt = userRepository.findByEmailIgnoreCase(email);
             if (baseUserOpt.isPresent()) {
                 User baseUser = baseUserOpt.get();
 
@@ -145,17 +147,23 @@ public class StudentService {
 
         Student current =
             studentRepository.findById(student.getId())
-                .orElse(null);
-
-        if (current == null) {
-            return null;
-        }
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "Estudante não encontrado: " + student.getId()
+            ));
 
         current.setName(student.getName());
-        current.setEmail(student.getEmail());
-        current.setGoogleId(student.getGoogleId());
+        if (student.getEmail() != null && !student.getEmail().isBlank()) {
+            String email = student.getEmail().trim().toLowerCase(Locale.ROOT);
+            boolean usedByAnotherAccount = userRepository.findByEmailIgnoreCase(email)
+                .filter(account -> !account.getId().equals(current.getId()))
+                .isPresent();
+            if (usedByAnotherAccount) {
+                throw new BusinessException("E-mail já cadastrado no sistema.");
+            }
+            current.setEmail(email);
+        }
 
-        if (student.getLanguages() != null && !student.getLanguages().isEmpty()) {
+        if (student.getLanguages() != null) {
             current.getLanguages().clear();
             for (StudentLanguage language : student.getLanguages()) {
                 if (language.getLanguageName() == null || language.getLanguageName().isBlank()) continue;
@@ -173,7 +181,7 @@ public class StudentService {
 
     @Transactional
     public void deleteById(Long id) {
-        studentRepository.deleteById(id);
+        studentRepository.delete(findById(id));
     }
 
     @Transactional
@@ -204,7 +212,10 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public Student findById(Long id) {
-        return studentRepository.findById(id).orElse(null);
+        return studentRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "Estudante não encontrado: " + id
+            ));
     }
 
     @Transactional(readOnly = true)
@@ -214,7 +225,7 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public Student findByEmail(String email) {
-        return studentRepository.findByEmail(email).orElse(null);
+        return studentRepository.findByEmailIgnoreCase(email).orElse(null);
     }
 
     @Transactional(readOnly = true)

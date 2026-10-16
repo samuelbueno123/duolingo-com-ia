@@ -111,7 +111,8 @@ public final class DtoMapper {
             institutionId,
             teacher.getTaughtLanguages(),
             teacher.getSpecializationAreas(),
-            teacher.getBibliography()
+            teacher.getBibliography(),
+            Boolean.TRUE.equals(teacher.getApproved())
         );
     }
 

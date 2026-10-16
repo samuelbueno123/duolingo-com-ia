@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.duolinfo.ia.proj.dto.request.SchoolRequestDTO;
 import com.duolinfo.ia.proj.dto.response.SchoolResponseDTO;
-import com.duolinfo.ia.proj.entity.School;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
+import com.duolinfo.ia.proj.mapper.RequestMapper;
 import com.duolinfo.ia.proj.service.SchoolService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,15 +44,10 @@ public class SchoolController {
             @PathVariable Long institutionId,
             @Valid @RequestBody SchoolRequestDTO request) {
 
-        School school = new School();
-
-        school.setName(request.name());
-        school.setInepCode(request.inepCode());
-
         return DtoMapper.toSchoolResponse(
             schoolService.create(
                 institutionId,
-                school
+                RequestMapper.toSchool(request)
             )
         );
     }
@@ -121,16 +116,11 @@ public class SchoolController {
             @PathVariable Long id,
             @Valid @RequestBody SchoolRequestDTO request) {
 
-        School school = new School();
-
-        school.setName(request.name());
-        school.setInepCode(request.inepCode());
-
         return DtoMapper.toSchoolResponse(
             schoolService.update(
                 id,
                 request.institutionId(),
-                school
+                RequestMapper.toSchool(request)
             )
         );
     }

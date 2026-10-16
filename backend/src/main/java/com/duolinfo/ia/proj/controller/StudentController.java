@@ -3,6 +3,7 @@ package com.duolinfo.ia.proj.controller;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,13 +15,13 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.duolinfo.ia.proj.dto.request.StudentLanguageRequestDTO;
 import com.duolinfo.ia.proj.dto.request.StudentRequestDTO;
 import com.duolinfo.ia.proj.dto.response.EnrollmentResponseDTO;
 import com.duolinfo.ia.proj.dto.response.StudentResponseDTO;
 import com.duolinfo.ia.proj.entity.Student;
-import com.duolinfo.ia.proj.entity.StudentLanguage;
+import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
+import com.duolinfo.ia.proj.mapper.RequestMapper;
 import com.duolinfo.ia.proj.service.StudentService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -49,41 +50,13 @@ public class StudentController {
     )
     public StudentResponseDTO create(
             @Valid @RequestBody StudentRequestDTO request) {
-
-        Student student = new Student();
-
-        student.setName(request.name());
-        student.setEmail(request.email());
-        student.setGoogleId(request.googleId());
-        student.setPasswordHash(request.password());
-
-        if (request.languages() != null) {
-            for (StudentLanguageRequestDTO langDto : request.languages()) {
-
-                if (langDto == null || langDto.languageName() == null || langDto.languageName().isBlank()) {
-                    continue;
-                }
-
-                StudentLanguage language = new StudentLanguage();
-
-                language.setLanguageName(langDto.languageName().trim());
-
-                if (langDto.level() != null && !langDto.level().isBlank()) {
-                    language.setLevel(langDto.level().trim());
-                } else {
-                    language.setLevel("Iniciante");
-                }
-
-                if (langDto.score() != null) {
-                    language.setScore(langDto.score());
-                }
-
-                student.addLanguage(language);
-            }
+        if (request.password() == null || request.password().isBlank()) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "A senha é obrigatória para criar uma conta de estudante.");
         }
-
         return DtoMapper.toStudentResponse(
-            studentService.create(student)
+            studentService.create(RequestMapper.toNewStudent(request))
         );
     }
 
@@ -97,21 +70,20 @@ public class StudentController {
             .toList();
     }
 
+    @GetMapping("/me")
+    @Operation(summary = "Busca o perfil do estudante autenticado")
+    public StudentResponseDTO findMyProfile(Authentication authentication) {
+        return DtoMapper.toStudentResponse(
+            requireStudent(studentService.findByEmail(authentication.getName()))
+        );
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Busca estudante por ID")
     public StudentResponseDTO findById(
             @PathVariable Long id) {
 
-        Student student = studentService.findById(id);
-
-        if (student == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Estudante não encontrado."
-            );
-        }
-
-        return DtoMapper.toStudentResponse(student);
+        return DtoMapper.toStudentResponse(studentService.findById(id));
     }
 
     @GetMapping("/google/{googleId}")
@@ -119,17 +91,9 @@ public class StudentController {
     public StudentResponseDTO findByGoogleId(
             @PathVariable String googleId) {
 
-        Student student =
-            studentService.findByGoogleId(googleId);
-
-        if (student == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Estudante não encontrado."
-            );
-        }
-
-        return DtoMapper.toStudentResponse(student);
+        return DtoMapper.toStudentResponse(
+            requireStudent(studentService.findByGoogleId(googleId))
+        );
     }
 
     @GetMapping("/email/{email}")
@@ -137,17 +101,9 @@ public class StudentController {
     public StudentResponseDTO findByEmail(
             @PathVariable String email) {
 
-        Student student =
-            studentService.findByEmail(email);
-
-        if (student == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Estudante não encontrado."
-            );
-        }
-
-        return DtoMapper.toStudentResponse(student);
+        return DtoMapper.toStudentResponse(
+            requireStudent(studentService.findByEmail(email))
+        );
     }
 
     @GetMapping("/name/{name}")
@@ -188,9 +144,10 @@ public class StudentController {
     @GetMapping("/{studentId}/enrollments/active")
     @Operation(summary = "Lista matrículas ativas")
     public List<EnrollmentResponseDTO> findActiveEnrollments(
-            @PathVariable Long studentId) {
+            @PathVariable Long studentId,
+            Authentication authentication) {
 
-        verifyStudent(studentId);
+        verifyStudentAccess(studentId, authentication);
 
         return studentService.findActiveEnrollments(studentId)
             .stream()
@@ -227,32 +184,7 @@ public class StudentController {
             @PathVariable Long id,
             @Valid @RequestBody StudentRequestDTO request) {
 
-        Student existing = studentService.findById(id);
-
-        if (existing == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Estudante não encontrado."
-            );
-        }
-
-        Student updates = new Student();
-        updates.setId(id);
-        updates.setName(request.name());
-        updates.setEmail(request.email());
-        updates.setGoogleId(request.googleId());
-        if (request.languages() != null) {
-            for (StudentLanguageRequestDTO langDto : request.languages()) {
-                if (langDto == null || langDto.languageName() == null || langDto.languageName().isBlank()) continue;
-                StudentLanguage language = new StudentLanguage();
-                language.setLanguageName(langDto.languageName().trim());
-                language.setLevel(langDto.level() == null || langDto.level().isBlank() ? "Iniciante" : langDto.level().trim());
-                language.setScore(langDto.score() == null ? 0 : langDto.score());
-                updates.addLanguage(language);
-            }
-        }
-
-        studentService.update(updates);
+        studentService.update(RequestMapper.toStudentUpdate(id, request));
     }
 
     @DeleteMapping("/{id}")
@@ -261,18 +193,29 @@ public class StudentController {
     public void deleteById(
             @PathVariable Long id) {
 
-        verifyStudent(id);
-
         studentService.deleteById(id);
     }
 
     private void verifyStudent(Long id) {
+        studentService.findById(id);
+    }
 
-        if (studentService.findById(id) == null) {
+    private void verifyStudentAccess(Long id, Authentication authentication) {
+        Student student = studentService.findById(id);
+        boolean isAdmin = authentication.getAuthorities().stream()
+            .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        if (!isAdmin && !student.getEmail().equalsIgnoreCase(authentication.getName())) {
             throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Estudante não encontrado."
+                HttpStatus.FORBIDDEN,
+                "Você só pode consultar suas próprias matrículas."
             );
         }
+    }
+
+    private static Student requireStudent(Student student) {
+        if (student == null) {
+            throw new ResourceNotFoundException("Estudante não encontrado.");
+        }
+        return student;
     }
 }

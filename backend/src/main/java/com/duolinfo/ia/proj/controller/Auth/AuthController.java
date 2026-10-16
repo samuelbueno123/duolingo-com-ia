@@ -1,14 +1,10 @@
 package com.duolinfo.ia.proj.controller.Auth;
 
-import java.io.IOException;
-import java.security.GeneralSecurityException;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -17,28 +13,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.duolinfo.ia.proj.config.GoogleTokenVerifier;
+import com.duolinfo.ia.proj.dto.request.GoogleLoginRequest;
+import com.duolinfo.ia.proj.dto.request.PasswordLoginRequest;
 import com.duolinfo.ia.proj.dto.request.UserRequestDTO;
 import com.duolinfo.ia.proj.dto.response.AuthResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AuthenticatedUserResponseDTO;
-import com.duolinfo.ia.proj.dto.response.ApiErrorResponse;
+import com.duolinfo.ia.proj.dto.response.UserResponseDTO;
 import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.service.AuthService;
+import com.duolinfo.ia.proj.service.AuthService.LoginResult;
 import com.duolinfo.ia.proj.service.JwtService;
-import com.duolinfo.ia.proj.service.StudentService;
-import com.duolinfo.ia.proj.service.TeacherService;
 import com.duolinfo.ia.proj.service.UserService;
-import com.duolinfo.ia.proj.dto.request.GoogleLoginRequest;
-import com.duolinfo.ia.proj.dto.request.PasswordLoginRequest;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -46,629 +34,132 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/auth")
 @Validated
-@CrossOrigin(
-    origins = "*",
-    allowedHeaders = "*"
-)
-@Tag(
-    name = "Auth",
-    description = "Autenticação e gerenciamento da sessão"
-)
+@Tag(name = "Auth", description = "Autenticação e gerenciamento da sessão")
 public class AuthController {
 
-    private final GoogleTokenVerifier googleTokenVerifier;
-    private final StudentService studentService;
-    private final TeacherService teacherService;
-    private final UserService userService;
-    private final JwtService jwtService;
-    private final AuthService authService;
+    private static final String GOOGLE_LOGIN_MESSAGE = "Login Google realizado com sucesso.";
+    private static final String PASSWORD_LOGIN_MESSAGE = "Login realizado com sucesso.";
 
-    /*
-     * Usado apenas para o caso de criação/definição
-     * de senha dentro do fluxo legado.
-     */
-    private final PasswordEncoder passwordEncoder;
+    private final AuthService authService;
+    private final JwtService jwtService;
+    private final UserService userService;
 
     public AuthController(
-            GoogleTokenVerifier googleTokenVerifier,
-            StudentService studentService,
-            TeacherService teacherService,
-            UserService userService,
-            JwtService jwtService,
             AuthService authService,
-            PasswordEncoder passwordEncoder) {
-
-        this.googleTokenVerifier = googleTokenVerifier;
-        this.studentService = studentService;
-        this.teacherService = teacherService;
-        this.userService = userService;
-        this.jwtService = jwtService;
+            JwtService jwtService,
+            UserService userService) {
         this.authService = authService;
-        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
+        this.userService = userService;
     }
-
-    // =========================================================
-    // LOGIN GOOGLE
-    // =========================================================
 
     @PostMapping("/google")
-    @Operation(
-        summary = "Login com Google",
-        description = """
-            Recebe a credential do Google Identity Services,
-            valida o token, cria ou atualiza o usuário e emite
-            um JWT da aplicação.
-            """
-    )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Login realizado com sucesso",
-            content = @Content(
-                schema = @Schema(
-                    implementation = AuthResponseDTO.class
-                )
-            )
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "Credential não informada"
-        ),
-        @ApiResponse(
-            responseCode = "401",
-            description = "Token Google inválido"
-        )
-    })
-    public ResponseEntity<?> loginGoogle(
+    @Operation(summary = "Login com Google")
+    public AuthResponseDTO loginGoogle(
             @Valid @RequestBody GoogleLoginRequest request) {
-
-        try {
-
-            if (request == null
-                    || request.getCredential() == null
-                    || request.getCredential().isBlank()) {
-
-                return ResponseEntity
-                    .badRequest()
-                    .body(
-                        createError(
-                            HttpStatus.BAD_REQUEST,
-                            "Credencial do Google não informada.",
-                            "/api/auth/google"
-                        )
-                    );
-            }
-
-            GoogleIdToken idToken =
-                googleTokenVerifier.verify(
-                    request.getCredential()
-                );
-
-            if (idToken == null) {
-
-                return ResponseEntity
-                    .status(HttpStatus.UNAUTHORIZED)
-                    .body(
-                        createError(
-                            HttpStatus.UNAUTHORIZED,
-                            "Token do Google inválido.",
-                            "/api/auth/google"
-                        )
-                    );
-            }
-
-            Payload payload =
-                idToken.getPayload();
-
-            if (!Boolean.TRUE.equals(
-                    payload.getEmailVerified())) {
-
-                return ResponseEntity
-                    .status(HttpStatus.UNAUTHORIZED)
-                    .body(
-                        createError(
-                            HttpStatus.UNAUTHORIZED,
-                            "O Google não confirmou este endereço de email.",
-                            "/api/auth/google"
-                        )
-                    );
-            }
-
-            String googleId =
-                payload.getSubject();
-
-            String email =
-                payload.getEmail();
-
-            String name =
-                (String) payload.get("name");
-
-            String picture =
-                (String) payload.get("picture");
-
-            /*
-             * O email vindo do Google deve ser normalizado.
-             */
-            if (email != null) {
-                email = email.trim().toLowerCase();
-            }
-
-            /*
-             * Se por algum motivo o Google não fornecer nome,
-             * usamos uma identificação mínima.
-             */
-            if (name == null || name.isBlank()) {
-                name = email;
-            }
-
-            User user =
-                userService.findByEmail(email);
-
-            if (user == null) {
-
-                user = new User();
-
-                user.setEmail(email);
-                user.setName(name);
-                user.setGoogleId(googleId);
-                user.setProfilePicture(picture);
-
-                /*
-                 * Nenhuma senha é definida para login Google.
-                 */
-                user.setPasswordHash(null);
-
-                user =
-                    userService.create(user);
-
-            } else {
-
-                boolean changed = false;
-
-                if (user.getGoogleId() == null
-                        || !user.getGoogleId().equals(googleId)) {
-
-                    user.setGoogleId(googleId);
-                    changed = true;
-                }
-
-                if (picture != null
-                        && !picture.equals(
-                            user.getProfilePicture())) {
-
-                    user.setProfilePicture(picture);
-                    changed = true;
-                }
-
-                if ((user.getName() == null
-                        || user.getName().isBlank())
-                        && name != null
-                        && !name.isBlank()) {
-
-                    user.setName(name);
-                    changed = true;
-                }
-
-                if (changed) {
-                    user =
-                        userService.update(user);
-                }
-            }
-
-            String profileType =
-                resolveProfileType(
-                    googleId,
-                    email
-                );
-
-            String token =
-                jwtService.generateToken(
-                    user,
-                    profileType
-                );
-
-            AuthResponseDTO response =
-                new AuthResponseDTO(
-                    true,
-                    "Login Google realizado com sucesso.",
-                    token,
-                    DtoMapper.toUserResponse(user),
-                    profileType
-                );
-
-            return ResponseEntity.ok(response);
-
-        } catch (
-                GeneralSecurityException
-                | IOException
-                | IllegalArgumentException exception) {
-
-            return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(
-                    createError(
-                        HttpStatus.UNAUTHORIZED,
-                        "Não foi possível validar o token do Google.",
-                        "/api/auth/google"
-                    )
-                );
+        if (request == null) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Credencial do Google não informada."
+            );
         }
+        return createAuthResponse(
+            authService.loginWithGoogle(request.getCredential()),
+            GOOGLE_LOGIN_MESSAGE
+        );
     }
-
-    // =========================================================
-    // LOGIN EMAIL + SENHA
-    // =========================================================
 
     @PostMapping("/login")
-    @Operation(
-        summary = "Login com email e senha",
-        description = """
-            Autentica um usuário utilizando email e senha
-            e retorna o JWT da aplicação.
-            """
-    )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Login realizado com sucesso"
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "Email ou senha inválidos"
-        ),
-        @ApiResponse(
-            responseCode = "401",
-            description = "Credenciais inválidas"
-        )
-    })
-    public ResponseEntity<?> loginWithPassword(
+    @Operation(summary = "Login com email e senha")
+    public AuthResponseDTO loginWithPassword(
             @Valid @RequestBody PasswordLoginRequest request) {
-
-        if (request == null
-                || request.getEmail() == null
-                || request.getEmail().isBlank()
-                || request.getPassword() == null
-                || request.getPassword().isBlank()) {
-
-            return ResponseEntity
-                .badRequest()
-                .body(
-                    createError(
-                        HttpStatus.BAD_REQUEST,
-                        "Email e senha são obrigatórios.",
-                        "/api/auth/login"
-                    )
-                );
+        if (request == null) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Email e senha são obrigatórios."
+            );
         }
-
-        String email =
-            request.getEmail()
-                .trim()
-                .toLowerCase();
-
-        String rawPassword =
-            request.getPassword();
-
-        User user;
-        try {
-            user = authService.authenticate(
-                email,
-                rawPassword
-            );
-        } catch (ResponseStatusException exception) {
-            String message = exception.getReason() != null
-                ? exception.getReason()
-                : "Credenciais inválidas.";
-            return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(
-                    createError(
-                        HttpStatus.UNAUTHORIZED,
-                        message,
-                        "/api/auth/login"
-                    )
-                );
-        }
-
-        String googleId =
-            user.getGoogleId() != null
-                ? user.getGoogleId()
-                : "";
-
-        String profileType =
-            resolveProfileType(
-                googleId,
-                email
-            );
-
-        String token =
-            jwtService.generateToken(
-                user,
-                profileType
-            );
-
-        AuthResponseDTO response =
-            new AuthResponseDTO(
-                true,
-                "Login realizado com sucesso.",
-                token,
-                DtoMapper.toUserResponse(user),
-                profileType
-            );
-
-        return ResponseEntity.ok(response);
+        return createAuthResponse(
+            authService.loginWithPassword(request.getEmail(), request.getPassword()),
+            PASSWORD_LOGIN_MESSAGE
+        );
     }
-
-    // =========================================================
-    // USUÁRIO AUTENTICADO
-    // =========================================================
 
     @GetMapping("/me")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(
-        summary = "Retorna o usuário autenticado",
-        description = """
-            Retorna os dados públicos do usuário associado
-            ao JWT atualmente autenticado.
-            """
-    )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Usuário autenticado"
-        ),
-        @ApiResponse(
-            responseCode = "401",
-            description = "Token ausente ou inválido"
-        )
-    })
-    public ResponseEntity<?> me(
-            Authentication authentication) {
-
-        if (authentication == null
-                || !authentication.isAuthenticated()) {
-
-            return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(
-                    createError(
-                        HttpStatus.UNAUTHORIZED,
-                        "Usuário não autenticado.",
-                        "/api/auth/me"
-                    )
-                );
-        }
-
-        User user =
-            findAuthenticatedUser(
-                authentication
-            );
-
-        if (user == null) {
-
-            return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(
-                    createError(
-                        HttpStatus.UNAUTHORIZED,
-                        "Usuário autenticado não foi encontrado.",
-                        "/api/auth/me"
-                    )
-                );
-        }
-
-        String googleId =
-            user.getGoogleId() != null
-                ? user.getGoogleId()
-                : "";
-
-        String profileType =
-            resolveProfileType(
-                googleId,
-                user.getEmail()
-            );
-
-        AuthenticatedUserResponseDTO response =
-            new AuthenticatedUserResponseDTO(
-                true,
-                true,
-                DtoMapper.toUserResponse(user),
-                profileType
-            );
-
-        return ResponseEntity.ok(response);
+    @Operation(summary = "Retorna o usuário autenticado")
+    public AuthenticatedUserResponseDTO me(Authentication authentication) {
+        User user = authenticatedUser(authentication);
+        return new AuthenticatedUserResponseDTO(
+            true,
+            true,
+            DtoMapper.toUserResponse(user),
+            authService.resolveProfileType(user)
+        );
     }
-
-    // =========================================================
-    // LOGOUT
-    // =========================================================
 
     @PostMapping("/logout")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(
-        summary = "Encerra a sessão",
-        description = """
-            Como a autenticação utiliza JWT stateless,
-            o servidor não precisa destruir uma sessão.
-            O frontend deve remover o JWT armazenado.
-            """
-    )
-    public ResponseEntity<?> logout() {
-
-        return ResponseEntity.ok(
-            java.util.Map.of(
-                "success", true,
-                "message", "Logout realizado com sucesso."
-            )
+    @Operation(summary = "Encerra a sessão")
+    public Map<String, Object> logout() {
+        return Map.of(
+            "success", true,
+            "message", "Logout realizado com sucesso."
         );
     }
 
     @PutMapping("/me")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(
-        summary = "Atualiza os dados do próprio usuário autenticado",
-        description = "Atualiza foto de perfil, nome e/ou senha do usuário autenticado no JWT."
-    )
-    public ResponseEntity<?> updateMe(
+    @Operation(summary = "Atualiza os dados do próprio usuário autenticado")
+    public UserResponseDTO updateMe(
             Authentication authentication,
             @Valid @RequestBody UserRequestDTO request) {
-
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(
-                    createError(
-                        HttpStatus.UNAUTHORIZED,
-                        "Usuário não autenticado.",
-                        "/api/auth/me"
-                    )
-                );
+        User user = authenticatedUser(authentication);
+        if (request == null) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Os dados para atualização não foram informados."
+            );
         }
-
-        User user = findAuthenticatedUser(authentication);
-
-        if (user == null) {
-            return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(
-                    createError(
-                        HttpStatus.UNAUTHORIZED,
-                        "Usuário autenticado não foi encontrado.",
-                        "/api/auth/me"
-                    )
-                );
-        }
-
-        if (request.name() != null && !request.name().isBlank()) {
-            user.setName(request.name().trim());
-        }
-
-        boolean isGoogleUser = user.getGoogleId() != null && !user.getGoogleId().isBlank();
-        if (!isGoogleUser && request.email() != null && !request.email().isBlank()) {
-            user.setEmail(request.email().trim().toLowerCase());
-        }
-
-        if (request.profilePicture() != null && !request.profilePicture().isBlank()) {
-            user.setProfilePicture(request.profilePicture());
-        }
-
-        if (request.password() != null && !request.password().isBlank()) {
-            if (user.getPasswordHash() != null && !user.getPasswordHash().isBlank()) {
-                if (request.currentPassword() == null
-                        || request.currentPassword().isBlank()
-                        || !passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
-                    return ResponseEntity
-                        .badRequest()
-                        .body(
-                            createError(
-                                HttpStatus.BAD_REQUEST,
-                                "A senha atual informada está incorreta.",
-                                "/api/auth/me"
-                            )
-                        );
-                }
-            }
-            user.setPasswordHash(request.password());
-        } else {
-            // Garante que se não houver troca de senha, o hash atual da conta é preservado intacto no banco
-            //user.setPasswordHash(null);
-        }
-
-        User updatedUser = userService.update(user);
-
-        return ResponseEntity.ok(
-            DtoMapper.toUserResponse(updatedUser)
+        return DtoMapper.toUserResponse(
+            userService.updateProfile(user.getId(), request)
         );
     }
 
-    // =========================================================
-    // AUXILIARES
-    // =========================================================
+    private AuthResponseDTO createAuthResponse(LoginResult result, String message) {
+        String token = jwtService.generateToken(result.user(), result.profileType());
+        return new AuthResponseDTO(
+            true,
+            message,
+            token,
+            DtoMapper.toUserResponse(result.user()),
+            result.profileType()
+        );
+    }
 
-    private User findAuthenticatedUser(
-            Authentication authentication) {
+    private User authenticatedUser(Authentication authentication) {
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication.getName() == null
+                || authentication.getName().isBlank()) {
+            throw new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Usuário não autenticado."
+            );
+        }
 
-        Object principal =
-            authentication.getPrincipal();
-
-        /*
-         * Caso seu filtro JWT já coloque a própria entidade User
-         * no Authentication.
-         */
+        Object principal = authentication.getPrincipal();
         if (principal instanceof User user) {
             return user;
         }
 
-        /*
-         * Caso use UserDetails, normalmente authentication.getName()
-         * corresponde ao username/email.
-         */
-        String username =
-            authentication.getName();
-
-        if (username == null
-                || username.isBlank()) {
-            return null;
+        User user = userService.findByEmail(authentication.getName());
+        if (user == null) {
+            throw new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Usuário autenticado não foi encontrado."
+            );
         }
-
-        return userService.findByEmail(
-            username
-        );
-    }
-
-    private String resolveProfileType(
-            String googleId,
-            String email) {
-
-        /*
-         * Evita consultas desnecessárias com googleId vazio.
-         */
-        if (googleId != null
-                && !googleId.isBlank()) {
-
-            if (teacherService.findByGoogleId(
-                    googleId) != null) {
-
-                return "TEACHER";
-            }
-
-            if (studentService.findByGoogleId(
-                    googleId) != null) {
-
-                return "STUDENT";
-            }
-        }
-
-        if (email != null
-                && !email.isBlank()) {
-
-            if (teacherService.findByEmail(
-                    email) != null) {
-
-                return "TEACHER";
-            }
-
-            if (studentService.findByEmail(
-                    email) != null) {
-
-                return "STUDENT";
-            }
-        }
-
-        return "USER";
-    }
-
-    private ApiErrorResponse createError(
-            HttpStatus status,
-            String message,
-            String path) {
-
-        return new ApiErrorResponse(
-            java.time.LocalDateTime.now(),
-            status.value(),
-            status.getReasonPhrase(),
-            message,
-            path
-        );
+        return user;
     }
 }

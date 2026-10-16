@@ -34,6 +34,9 @@ public class Teacher extends User {
     @JoinColumn(name = "institution_id", nullable = false)
     private Institution institution;
 
+    @Column(name = "approved")
+    private Boolean approved = false;
+
     /*
      * Idiomas que o professor leciona.
      */

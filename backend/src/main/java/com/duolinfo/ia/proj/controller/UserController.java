@@ -20,7 +20,9 @@ import com.duolinfo.ia.proj.dto.request.UserRequestDTO;
 import com.duolinfo.ia.proj.dto.response.AuthResponseDTO;
 import com.duolinfo.ia.proj.dto.response.UserResponseDTO;
 import com.duolinfo.ia.proj.entity.User;
+import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
+import com.duolinfo.ia.proj.mapper.RequestMapper;
 import com.duolinfo.ia.proj.service.JwtService;
 import com.duolinfo.ia.proj.service.UserService;
 
@@ -28,8 +30,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 @RestController
 @RequestMapping("/api/users")
@@ -42,16 +42,13 @@ public class UserController {
 
     private final UserService userService;
     private final JwtService jwtService;
-    private final PasswordEncoder passwordEncoder;
 
     public UserController(
             UserService userService,
-            JwtService jwtService,
-            PasswordEncoder passwordEncoder) {
+            JwtService jwtService) {
 
         this.userService = userService;
         this.jwtService = jwtService;
-        this.passwordEncoder = passwordEncoder;
     }
 
     // ==========================================
@@ -70,20 +67,13 @@ public class UserController {
     public AuthResponseDTO create(
             @Valid @RequestBody UserRequestDTO request) {
 
-        User user = new User();
+        if (request.password() == null || request.password().isBlank()) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "A senha é obrigatória para criar uma conta com email.");
+        }
 
-        user.setName(request.name());
-        user.setEmail(request.email());
-        user.setGoogleId(request.googleId());
-        user.setProfilePicture(request.profilePicture());
-
-        /*
-        * A senha ainda está em texto puro neste ponto.
-        * O UserService fará a criptografia.
-        */
-        user.setPasswordHash(request.password());
-
-        User newUser = userService.create(user);
+        var newUser = userService.create(RequestMapper.toNewUser(request));
 
         String token = jwtService.generateToken(
             newUser,
@@ -125,16 +115,7 @@ public class UserController {
     public UserResponseDTO findById(
             @PathVariable Long id) {
 
-        User user = userService.findById(id);
-
-        if (user == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Usuário não encontrado com o ID: " + id
-            );
-        }
-
-        return DtoMapper.toUserResponse(user);
+        return DtoMapper.toUserResponse(userService.findById(id));
     }
 
     @GetMapping("/google/{googleId}")
@@ -145,17 +126,9 @@ public class UserController {
     public UserResponseDTO findByGoogleId(
             @PathVariable String googleId) {
 
-        User user =
-            userService.findByGoogleId(googleId);
-
-        if (user == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Usuário não encontrado com o Google ID: " + googleId
-            );
-        }
-
-        return DtoMapper.toUserResponse(user);
+        return DtoMapper.toUserResponse(
+            requireUser(userService.findByGoogleId(googleId))
+        );
     }
 
     @GetMapping("/email/{email}")
@@ -166,17 +139,9 @@ public class UserController {
     public UserResponseDTO findByEmail(
             @PathVariable String email) {
 
-        User user =
-            userService.findByEmail(email);
-
-        if (user == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Usuário não encontrado com o email: " + email
-            );
-        }
-
-        return DtoMapper.toUserResponse(user);
+        return DtoMapper.toUserResponse(
+            requireUser(userService.findByEmail(email))
+        );
     }
 
     @GetMapping("/name/{name}")
@@ -212,42 +177,7 @@ public class UserController {
             @PathVariable Long id,
             @Valid @RequestBody UserRequestDTO request) {
 
-        User existingUser = userService.findById(id);
-
-        if (existingUser == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Usuário não encontrado com o ID: " + id
-            );
-        }
-
-        if (request.name() != null && !request.name().isBlank()) {
-            existingUser.setName(request.name().trim());
-        }
-
-        boolean isGoogleUser = existingUser.getGoogleId() != null && !existingUser.getGoogleId().isBlank();
-        if (!isGoogleUser && request.email() != null && !request.email().isBlank()) {
-            existingUser.setEmail(request.email().trim().toLowerCase());
-        }
-
-        if (request.profilePicture() != null && !request.profilePicture().isBlank()) {
-            existingUser.setProfilePicture(request.profilePicture());
-        }
-
-        if (request.password() != null && !request.password().isBlank()) {
-            if (existingUser.getPasswordHash() == null
-                    || existingUser.getPasswordHash().isBlank()
-                    || request.currentPassword() == null
-                    || request.currentPassword().isBlank()
-                    || !passwordEncoder.matches(request.currentPassword(), existingUser.getPasswordHash())) {
-                throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "A senha atual informada está incorreta."
-                );
-            }
-            existingUser.setPasswordHash(request.password());
-        }
-        userService.update(existingUser);
+        userService.updateProfile(id, request);
     }
 
     @PatchMapping("/{id}/profile-picture")
@@ -255,7 +185,7 @@ public class UserController {
     @Operation(summary = "Atualiza somente a foto de perfil")
     public void updateProfilePicture(
             @PathVariable Long id,
-            @RequestBody UserRequestDTO request) {
+            @Valid @RequestBody UserRequestDTO request) {
 
         if (request.profilePicture() == null || request.profilePicture().isBlank()) {
             throw new ResponseStatusException(
@@ -279,15 +209,13 @@ public class UserController {
     public void deleteById(
             @PathVariable Long id) {
 
-        User existingUser = userService.findById(id);
-
-        if (existingUser == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Usuário não encontrado com o ID: " + id
-            );
-        }
-
         userService.deleteById(id);
+    }
+
+    private static User requireUser(User user) {
+        if (user == null) {
+            throw new ResourceNotFoundException("Usuário não encontrado.");
+        }
+        return user;
     }
 }

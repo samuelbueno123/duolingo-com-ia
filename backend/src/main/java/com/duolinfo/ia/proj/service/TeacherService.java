@@ -1,6 +1,7 @@
 package com.duolinfo.ia.proj.service;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -60,6 +61,8 @@ public class TeacherService {
             Long institutionId,
             Teacher teacher) {
 
+        teacher.setApproved(false);
+
         Institution institution =
             institutionRepository.findById(institutionId)
                 .orElseThrow(() ->
@@ -72,11 +75,11 @@ public class TeacherService {
             String email = teacher.getEmail().trim().toLowerCase();
             teacher.setEmail(email);
 
-            if (teacherRepository.findByEmail(email).isPresent()) {
+            if (teacherRepository.findByEmailIgnoreCase(email).isPresent()) {
                 throw new BusinessException("Já existe um professor cadastrado com o e-mail: " + email);
             }
 
-            Optional<User> baseUserOpt = userRepository.findByEmail(email);
+            Optional<User> baseUserOpt = userRepository.findByEmailIgnoreCase(email);
             if (baseUserOpt.isPresent()) {
                 User baseUser = baseUserOpt.get();
 
@@ -187,12 +190,6 @@ public class TeacherService {
 
         Teacher current = findById(id);
 
-        if (current == null) {
-            throw new ResourceNotFoundException(
-                "Professor não encontrado: " + id
-            );
-        }
-
         if (institutionId != null &&
                 (current.getInstitution() == null ||
                 !institutionId.equals(
@@ -211,8 +208,16 @@ public class TeacherService {
         }
 
         current.setName(data.getName());
-        current.setEmail(data.getEmail());
-        current.setGoogleId(data.getGoogleId());
+        if (data.getEmail() != null && !data.getEmail().isBlank()) {
+            String email = data.getEmail().trim().toLowerCase(Locale.ROOT);
+            boolean usedByAnotherAccount = userRepository.findByEmailIgnoreCase(email)
+                .filter(account -> !account.getId().equals(current.getId()))
+                .isPresent();
+            if (usedByAnotherAccount) {
+                throw new BusinessException("E-mail já cadastrado no sistema.");
+            }
+            current.setEmail(email);
+        }
         current.setTaughtLanguages(
             data.getTaughtLanguages()
         );
@@ -227,13 +232,20 @@ public class TeacherService {
     }
 
     @Transactional
+    public Teacher updateApproval(Long id, boolean approved) {
+        Teacher teacher = findById(id);
+        teacher.setApproved(approved);
+        return teacherRepository.save(teacher);
+    }
+
+    @Transactional
     public void delete(Teacher teacher) {
         teacherRepository.delete(teacher);
     }
 
     @Transactional
     public void deleteById(Long id) {
-        teacherRepository.deleteById(id);
+        teacherRepository.delete(findById(id));
     }
 
     @Transactional
@@ -264,7 +276,10 @@ public class TeacherService {
 
     @Transactional(readOnly = true)
     public Teacher findById(Long id) {
-        return teacherRepository.findById(id).orElse(null);
+        return teacherRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "Professor não encontrado: " + id
+            ));
     }
 
     @Transactional(readOnly = true)
@@ -274,7 +289,7 @@ public class TeacherService {
 
     @Transactional(readOnly = true)
     public Teacher findByEmail(String email) {
-        return teacherRepository.findByEmail(email).orElse(null);
+        return teacherRepository.findByEmailIgnoreCase(email).orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -343,6 +358,13 @@ public class TeacherService {
     @Transactional(readOnly = true)
     public boolean existsById(Long id) {
         return teacherRepository.existsById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isApproved(Long id) {
+        return teacherRepository.findById(id)
+            .map(teacher -> Boolean.TRUE.equals(teacher.getApproved()))
+            .orElse(false);
     }
 
     @Transactional(readOnly = true)

@@ -16,8 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.duolinfo.ia.proj.dto.request.InstitutionRequestDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionResponseDTO;
-import com.duolinfo.ia.proj.entity.Institution;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
+import com.duolinfo.ia.proj.mapper.RequestMapper;
 import com.duolinfo.ia.proj.service.InstitutionService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,10 +46,8 @@ public class InstitutionController {
     public InstitutionResponseDTO create(
             @Valid @RequestBody InstitutionRequestDTO request) {
 
-        Institution institution = toEntity(request);
-
         return DtoMapper.toInstitutionResponse(
-            institutionService.create(institution)
+            institutionService.create(RequestMapper.toInstitution(request))
         );
     }
 
@@ -135,7 +133,7 @@ public class InstitutionController {
         return DtoMapper.toInstitutionResponse(
             institutionService.update(
                 id,
-                toEntity(request)
+                RequestMapper.toInstitution(request)
             )
         );
     }
@@ -169,27 +167,4 @@ public class InstitutionController {
         institutionService.delete(id);
     }
 
-    private Institution toEntity(
-            InstitutionRequestDTO request) {
-
-        Institution institution =
-            new Institution();
-
-        institution.setName(request.name());
-        institution.setCode(request.code());
-        institution.setEmail(request.email());
-        institution.setPhone(request.phone());
-        institution.setWebsite(request.website());
-        institution.setCity(request.city());
-        institution.setState(request.state());
-        institution.setCountry(request.country());
-        institution.setAddress(request.address());
-        institution.setDescription(request.description());
-
-        if (request.active() != null) {
-            institution.setActive(request.active());
-        }
-
-        return institution;
-    }
 }

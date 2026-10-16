@@ -1,6 +1,12 @@
 package com.duolinfo.ia.proj.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,18 +28,23 @@ public class User {
     @Column(name = "google_id", unique = true)
     private String googleId;
 
+    @Column(name = "google_email_verified")
+    private Boolean googleEmailVerified;
+
     @Column(nullable = false)
     private String name;
 
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Lob
     @Column(name = "profile_picture", columnDefinition = "TEXT")
     private String profilePicture;
 
     @Column(name = "password_hash")
     private String passwordHash;
+
+    @Column(name = "is_admin", nullable = false, columnDefinition = "boolean default false")
+    private boolean admin;
 
     public Long getId() {
         return id;

@@ -116,15 +116,10 @@ public class ClassTeacherAssignmentController {
             @RequestBody(required = false)
             ClassTeacherAssignmentFinishDTO request) {
 
-        if (request == null) {
-            request =
-                new ClassTeacherAssignmentFinishDTO(null);
-        }
-
         return DtoMapper.toAssignmentResponse(
             assignmentService.finishCurrentAssignment(
                 schoolClassId,
-                request.endDate()
+                request == null ? null : request.endDate()
             )
         );
     }

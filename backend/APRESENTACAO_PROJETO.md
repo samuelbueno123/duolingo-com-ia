@@ -539,11 +539,7 @@ Versão específica para execução em container:
 
 ### `compose.yaml`
 
-Inicia o PostgreSQL 17 em Docker, publica a porta 5432, verifica a disponibilidade do banco e mantém os dados no volume `postgres-data`.
-
-### `docker-compose.yml`
-
-Define a API em container. Combinado com `compose.yaml`, aguarda o PostgreSQL ficar saudável e conecta ao serviço `postgres`.
+Define a API e o PostgreSQL 17 em um único arquivo. A API aguarda o banco ficar saudável; os dados do PostgreSQL e as fotos de perfil ficam em volumes persistentes separados.
 
 ### `package-image.ps1`
 

@@ -16,8 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.duolinfo.ia.proj.dto.request.SchoolClassRequestDTO;
 import com.duolinfo.ia.proj.dto.response.SchoolClassResponseDTO;
-import com.duolinfo.ia.proj.entity.SchoolClass;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
+import com.duolinfo.ia.proj.mapper.RequestMapper;
 import com.duolinfo.ia.proj.service.SchoolClassService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,12 +47,10 @@ public class SchoolClassController {
             @PathVariable Long schoolId,
             @Valid @RequestBody SchoolClassRequestDTO request) {
 
-        SchoolClass schoolClass = toEntity(request);
-
         return DtoMapper.toSchoolClassResponse(
             schoolClassService.create(
                 schoolId,
-                schoolClass
+                RequestMapper.toSchoolClass(request)
             )
         );
     }
@@ -153,13 +151,11 @@ public class SchoolClassController {
             @PathVariable Long id,
             @Valid @RequestBody SchoolClassRequestDTO request) {
 
-        SchoolClass schoolClass = toEntity(request);
-
         return DtoMapper.toSchoolClassResponse(
             schoolClassService.update(
                 id,
                 request.schoolId(),
-                schoolClass
+                RequestMapper.toSchoolClass(request)
             )
         );
     }
@@ -193,27 +189,4 @@ public class SchoolClassController {
         schoolClassService.delete(id);
     }
 
-    private SchoolClass toEntity(
-            SchoolClassRequestDTO request) {
-
-        SchoolClass schoolClass =
-            new SchoolClass();
-
-        schoolClass.setName(request.name());
-        schoolClass.setSchoolYear(
-            request.schoolYear()
-        );
-        schoolClass.setShift(request.shift());
-        schoolClass.setGradeLevel(
-            request.gradeLevel()
-        );
-
-        if (request.active() != null) {
-            schoolClass.setActive(
-                request.active()
-            );
-        }
-
-        return schoolClass;
-    }
 }

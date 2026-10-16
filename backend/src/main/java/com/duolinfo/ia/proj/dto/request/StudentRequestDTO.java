@@ -5,6 +5,7 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 @Schema(description = "Dados de um estudante")
 public record StudentRequestDTO(
@@ -20,6 +21,7 @@ public record StudentRequestDTO(
         description = "Email do estudante",
         example = "maria@exemplo.com"
     )
+    @NotBlank(message = "O email é obrigatório.")
     @Email(message = "Email inválido.")
     String email,
 
@@ -27,6 +29,7 @@ public record StudentRequestDTO(
         description = "Senha do estudante",
         example = "senha123"
     )
+    @Size(min = 6, max = 72, message = "A senha deve ter entre 6 e 72 caracteres.")
     String password,
 
     @Schema(

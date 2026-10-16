@@ -122,19 +122,13 @@ public class EnrollmentController {
             @PathVariable Long id,
             @RequestBody(required = false)
             EnrollmentActionDTO request) {
-
-        if (request == null) {
-            request = new EnrollmentActionDTO(
-                null,
-                null
-            );
-        }
+        EnrollmentActionDTO action = actionOrEmpty(request);
 
         return DtoMapper.toEnrollmentResponse(
             enrollmentService.cancel(
                 id,
-                request.date(),
-                request.notes()
+                action.date(),
+                action.notes()
             )
         );
     }
@@ -145,25 +139,19 @@ public class EnrollmentController {
             @PathVariable Long id,
             @RequestBody(required = false)
             EnrollmentActionDTO request) {
-
-        if (request == null) {
-            request = new EnrollmentActionDTO(
-                null,
-                null
-            );
-        }
+        EnrollmentActionDTO action = actionOrEmpty(request);
 
         return DtoMapper.toEnrollmentResponse(
             enrollmentService.complete(
                 id,
-                request.date(),
-                request.notes()
+                action.date(),
+                action.notes()
             )
         );
     }
 
     @PutMapping("/{id}/status")
-    @Operation(summary = "Atualiza o estado da matrÃ­cula")
+    @Operation(summary = "Atualiza o estado da matrícula")
     public EnrollmentResponseDTO updateStatus(
             @PathVariable Long id,
             @Valid @RequestBody EnrollmentStatusRequestDTO request) {
@@ -195,5 +183,12 @@ public class EnrollmentController {
             @PathVariable Long id) {
 
         enrollmentService.delete(id);
+    }
+
+    private static EnrollmentActionDTO actionOrEmpty(
+            EnrollmentActionDTO request) {
+        return request == null
+            ? new EnrollmentActionDTO(null, null)
+            : request;
     }
 }

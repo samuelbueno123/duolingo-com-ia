@@ -22,12 +22,21 @@ Depois, inicie a API fora do Docker:
 
 No Linux/macOS, use `./mvnw spring-boot:run`.
 
+## Acesso e administração
+
+Crie o arquivo local `.env.local` (ele é ignorado pelo Git) e configure `JWT_SECRET` com uma chave aleatória de pelo menos 32 bytes. Defina `APP_ADMIN_EMAILS` com os emails Google verificados que terão acesso administrativo, separados por vírgula. O primeiro login Google desses emails cria ou associa a conta e concede o papel `ADMIN`. O arquivo `.env.local` é carregado ao iniciar pelo Maven e pelo Docker Compose. Não grave segredos no `.env` versionado.
+
+O cadastro de professor continua público, mas a conta fica pendente (`approved: false`) até um administrador aprová-la. Para aprovar ou revogar o acesso, use `PATCH /api/teachers/{id}/approval` com `{"approved": true}` ou `{"approved": false}`. Professores aprovados podem editar apenas o próprio perfil; a exclusão e as demais rotas de gestão exigem `ADMIN`.
+
+Fotos JPG e PNG enviadas pelo perfil são validadas (até 5 MB e 1024x1024), gravadas em `uploads/profile-pictures` fora do banco e servidas pela API. No primeiro login Google, a foto retornada pelo Google é importada para essa pasta quando a conta é criada ou vinculada. Logins seguintes preservam a foto escolhida pelo usuário. No Docker, o diretório fica no volume persistente `profile-pictures` montado na API; o PostgreSQL guarda somente o caminho da imagem.
+
+
 Veja também o [guia de consultas `SELECT` com Java e PostgreSQL](GUIA_SELECT_POSTGRES_JAVA.md), com exemplos de parâmetros `?` para evitar SQL injection.
 
-Para iniciar API e banco em containers:
+O arquivo `compose.yaml` contém a API e o PostgreSQL. Para iniciar os dois serviços:
 
 ```powershell
-docker compose -f compose.yaml -f docker-compose.yml up --build
+docker compose up --build
 ```
 
 ## Gerar o `.tar`
@@ -55,7 +64,7 @@ Copie o `.tar` para a outra máquina e rode:
 
 ```powershell
 docker load -i duolingo-ia-backend.tar
-docker compose -f compose.yaml -f docker-compose.yml up -d --no-build
+docker compose up -d --no-build
 ```
 
 O serviço PostgreSQL inicia pelo Compose e guarda os dados no volume `postgres-data`.

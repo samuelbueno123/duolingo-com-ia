@@ -1,13 +1,15 @@
 package com.duolinfo.ia.proj.controller;
 
-import java.util.Base64;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,13 +18,14 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.duolinfo.ia.proj.dto.request.TeacherDocumentRequestDTO;
+import com.duolinfo.ia.proj.dto.request.TeacherApprovalRequestDTO;
 import com.duolinfo.ia.proj.dto.request.TeacherRequestDTO;
 import com.duolinfo.ia.proj.dto.response.ClassTeacherAssignmentResponseDTO;
 import com.duolinfo.ia.proj.dto.response.TeacherResponseDTO;
 import com.duolinfo.ia.proj.entity.Teacher;
-import com.duolinfo.ia.proj.entity.TeacherDocument;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
+import com.duolinfo.ia.proj.mapper.RequestMapper;
+import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.service.TeacherService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,48 +55,15 @@ public class TeacherController {
     )
     public TeacherResponseDTO create(
             @Valid @RequestBody TeacherRequestDTO request) {
-
-        Teacher teacher = new Teacher();
-
-        teacher.setName(request.name());
-        teacher.setEmail(request.email());
-        teacher.setGoogleId(request.googleId());
-        teacher.setPasswordHash(request.password());
-        teacher.setTaughtLanguages(request.taughtLanguages());
-        teacher.setSpecializationAreas(request.specializationAreas());
-        teacher.setBibliography(request.bibliography());
-
-        if (request.documents() != null) {
-            for (TeacherDocumentRequestDTO docDto : request.documents()) {
-                if (docDto == null || docDto.fileName() == null || docDto.fileData() == null || docDto.fileData().isBlank()) {
-                    continue;
-                }
-
-                byte[] bytes;
-                try {
-                    String base64Data = docDto.fileData();
-                    if (base64Data.contains(",")) {
-                        base64Data = base64Data.split(",", 2)[1];
-                    }
-                    bytes = Base64.getDecoder().decode(base64Data);
-                } catch (Exception e) {
-                    continue;
-                }
-
-                TeacherDocument doc = new TeacherDocument();
-                doc.setFileName(docDto.fileName().trim());
-                doc.setContentType(docDto.contentType() != null && !docDto.contentType().isBlank() ? docDto.contentType().trim() : "application/pdf");
-                doc.setFileSize(docDto.fileSize() != null ? docDto.fileSize() : (long) bytes.length);
-                doc.setFileData(bytes);
-
-                teacher.addDocument(doc);
-            }
+        if (request.password() == null || request.password().isBlank()) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "A senha é obrigatória para criar uma conta de professor.");
         }
-
         return DtoMapper.toTeacherResponse(
             teacherService.create(
                 request.institutionId(),
-                teacher
+                RequestMapper.toNewTeacher(request)
             )
         );
     }
@@ -108,21 +78,22 @@ public class TeacherController {
             .toList();
     }
 
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Busca o perfil do professor autenticado")
+    public TeacherResponseDTO findMyProfile(Authentication authentication) {
+        return DtoMapper.toTeacherResponse(
+            requireTeacher(teacherService.findByEmail(authentication.getName()))
+        );
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Busca professor por ID")
     public TeacherResponseDTO findById(
             @PathVariable Long id) {
 
-        Teacher teacher = teacherService.findById(id);
-
-        if (teacher == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Professor não encontrado."
-            );
-        }
-
-        return DtoMapper.toTeacherResponse(teacher);
+        return DtoMapper.toTeacherResponse(teacherService.findById(id));
     }
 
     @GetMapping("/google/{googleId}")
@@ -130,17 +101,9 @@ public class TeacherController {
     public TeacherResponseDTO findByGoogleId(
             @PathVariable String googleId) {
 
-        Teacher teacher =
-            teacherService.findByGoogleId(googleId);
-
-        if (teacher == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Professor não encontrado."
-            );
-        }
-
-        return DtoMapper.toTeacherResponse(teacher);
+        return DtoMapper.toTeacherResponse(
+            requireTeacher(teacherService.findByGoogleId(googleId))
+        );
     }
 
     @GetMapping("/email/{email}")
@@ -148,17 +111,9 @@ public class TeacherController {
     public TeacherResponseDTO findByEmail(
             @PathVariable String email) {
 
-        Teacher teacher =
-            teacherService.findByEmail(email);
-
-        if (teacher == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Professor não encontrado."
-            );
-        }
-
-        return DtoMapper.toTeacherResponse(teacher);
+        return DtoMapper.toTeacherResponse(
+            requireTeacher(teacherService.findByEmail(email))
+        );
     }
 
     @GetMapping("/name/{name}")
@@ -248,62 +203,83 @@ public class TeacherController {
 
     @PutMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Atualiza professor")
     public void update(
             @PathVariable Long id,
+            Authentication authentication,
             @Valid @RequestBody TeacherRequestDTO request) {
 
-        Teacher existing = teacherService.findById(id);
-
-        if (existing == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Professor não encontrado."
-            );
-        }
-
-        Teacher teacher = new Teacher();
-
-        teacher.setId(id);
-        teacher.setName(request.name());
-        teacher.setEmail(request.email());
-        teacher.setGoogleId(request.googleId());
-        teacher.setTaughtLanguages(
-            request.taughtLanguages()
-        );
-        teacher.setSpecializationAreas(
-            request.specializationAreas()
-        );
-        teacher.setBibliography(
-            request.bibliography()
-        );
-
+        ensureCanUpdateTeacher(id, authentication, request);
         teacherService.update(
             id,
             request.institutionId(),
-            teacher
+            RequestMapper.toTeacherUpdate(id, request)
+        );
+    }
+
+    @PatchMapping("/{id}/approval")
+    @PreAuthorize("hasRole('ADMIN')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Aprova ou revoga o acesso de um professor")
+    public TeacherResponseDTO updateApproval(
+            @PathVariable Long id,
+            @Valid @RequestBody TeacherApprovalRequestDTO request) {
+        return DtoMapper.toTeacherResponse(
+            teacherService.updateApproval(id, request.approved())
         );
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Exclui professor")
     public void deleteById(
             @PathVariable Long id) {
 
-        Teacher existing = teacherService.findById(id);
+        teacherService.deleteById(id);
+    }
 
-        if (existing == null) {
-            throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Professor não encontrado."
-            );
+    private void ensureCanUpdateTeacher(
+            Long teacherId,
+            Authentication authentication,
+            TeacherRequestDTO request) {
+        boolean isAdmin = authentication.getAuthorities().stream()
+            .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        if (isAdmin) {
+            return;
         }
 
-        teacherService.deleteById(id);
+        Teacher authenticatedTeacher = teacherService.findByEmail(authentication.getName());
+        if (authenticatedTeacher == null
+                || !teacherId.equals(authenticatedTeacher.getId())) {
+            throw new AccessDeniedException(
+                "Você só pode atualizar o seu próprio perfil de professor.");
+        }
+
+        if (request.email() != null
+                && !request.email().isBlank()
+                && !request.email().trim().equalsIgnoreCase(authenticatedTeacher.getEmail())) {
+            throw new AccessDeniedException(
+                "Somente um administrador pode alterar o email de um professor.");
+        }
+
+        Long currentInstitutionId = authenticatedTeacher.getInstitution() == null
+            ? null
+            : authenticatedTeacher.getInstitution().getId();
+        if (request.institutionId() != null
+                && !request.institutionId().equals(currentInstitutionId)) {
+            throw new AccessDeniedException(
+                "Somente um administrador pode alterar a instituição de um professor.");
+        }
+    }
+
+    private static Teacher requireTeacher(Teacher teacher) {
+        if (teacher == null) {
+            throw new ResourceNotFoundException("Professor não encontrado.");
+        }
+        return teacher;
     }
 }

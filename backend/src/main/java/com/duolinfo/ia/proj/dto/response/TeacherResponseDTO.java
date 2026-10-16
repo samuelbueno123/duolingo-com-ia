@@ -28,6 +28,9 @@ public record TeacherResponseDTO(
     @Schema(example = "[\"Conversação\", \"Gramática\"]")
     List<String> specializationAreas,
 
-    String bibliography
+    String bibliography,
+
+    @Schema(example = "false")
+    boolean approved
 ) {
 }

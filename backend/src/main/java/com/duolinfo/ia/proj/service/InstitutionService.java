@@ -18,6 +18,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class InstitutionService {
 
+    public static final String DEFAULT_INSTITUTION_CODE = "CEFET-NOVA-IGUACU";
+
     private final InstitutionRepository institutionRepository;
     private final SchoolRepository schoolRepository;
     private final TeacherRepository teacherRepository;

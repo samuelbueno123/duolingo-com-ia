@@ -28,6 +28,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final JwtService jwtService;
     private final UserService userService;
     private final StudentService studentService;
     private final TeacherService teacherService;
@@ -38,6 +39,7 @@ public class AuthService {
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             GoogleTokenVerifier googleTokenVerifier,
+            JwtService jwtService,
             UserService userService,
             StudentService studentService,
             TeacherService teacherService,
@@ -46,6 +48,7 @@ public class AuthService {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.googleTokenVerifier = googleTokenVerifier;
+        this.jwtService = jwtService;
         this.userService = userService;
         this.studentService = studentService;
         this.teacherService = teacherService;
@@ -59,6 +62,7 @@ public class AuthService {
     @Transactional
     public LoginResult loginWithPassword(String email, String rawPassword) {
         User user = authenticate(email, rawPassword);
+        ensureAdminTeacherProfile(user);
         return new LoginResult(user, resolveProfileType(user));
     }
 
@@ -87,6 +91,23 @@ public class AuthService {
         String picture = stringClaim(payload, "picture");
 
         User user = findOrCreateGoogleUser(googleId, email, name, picture);
+        ensureAdminTeacherProfile(user);
+        return new LoginResult(user, resolveProfileType(user));
+    }
+
+    @Transactional
+    public LoginResult refreshSession(String refreshToken) {
+        if (refreshToken == null || !jwtService.isRefreshTokenValid(refreshToken)) {
+            throw unauthorized("Sessão expirada. Entre novamente.");
+        }
+
+        Long userId = jwtService.getUserIdFromToken(refreshToken).orElse(null);
+        if (userId == null) {
+            throw unauthorized("Token de renovação inválido.");
+        }
+
+        User user = userService.findById(userId);
+        ensureAdminTeacherProfile(user);
         return new LoginResult(user, resolveProfileType(user));
     }
 
@@ -133,10 +154,11 @@ public class AuthService {
         }
 
         Set<String> roles = new LinkedHashSet<>();
-        if (user.isAdmin() || isConfiguredAdmin(user)) {
+        boolean admin = user.isAdmin() || isConfiguredAdmin(user);
+        if (admin) {
             roles.add("ADMIN");
         }
-        if (teacherService.isApproved(user.getId())) {
+        if (admin || teacherService.isApproved(user.getId())) {
             roles.add("TEACHER");
         }
         if (studentService.existsById(user.getId())) {
@@ -146,6 +168,12 @@ public class AuthService {
             roles.add("USER");
         }
         return List.copyOf(roles);
+    }
+
+    private void ensureAdminTeacherProfile(User user) {
+        if (user.isAdmin() || isConfiguredAdmin(user)) {
+            teacherService.ensureAdminTeacherProfile(user.getId());
+        }
     }
 
     public boolean isConfiguredAdmin(User user) {

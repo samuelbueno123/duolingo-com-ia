@@ -7,15 +7,20 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.duolinfo.ia.proj.entity.CatalogOption;
+import com.duolinfo.ia.proj.entity.Institution;
 import com.duolinfo.ia.proj.repository.CatalogOptionRepository;
+import com.duolinfo.ia.proj.repository.InstitutionRepository;
+import com.duolinfo.ia.proj.service.InstitutionService;
 
 @Configuration
 public class CatalogDataInitializer {
 
     @Bean
     ApplicationRunner initializeReferenceCatalog(
-            CatalogOptionRepository repository) {
+            CatalogOptionRepository repository,
+            InstitutionRepository institutionRepository) {
         return args -> {
+            ensureDefaultInstitution(institutionRepository);
             addMissing(repository, "language", List.of(
                 "Alemão",
                 "Espanhol",
@@ -32,6 +37,22 @@ public class CatalogDataInitializer {
                 "Fluente"
             ));
         };
+    }
+
+    private static void ensureDefaultInstitution(InstitutionRepository repository) {
+        if (repository.existsByCode(InstitutionService.DEFAULT_INSTITUTION_CODE)) {
+            return;
+        }
+
+        repository.save(Institution.builder()
+            .name("CEFET/RJ - Campus Nova Iguaçu")
+            .code(InstitutionService.DEFAULT_INSTITUTION_CODE)
+            .email("cefet.novaiguacu@duolinfo.local")
+            .city("Nova Iguaçu")
+            .state("RJ")
+            .country("Brasil")
+            .active(true)
+            .build());
     }
 
     private static void addMissing(

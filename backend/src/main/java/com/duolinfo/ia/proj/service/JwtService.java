@@ -19,7 +19,8 @@ import io.jsonwebtoken.security.Keys;
 @Service
 public class JwtService {
 
-    private static final long TOKEN_LIFETIME_MILLIS = 1000L * 60 * 60 * 24;
+    private static final long ACCESS_TOKEN_LIFETIME_MILLIS = 1000L * 60 * 15;
+    private static final long REFRESH_TOKEN_LIFETIME_MILLIS = 1000L * 60 * 60 * 24 * 30;
 
     private final SecretKey signingKey;
 
@@ -38,10 +39,27 @@ public class JwtService {
             .subject(user.getEmail())
             .claim("id", user.getId())
             .claim("profileType", profileType)
+            .claim("type", "access")
             .issuedAt(Date.from(issuedAt))
-            .expiration(Date.from(issuedAt.plusMillis(TOKEN_LIFETIME_MILLIS)))
+            .expiration(Date.from(issuedAt.plusMillis(ACCESS_TOKEN_LIFETIME_MILLIS)))
             .signWith(signingKey)
             .compact();
+    }
+
+    public String generateRefreshToken(User user) {
+        Instant issuedAt = Instant.now();
+        return Jwts.builder()
+            .subject(user.getEmail())
+            .claim("id", user.getId())
+            .claim("type", "refresh")
+            .issuedAt(Date.from(issuedAt))
+            .expiration(Date.from(issuedAt.plusMillis(REFRESH_TOKEN_LIFETIME_MILLIS)))
+            .signWith(signingKey)
+            .compact();
+    }
+
+    public long getRefreshTokenLifetimeSeconds() {
+        return REFRESH_TOKEN_LIFETIME_MILLIS / 1000;
     }
 
     public String generateToken(User user) {
@@ -71,6 +89,23 @@ public class JwtService {
         try {
             getClaims(token);
             return true;
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    public boolean isAccessTokenValid(String token) {
+        try {
+            String type = getClaims(token).get("type", String.class);
+            return type == null || "access".equals(type);
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    public boolean isRefreshTokenValid(String token) {
+        try {
+            return "refresh".equals(getClaims(token).get("type", String.class));
         } catch (RuntimeException exception) {
             return false;
         }

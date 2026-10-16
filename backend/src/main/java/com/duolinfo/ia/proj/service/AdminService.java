@@ -66,6 +66,7 @@ public class AdminService {
     private final AuthService authService;
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
+    private final TeacherService teacherService;
 
     public AdminService(
             DataSource dataSource,
@@ -73,13 +74,15 @@ public class AdminService {
             UserService userService,
             AuthService authService,
             StudentRepository studentRepository,
-            TeacherRepository teacherRepository) {
+            TeacherRepository teacherRepository,
+            TeacherService teacherService) {
         this.dataSource = dataSource;
         this.jdbcTemplate = jdbcTemplate;
         this.userService = userService;
         this.authService = authService;
         this.studentRepository = studentRepository;
         this.teacherRepository = teacherRepository;
+        this.teacherService = teacherService;
     }
 
     public List<AdminTableMetadataResponseDTO> listTables() {
@@ -256,7 +259,11 @@ public class AdminService {
         user.setEmail(request.email());
         user.setPasswordHash(request.password());
         user.setAdmin(request.isAdmin());
-        return toAdminUser(userService.create(user));
+        User createdUser = userService.create(user);
+        if (request.isAdmin()) {
+            teacherService.ensureAdminTeacherProfile(createdUser.getId());
+        }
+        return toAdminUser(createdUser);
     }
 
     @Transactional
@@ -266,6 +273,7 @@ public class AdminService {
             String currentAdminEmail) {
         User user = userService.findById(userId);
         ensureAdminCanChangeRole(user, request.isAdmin(), currentAdminEmail);
+        boolean wasAdmin = user.isAdmin() || authService.isConfiguredAdmin(user);
 
         user.setName(request.name());
         user.setEmail(request.email());
@@ -273,7 +281,11 @@ public class AdminService {
             user.setPasswordHash(request.password());
         }
         user.setAdmin(request.isAdmin());
-        return toAdminUser(userService.update(user));
+        User updatedUser = userService.update(user);
+        if (request.isAdmin() || wasAdmin) {
+            teacherService.ensureAdminTeacherProfile(updatedUser.getId());
+        }
+        return toAdminUser(updatedUser);
     }
 
     @Transactional
@@ -283,8 +295,13 @@ public class AdminService {
             String currentAdminEmail) {
         User user = userService.findById(userId);
         ensureAdminCanChangeRole(user, isAdmin, currentAdminEmail);
+        boolean wasAdmin = user.isAdmin() || authService.isConfiguredAdmin(user);
         user.setAdmin(isAdmin);
-        return toAdminUser(userService.update(user));
+        User updatedUser = userService.update(user);
+        if (isAdmin || wasAdmin) {
+            teacherService.ensureAdminTeacherProfile(updatedUser.getId());
+        }
+        return toAdminUser(updatedUser);
     }
 
     @Transactional

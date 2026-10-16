@@ -1,5 +1,7 @@
 package com.duolinfo.ia.proj.dto.response;
 
+import java.util.List;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Dados do usuário autenticado")
@@ -26,6 +28,9 @@ public record AuthenticatedUserResponseDTO(
         description = "Tipo de perfil",
         example = "STUDENT"
     )
-    String profileType
+    String profileType,
+
+    @Schema(description = "Papéis disponíveis para o usuário")
+    List<String> roles
 ) {
 }

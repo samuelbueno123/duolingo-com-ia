@@ -51,7 +51,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private void authenticate(String token) {
-        if (token.isBlank() || !jwtService.isTokenValid(token)) {
+        if (token.isBlank() || !jwtService.isAccessTokenValid(token)) {
             return;
         }
 

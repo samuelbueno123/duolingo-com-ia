@@ -1,11 +1,16 @@
 package com.duolinfo.ia.proj.controller.Auth;
 
 import java.util.Map;
+import java.time.Duration;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.dto.request.GoogleLoginRequest;
 import com.duolinfo.ia.proj.dto.request.PasswordLoginRequest;
+import com.duolinfo.ia.proj.dto.request.RefreshTokenRequestDTO;
 import com.duolinfo.ia.proj.dto.request.UserRequestDTO;
 import com.duolinfo.ia.proj.dto.response.AuthResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AuthenticatedUserResponseDTO;
@@ -30,6 +36,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -43,20 +50,25 @@ public class AuthController {
     private final AuthService authService;
     private final JwtService jwtService;
     private final UserService userService;
+    private final boolean secureRefreshCookie;
 
     public AuthController(
             AuthService authService,
             JwtService jwtService,
-            UserService userService) {
+            UserService userService,
+            @Value("${server.servlet.session.cookie.secure:false}")
+            boolean secureRefreshCookie) {
         this.authService = authService;
         this.jwtService = jwtService;
         this.userService = userService;
+        this.secureRefreshCookie = secureRefreshCookie;
     }
 
     @PostMapping("/google")
     @Operation(summary = "Login com Google")
     public AuthResponseDTO loginGoogle(
-            @Valid @RequestBody GoogleLoginRequest request) {
+            @Valid @RequestBody GoogleLoginRequest request,
+            HttpServletResponse response) {
         if (request == null) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
@@ -65,14 +77,16 @@ public class AuthController {
         }
         return createAuthResponse(
             authService.loginWithGoogle(request.getCredential()),
-            GOOGLE_LOGIN_MESSAGE
+            GOOGLE_LOGIN_MESSAGE,
+            response
         );
     }
 
     @PostMapping("/login")
     @Operation(summary = "Login com email e senha")
     public AuthResponseDTO loginWithPassword(
-            @Valid @RequestBody PasswordLoginRequest request) {
+            @Valid @RequestBody PasswordLoginRequest request,
+            HttpServletResponse response) {
         if (request == null) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
@@ -81,8 +95,24 @@ public class AuthController {
         }
         return createAuthResponse(
             authService.loginWithPassword(request.getEmail(), request.getPassword()),
-            PASSWORD_LOGIN_MESSAGE
+            PASSWORD_LOGIN_MESSAGE,
+            response
         );
+    }
+
+    @PostMapping("/refresh")
+    @Operation(summary = "Renova a sessão usando o token de renovação")
+    public AuthResponseDTO refresh(
+            @CookieValue(name = "refreshToken", required = false) String refreshCookie,
+            @RequestBody(required = false) RefreshTokenRequestDTO request,
+            HttpServletResponse response) {
+        String refreshToken = refreshCookie != null && !refreshCookie.isBlank()
+            ? refreshCookie
+            : request == null ? null : request.refreshToken();
+        return createAuthResponse(
+            authService.refreshSession(refreshToken),
+            "Sessão renovada com sucesso.",
+            response);
     }
 
     @GetMapping("/me")
@@ -94,14 +124,23 @@ public class AuthController {
             true,
             true,
             DtoMapper.toUserResponse(user),
-            authService.resolveProfileType(user)
+            authService.resolveProfileType(user),
+            authService.resolveRoles(user)
         );
     }
 
     @PostMapping("/logout")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Encerra a sessão")
-    public Map<String, Object> logout() {
+    public Map<String, Object> logout(HttpServletResponse response) {
+        response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from("refreshToken", "")
+            .httpOnly(true)
+            .secure(secureRefreshCookie)
+            .sameSite(secureRefreshCookie ? "None" : "Lax")
+            .path("/api/auth")
+            .maxAge(Duration.ZERO)
+            .build()
+            .toString());
         return Map.of(
             "success", true,
             "message", "Logout realizado com sucesso."
@@ -126,14 +165,29 @@ public class AuthController {
         );
     }
 
-    private AuthResponseDTO createAuthResponse(LoginResult result, String message) {
+    private AuthResponseDTO createAuthResponse(
+            LoginResult result,
+            String message,
+            HttpServletResponse response) {
         String token = jwtService.generateToken(result.user(), result.profileType());
+        String refreshToken = jwtService.generateRefreshToken(result.user());
+        response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from(
+                "refreshToken", refreshToken)
+            .httpOnly(true)
+            .secure(secureRefreshCookie)
+            .sameSite(secureRefreshCookie ? "None" : "Lax")
+            .path("/api/auth")
+            .maxAge(Duration.ofSeconds(jwtService.getRefreshTokenLifetimeSeconds()))
+            .build()
+            .toString());
         return new AuthResponseDTO(
             true,
             message,
             token,
+            refreshToken,
             DtoMapper.toUserResponse(result.user()),
-            result.profileType()
+            result.profileType(),
+            authService.resolveRoles(result.user())
         );
     }
 

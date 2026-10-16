@@ -1,5 +1,7 @@
 package com.duolinfo.ia.proj.dto.response;
 
+import java.util.List;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Resposta padrão de autenticação")
@@ -23,6 +25,9 @@ public record AuthResponseDTO(
     )
     String token,
 
+    @Schema(description = "Token de renovação da sessão")
+    String refreshToken,
+
     @Schema(
         description = "Dados públicos do usuário autenticado"
     )
@@ -34,9 +39,13 @@ public record AuthResponseDTO(
         allowableValues = {
             "USER",
             "STUDENT",
-            "TEACHER"
+            "TEACHER",
+            "ADMIN"
         }
     )
-    String profileType
+    String profileType,
+
+    @Schema(description = "Papéis disponíveis para o usuário")
+    List<String> roles
 ) {
 }

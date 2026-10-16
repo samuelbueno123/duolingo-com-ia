@@ -1,8 +1,12 @@
 package com.duolinfo.ia.proj.controller;
 
+import java.time.Duration;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +34,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
 @RequestMapping("/api/users")
@@ -42,13 +47,17 @@ public class UserController {
 
     private final UserService userService;
     private final JwtService jwtService;
+    private final boolean secureRefreshCookie;
 
     public UserController(
             UserService userService,
-            JwtService jwtService) {
+            JwtService jwtService,
+            @Value("${server.servlet.session.cookie.secure:false}")
+            boolean secureRefreshCookie) {
 
         this.userService = userService;
         this.jwtService = jwtService;
+        this.secureRefreshCookie = secureRefreshCookie;
     }
 
     // ==========================================
@@ -65,7 +74,8 @@ public class UserController {
             """
     )
     public AuthResponseDTO create(
-            @Valid @RequestBody UserRequestDTO request) {
+            @Valid @RequestBody UserRequestDTO request,
+            HttpServletResponse response) {
 
         if (request.password() == null || request.password().isBlank()) {
             throw new ResponseStatusException(
@@ -79,13 +89,25 @@ public class UserController {
             newUser,
             "USER"
         );
+        String refreshToken = jwtService.generateRefreshToken(newUser);
+        response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from(
+                "refreshToken", refreshToken)
+            .httpOnly(true)
+            .secure(secureRefreshCookie)
+            .sameSite(secureRefreshCookie ? "None" : "Lax")
+            .path("/api/auth")
+            .maxAge(Duration.ofSeconds(jwtService.getRefreshTokenLifetimeSeconds()))
+            .build()
+            .toString());
 
         return new AuthResponseDTO(
             true,
             "Usuário criado com sucesso.",
             token,
+            refreshToken,
             DtoMapper.toUserResponse(newUser),
-            "USER"
+            "USER",
+            List.of("USER")
         );
     }
 

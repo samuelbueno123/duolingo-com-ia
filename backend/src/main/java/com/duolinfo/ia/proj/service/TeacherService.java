@@ -172,6 +172,35 @@ public class TeacherService {
         return teacherRepository.save(teacher);
     }
 
+    @Transactional
+    public void ensureAdminTeacherProfile(Long userId) {
+        if (userId == null) {
+            return;
+        }
+
+        Teacher teacher = teacherRepository.findById(userId).orElse(null);
+        if (teacher != null) {
+            if (!Boolean.TRUE.equals(teacher.getApproved())) {
+                teacher.setApproved(true);
+                teacherRepository.save(teacher);
+            }
+            return;
+        }
+
+        Institution institution = institutionRepository
+            .findByCode(InstitutionService.DEFAULT_INSTITUTION_CODE)
+            .orElseThrow(() -> new IllegalStateException(
+                "A instituição padrão do CEFET não foi inicializada."));
+
+        entityManager.flush();
+        entityManager.createNativeQuery(
+            "INSERT INTO teachers (id, institution_id, bibliography, approved) "
+                + "VALUES (:id, :institutionId, '', true) ON CONFLICT (id) DO NOTHING")
+            .setParameter("id", userId)
+            .setParameter("institutionId", institution.getId())
+            .executeUpdate();
+    }
+
     private String encodePasswordIfNeeded(String password) {
         if (password == null || password.isBlank()) {
             return null;

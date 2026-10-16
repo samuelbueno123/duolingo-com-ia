@@ -22,10 +22,15 @@ import org.springframework.web.bind.annotation.RestController;
 import com.duolinfo.ia.proj.dto.request.AdminRoleRequestDTO;
 import com.duolinfo.ia.proj.dto.request.AdminRowUpdateRequestDTO;
 import com.duolinfo.ia.proj.dto.request.AdminUserRequestDTO;
+import com.duolinfo.ia.proj.dto.request.InstitutionRequestDecisionDTO;
+import com.duolinfo.ia.proj.dto.response.AdminNotificationResponseDTO;
+import com.duolinfo.ia.proj.dto.response.InstitutionRequestResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableDataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableMetadataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminUserResponseDTO;
 import com.duolinfo.ia.proj.service.AdminService;
+import com.duolinfo.ia.proj.service.InstitutionRequestService;
+import com.duolinfo.ia.proj.entity.InstitutionRequest.Status;
 
 import jakarta.validation.Valid;
 
@@ -36,9 +41,13 @@ import jakarta.validation.Valid;
 public class AdminController {
 
     private final AdminService adminService;
+    private final InstitutionRequestService institutionRequestService;
 
-    public AdminController(AdminService adminService) {
+    public AdminController(
+            AdminService adminService,
+            InstitutionRequestService institutionRequestService) {
         this.adminService = adminService;
+        this.institutionRequestService = institutionRequestService;
     }
 
     @GetMapping("/tables")
@@ -108,5 +117,28 @@ public class AdminController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteUser(@PathVariable Long id, Authentication authentication) {
         adminService.deleteUser(id, authentication.getName());
+    }
+
+    @GetMapping("/notifications")
+    public List<AdminNotificationResponseDTO> notifications() {
+        return institutionRequestService.notifications();
+    }
+
+    @PatchMapping("/notifications/{id}/read")
+    public AdminNotificationResponseDTO markNotificationRead(@PathVariable Long id) {
+        return institutionRequestService.markRead(id);
+    }
+
+    @GetMapping("/institution-requests")
+    public List<InstitutionRequestResponseDTO> institutionRequests(
+            @RequestParam(required = false) Status status) {
+        return institutionRequestService.requests(status);
+    }
+
+    @PatchMapping("/institution-requests/{id}")
+    public InstitutionRequestResponseDTO decideInstitutionRequest(
+            @PathVariable Long id,
+            @Valid @RequestBody InstitutionRequestDecisionDTO request) {
+        return institutionRequestService.decide(id, request);
     }
 }

@@ -36,6 +36,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-duolingo}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-duolingo_dev_password}
       PROFILE_PICTURE_STORAGE_PATH: /app/uploads/profile-pictures
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
     depends_on:
       postgres:
         condition: service_healthy

@@ -13,4 +13,10 @@ public interface AdminNotificationRepository extends JpaRepository<AdminNotifica
         String referenceType,
         Long referenceId);
 
+    List<AdminNotification> findByInstitutionIdOrderByCreatedAtDesc(Long institutionId);
+
+    long countByReadFalse();
+
+    long countByInstitutionIdAndReadFalse(Long institutionId);
+
 }

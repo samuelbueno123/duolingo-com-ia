@@ -31,12 +31,37 @@ public final class DtoMapper {
             return null;
         }
 
+        boolean institutionAdmin = false;
+        boolean primaryInstitutionAdmin = false;
+        Long institutionId = null;
+        String institutionName = null;
+
+        if (user instanceof Teacher teacher) {
+            institutionAdmin = teacher.isInstitutionAdmin();
+            primaryInstitutionAdmin = teacher.isPrimaryInstitutionAdmin();
+            if (teacher.getInstitution() != null) {
+                institutionId = teacher.getInstitution().getId();
+                institutionName = teacher.getInstitution().getName();
+            }
+        } else if (user instanceof Student student) {
+            if (student.getInstitution() != null) {
+                institutionId = student.getInstitution().getId();
+                institutionName = student.getInstitution().getName();
+            }
+        }
+
         return new UserResponseDTO(
             user.getId(),
             user.getName(),
             user.getEmail(),
             user.getGoogleId(),
-            user.getProfilePicture()
+            user.getProfilePicture(),
+            user.getNormalizedGender(),
+            user.isSuperAdmin(),
+            institutionAdmin,
+            primaryInstitutionAdmin,
+            institutionId,
+            institutionName
         );
     }
 
@@ -79,6 +104,23 @@ public final class DtoMapper {
                     )
                 );
 
+        Long institutionId = null;
+        String institutionName = null;
+        if (student.getInstitution() != null) {
+            institutionId = student.getInstitution().getId();
+            institutionName = student.getInstitution().getName();
+        } else if (student.getEnrollments() != null && !student.getEnrollments().isEmpty()) {
+            for (Enrollment e : student.getEnrollments()) {
+                if (e.getSchoolClass() != null
+                        && e.getSchoolClass().getSchool() != null
+                        && e.getSchoolClass().getSchool().getInstitution() != null) {
+                    institutionId = e.getSchoolClass().getSchool().getInstitution().getId();
+                    institutionName = e.getSchoolClass().getSchool().getInstitution().getName();
+                    break;
+                }
+            }
+        }
+
         return new StudentResponseDTO(
             student.getId(),
             student.getName(),
@@ -86,7 +128,10 @@ public final class DtoMapper {
             student.getGoogleId(),
             languages,
             languageLevels,
-            languageScores
+            languageScores,
+            student.getNormalizedGender(),
+            institutionId,
+            institutionName
         );
     }
 
@@ -98,9 +143,24 @@ public final class DtoMapper {
         }
 
         Long institutionId = null;
+        String institutionName = null;
 
         if (teacher.getInstitution() != null) {
             institutionId = teacher.getInstitution().getId();
+            institutionName = teacher.getInstitution().getName();
+        }
+
+        var taughtLanguages = teacher.getTaughtLanguages() == null
+            ? Collections.<String>emptyList()
+            : new ArrayList<>(teacher.getTaughtLanguages());
+
+        var specializationAreas = teacher.getSpecializationAreas() == null
+            ? Collections.<String>emptyList()
+            : new ArrayList<>(teacher.getSpecializationAreas());
+
+        String status = teacher.getApprovalStatus();
+        if (status == null || status.isBlank()) {
+            status = Boolean.TRUE.equals(teacher.getApproved()) ? "APPROVED" : "PENDING";
         }
 
         return new TeacherResponseDTO(
@@ -109,10 +169,15 @@ public final class DtoMapper {
             teacher.getEmail(),
             teacher.getGoogleId(),
             institutionId,
-            teacher.getTaughtLanguages(),
-            teacher.getSpecializationAreas(),
+            taughtLanguages,
+            specializationAreas,
             teacher.getBibliography(),
-            Boolean.TRUE.equals(teacher.getApproved())
+            Boolean.TRUE.equals(teacher.getApproved()),
+            teacher.getNormalizedGender(),
+            teacher.isInstitutionAdmin(),
+            teacher.isPrimaryInstitutionAdmin(),
+            status,
+            institutionName
         );
     }
 

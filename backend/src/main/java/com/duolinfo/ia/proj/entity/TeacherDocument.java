@@ -35,8 +35,7 @@ public class TeacherDocument {
     private Long fileSize;
 
     @NotNull
-    @Lob
-    @Column(name = "file_data", nullable = false)
+    @Column(name = "file_data", nullable = false, columnDefinition = "bytea")
     private byte[] fileData;
 
     @ManyToOne(fetch = FetchType.LAZY)

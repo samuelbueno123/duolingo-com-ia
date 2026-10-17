@@ -40,4 +40,8 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     List<Teacher> findByInstitution_NameContainingIgnoreCase(
         String institutionName
     );
+
+    long countByInstitutionIdAndEmailNotIgnoreCase(Long institutionId, String email);
+
+    List<Teacher> findByInstitutionIdAndApprovedTrue(Long institutionId);
 }

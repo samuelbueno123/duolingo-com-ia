@@ -41,6 +41,12 @@ public record TeacherRequestDTO(
     String googleId,
 
     @Schema(
+        description = "Sexo do professor (MASCULINO ou FEMININO)",
+        example = "MASCULINO"
+    )
+    String gender,
+
+    @Schema(
         description = "ID da instituição do professor",
         example = "1"
     )

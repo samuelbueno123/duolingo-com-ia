@@ -25,6 +25,12 @@ public record StudentResponseDTO(
 
     Map<String, String> languageLevels,
 
-    Map<String, Integer> languageScores
+    Map<String, Integer> languageScores,
+
+    String gender,
+
+    Long institutionId,
+
+    String institutionName
 ) {
 }

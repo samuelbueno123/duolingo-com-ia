@@ -11,12 +11,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.dto.request.StudentRequestDTO;
 import com.duolinfo.ia.proj.dto.response.EnrollmentResponseDTO;
+import com.duolinfo.ia.proj.dto.response.InstitutionMembersResponseDTO;
 import com.duolinfo.ia.proj.dto.response.StudentResponseDTO;
 import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
@@ -56,7 +58,10 @@ public class StudentController {
                 "A senha é obrigatória para criar uma conta de estudante.");
         }
         return DtoMapper.toStudentResponse(
-            studentService.create(RequestMapper.toNewStudent(request))
+            studentService.create(
+                RequestMapper.toNewStudent(request),
+                request.institutionId()
+            )
         );
     }
 
@@ -76,6 +81,14 @@ public class StudentController {
         return DtoMapper.toStudentResponse(
             requireStudent(studentService.findByEmail(authentication.getName()))
         );
+    }
+
+    @GetMapping("/me/institution-members")
+    @Operation(summary = "Lista professores e alunos da instituição do estudante autenticado")
+    public InstitutionMembersResponseDTO findMyInstitutionMembers(
+            @RequestParam(required = false) String search,
+            Authentication authentication) {
+        return studentService.findInstitutionMembers(authentication.getName(), search);
     }
 
     @GetMapping("/{id}")
@@ -184,7 +197,10 @@ public class StudentController {
             @PathVariable Long id,
             @Valid @RequestBody StudentRequestDTO request) {
 
-        studentService.update(RequestMapper.toStudentUpdate(id, request));
+        studentService.update(
+            RequestMapper.toStudentUpdate(id, request),
+            request.institutionId()
+        );
     }
 
     @DeleteMapping("/{id}")

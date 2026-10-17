@@ -17,6 +17,8 @@ public record AdminUserRequestDTO(
     @Size(min = 6, max = 72, message = "A senha deve ter entre 6 e 72 caracteres.")
     String password,
 
-    boolean isAdmin
+    boolean isAdmin,
+
+    String gender
 ) {
 }

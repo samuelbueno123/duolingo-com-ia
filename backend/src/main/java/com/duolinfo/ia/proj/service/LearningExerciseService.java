@@ -55,6 +55,7 @@ public class LearningExerciseService {
     private final SchoolClassRepository schoolClassRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final ClassTeacherAssignmentRepository assignmentRepository;
+    private final AchievementService achievementService;
 
     @Transactional(readOnly = true)
     public List<LearningExerciseResponseDTO> findForStudent(String email) {
@@ -207,6 +208,7 @@ public class LearningExerciseService {
             }
         }
         studentRepository.save(student);
+        achievementService.evaluateAutoAchievements(student);
         return toSubmissionResponse(submission);
     }
 
@@ -301,7 +303,9 @@ public class LearningExerciseService {
         }
         submission.setFeedback(feedback.trim());
         submission.setReviewedAt(Instant.now());
-        return toSubmissionResponse(submissionRepository.save(submission));
+        ExerciseSubmission saved = submissionRepository.save(submission);
+        achievementService.evaluateAutoAchievements(saved.getStudent());
+        return toSubmissionResponse(saved);
     }
 
     private Student findStudent(String email) {

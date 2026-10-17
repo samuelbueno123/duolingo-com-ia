@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -31,11 +32,25 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.dto.request.AdminUserRequestDTO;
+import com.duolinfo.ia.proj.dto.request.InstitutionAdminRoleRequestDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableColumnResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableDataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableMetadataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminUserResponseDTO;
+import com.duolinfo.ia.proj.dto.response.InstitutionAdminDashboardDTO;
+import com.duolinfo.ia.proj.dto.response.SchoolClassResponseDTO;
+import com.duolinfo.ia.proj.dto.response.SchoolResponseDTO;
+import com.duolinfo.ia.proj.dto.response.StudentResponseDTO;
+import com.duolinfo.ia.proj.dto.response.TeacherResponseDTO;
+import com.duolinfo.ia.proj.entity.Institution;
+import com.duolinfo.ia.proj.entity.School;
+import com.duolinfo.ia.proj.entity.Student;
+import com.duolinfo.ia.proj.entity.Teacher;
 import com.duolinfo.ia.proj.entity.User;
+import com.duolinfo.ia.proj.mapper.DtoMapper;
+import com.duolinfo.ia.proj.repository.InstitutionRepository;
+import com.duolinfo.ia.proj.repository.SchoolClassRepository;
+import com.duolinfo.ia.proj.repository.SchoolRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
 import com.duolinfo.ia.proj.repository.TeacherRepository;
 
@@ -57,7 +72,7 @@ public class AdminService {
         "secret",
         "client_secret"
     );
-    private static final int DEFAULT_PAGE_SIZE = 100;
+    private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 250;
 
     private final DataSource dataSource;
@@ -67,6 +82,9 @@ public class AdminService {
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
     private final TeacherService teacherService;
+    private final InstitutionRepository institutionRepository;
+    private final SchoolRepository schoolRepository;
+    private final SchoolClassRepository schoolClassRepository;
 
     public AdminService(
             DataSource dataSource,
@@ -75,7 +93,10 @@ public class AdminService {
             AuthService authService,
             StudentRepository studentRepository,
             TeacherRepository teacherRepository,
-            TeacherService teacherService) {
+            TeacherService teacherService,
+            InstitutionRepository institutionRepository,
+            SchoolRepository schoolRepository,
+            SchoolClassRepository schoolClassRepository) {
         this.dataSource = dataSource;
         this.jdbcTemplate = jdbcTemplate;
         this.userService = userService;
@@ -83,6 +104,31 @@ public class AdminService {
         this.studentRepository = studentRepository;
         this.teacherRepository = teacherRepository;
         this.teacherService = teacherService;
+        this.institutionRepository = institutionRepository;
+        this.schoolRepository = schoolRepository;
+        this.schoolClassRepository = schoolClassRepository;
+    }
+
+    public void requireSuperAdmin(String adminEmail) {
+        User caller = adminEmail == null ? null : userService.findByEmail(adminEmail);
+        if (caller == null || !caller.isSuperAdmin()) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Apenas o administrador geral (admin@duolingo.com) possui permissão para esta operação.");
+        }
+    }
+
+    public Long resolveScopedInstitutionId(String adminEmail) {
+        if (adminEmail == null || adminEmail.isBlank()) return null;
+        User caller = userService.findByEmail(adminEmail);
+        if (caller == null || caller.isSuperAdmin()) {
+            return null;
+        }
+        Teacher teacher = teacherRepository.findById(caller.getId()).orElse(null);
+        if (teacher != null && teacher.getInstitution() != null) {
+            return teacher.getInstitution().getId();
+        }
+        return null;
     }
 
     public List<AdminTableMetadataResponseDTO> listTables() {
@@ -146,10 +192,7 @@ public class AdminService {
             Long.class,
             parameters.toArray());
 
-        String selectedColumns = table.columns().stream()
-            .map(column -> quote(column.response().name()))
-            .collect(java.util.stream.Collectors.joining(", "));
-        String query = "SELECT " + selectedColumns + " FROM " + tableSql
+        String query = "SELECT * FROM " + tableSql
             + whereClause + " LIMIT ? OFFSET ?";
         parameters.add(limit);
         parameters.add(offset);
@@ -245,12 +288,16 @@ public class AdminService {
     }
 
     @Transactional
-    public List<AdminUserResponseDTO> listUsers() {
-        return userService.findAll().stream().map(this::toAdminUser).toList();
+    public List<AdminUserResponseDTO> listUsers(String currentAdminEmail) {
+        Long scopedInstId = resolveScopedInstitutionId(currentAdminEmail);
+        return userService.findAll().stream()
+            .map(this::toAdminUser)
+            .filter(userDto -> scopedInstId == null || Objects.equals(scopedInstId, userDto.institutionId()))
+            .toList();
     }
 
     @Transactional
-    public AdminUserResponseDTO createUser(AdminUserRequestDTO request) {
+    public AdminUserResponseDTO createUser(AdminUserRequestDTO request, String currentAdminEmail) {
         if (request.password() == null || request.password().isBlank()) {
             throw badRequest("A senha é obrigatória para criar um usuário.");
         }
@@ -258,6 +305,7 @@ public class AdminService {
         user.setName(request.name());
         user.setEmail(request.email());
         user.setPasswordHash(request.password());
+        user.setGender(User.normalizeGender(request.gender()));
         user.setAdmin(request.isAdmin());
         User createdUser = userService.create(user);
         if (request.isAdmin()) {
@@ -277,6 +325,9 @@ public class AdminService {
 
         user.setName(request.name());
         user.setEmail(request.email());
+        if (request.gender() != null && !request.gender().isBlank()) {
+            user.setGender(User.normalizeGender(request.gender()));
+        }
         if (request.password() != null && !request.password().isBlank()) {
             user.setPasswordHash(request.password());
         }
@@ -298,24 +349,133 @@ public class AdminService {
         boolean wasAdmin = user.isAdmin() || authService.isConfiguredAdmin(user);
         user.setAdmin(isAdmin);
         User updatedUser = userService.update(user);
-        if (isAdmin || wasAdmin) {
+        Teacher teacher = teacherRepository.findById(userId).orElse(null);
+        if (teacher != null) {
+            if (!isAdmin && !teacher.isPrimaryInstitutionAdmin()) {
+                teacher.setInstitutionAdmin(false);
+            } else if (isAdmin) {
+                teacher.setInstitutionAdmin(true);
+                teacher.setApproved(true);
+                teacher.setApprovalStatus("APPROVED");
+            }
+            teacherRepository.save(teacher);
+        } else if (isAdmin || wasAdmin) {
             teacherService.ensureAdminTeacherProfile(updatedUser.getId());
         }
         return toAdminUser(updatedUser);
     }
 
     @Transactional
+    public TeacherResponseDTO setInstitutionAdminRole(
+            Long teacherId,
+            InstitutionAdminRoleRequestDTO request,
+            String currentAdminEmail) {
+        requireSuperAdmin(currentAdminEmail);
+        Teacher teacher = teacherService.findById(teacherId);
+        if (teacher.isSuperAdmin()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "A conta geral de administrador (admin@duolingo.com) não pode ser alterada por aqui.");
+        }
+        boolean instAdmin = request.institutionAdmin();
+        boolean primary = instAdmin && (request.primaryInstitutionAdmin() != null
+            ? request.primaryInstitutionAdmin()
+            : teacher.isPrimaryInstitutionAdmin());
+
+        teacher.setInstitutionAdmin(instAdmin);
+        teacher.setPrimaryInstitutionAdmin(primary);
+        teacher.setAdmin(instAdmin);
+        if (instAdmin) {
+            teacher.setApproved(true);
+            teacher.setApprovalStatus("APPROVED");
+        }
+        Teacher saved = teacherRepository.save(teacher);
+        return DtoMapper.toTeacherResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public InstitutionAdminDashboardDTO getInstitutionDashboard(
+            Long requestedInstitutionId,
+            String currentAdminEmail) {
+        Long scopedInstId = resolveScopedInstitutionId(currentAdminEmail);
+        Long targetInstId = scopedInstId != null ? scopedInstId : requestedInstitutionId;
+
+        if (scopedInstId != null && requestedInstitutionId != null && !Objects.equals(scopedInstId, requestedInstitutionId)) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Administradores de instituição só podem visualizar os dados de sua própria instituição.");
+        }
+
+        Institution institution;
+        if (targetInstId != null) {
+            institution = institutionRepository.findById(targetInstId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Instituição não encontrada."));
+        } else {
+            institution = institutionRepository.findByCode(InstitutionService.DEFAULT_INSTITUTION_CODE)
+                .orElseGet(() -> institutionRepository.findAll().stream().findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nenhuma instituição cadastrada.")));
+        }
+
+        Long instId = institution.getId();
+        List<School> schools = schoolRepository.findByInstitutionId(instId);
+
+        List<SchoolClassResponseDTO> classDtos = new ArrayList<>();
+        for (School school : schools) {
+            schoolClassRepository.findBySchoolId(school.getId()).stream()
+                .map(DtoMapper::toSchoolClassResponse)
+                .forEach(classDtos::add);
+        }
+
+        List<Teacher> teachers = teacherRepository.findByInstitutionId(instId).stream()
+            .filter(t -> !t.isSuperAdmin())
+            .toList();
+        List<TeacherResponseDTO> teacherDtos = teachers.stream().map(DtoMapper::toTeacherResponse).toList();
+        int pendingTeachers = (int) teachers.stream().filter(t -> !Boolean.TRUE.equals(t.getApproved())).count();
+
+        List<Student> students = studentRepository.findByInstitutionId(instId);
+        List<StudentResponseDTO> studentDtos = students.stream().map(DtoMapper::toStudentResponse).toList();
+
+        return new InstitutionAdminDashboardDTO(
+            DtoMapper.toInstitutionResponse(institution),
+            teacherDtos.size(),
+            pendingTeachers,
+            studentDtos.size(),
+            classDtos.size(),
+            0,
+            teacherDtos,
+            studentDtos,
+            classDtos,
+            List.of(),
+            List.of()
+        );
+    }
+
+    @Transactional
     public void deleteUser(Long userId, String currentAdminEmail) {
         User user = userService.findById(userId);
+        if (user.isSuperAdmin()) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "A conta geral de administrador (admin@duolingo.com) é superior a todas as outras contas e não pode ser excluída.");
+        }
         ensureAdminCanChangeRole(user, false, currentAdminEmail);
         userService.deleteById(userId);
     }
 
     private AdminUserResponseDTO toAdminUser(User user) {
         List<String> roles = authService.resolveRoles(user);
-        String baseProfileType = teacherRepository.existsById(user.getId())
+        Teacher teacher = teacherRepository.findById(user.getId()).orElse(null);
+        Student student = teacher == null ? studentRepository.findById(user.getId()).orElse(null) : null;
+        String baseProfileType = teacher != null
             ? "TEACHER"
-            : studentRepository.existsById(user.getId()) ? "STUDENT" : "USER";
+            : student != null ? "STUDENT" : "USER";
+        Long instId = teacher != null && teacher.getInstitution() != null
+            ? teacher.getInstitution().getId()
+            : (student != null && student.getInstitution() != null ? student.getInstitution().getId() : null);
+        String instName = teacher != null && teacher.getInstitution() != null
+            ? teacher.getInstitution().getName()
+            : (student != null && student.getInstitution() != null ? student.getInstitution().getName() : null);
+
         return new AdminUserResponseDTO(
             user.getId(),
             user.getName(),
@@ -324,13 +484,33 @@ public class AdminService {
             baseProfileType,
             roles.get(0),
             user.getGoogleId(),
-            user.getProfilePicture());
+            user.getProfilePicture(),
+            user.getNormalizedGender(),
+            user.isSuperAdmin(),
+            teacher != null && teacher.isInstitutionAdmin(),
+            teacher != null && teacher.isPrimaryInstitutionAdmin(),
+            instId,
+            instName);
     }
 
     private void ensureAdminCanChangeRole(
             User target,
             boolean requestedAdmin,
             String currentAdminEmail) {
+        if (target.isSuperAdmin()) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "A conta geral de administrador (admin@duolingo.com) é superior a todas as outras contas e não pode ser rebaixada em hipótese alguma.");
+        }
+        if ( requestedAdmin && studentRepository.existsById(target.getId()) ) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Contas de aluno não podem receber cargo de administrador.");
+        }
+
+        User caller = currentAdminEmail == null ? null : userService.findByEmail(currentAdminEmail);
+        boolean callerIsSuperAdmin = caller != null && caller.isSuperAdmin();
+
         boolean sameUser = target.getEmail() != null
             && target.getEmail().equalsIgnoreCase(currentAdminEmail == null ? "" : currentAdminEmail);
         if (!requestedAdmin && sameUser) {
@@ -338,6 +518,21 @@ public class AdminService {
                 HttpStatus.CONFLICT,
                 "Um administrador não pode remover o próprio acesso.");
         }
+
+        Teacher targetTeacher = teacherRepository.findById(target.getId()).orElse(null);
+        if (!callerIsSuperAdmin) {
+            if (targetTeacher != null && targetTeacher.isPrimaryInstitutionAdmin() && !requestedAdmin) {
+                throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "A primeira conta registrada na instituição possui status elevado de administrador e não pode ser rebaixada por outros administradores desta instituição.");
+            }
+            if (requestedAdmin != (target.isAdmin() || (targetTeacher != null && targetTeacher.isInstitutionAdmin()))) {
+                throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Apenas o administrador geral (admin@duolingo.com) tem o poder de alterar administradores de instituições.");
+            }
+        }
+
         if (!requestedAdmin && authService.isConfiguredAdmin(target)) {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
@@ -425,9 +620,13 @@ public class AdminService {
         Map<String, Object> row = new LinkedHashMap<>();
         for (ColumnDefinition column : columns) {
             String name = column.response().name();
-            Object value = isSensitive(name) || isBinary(column)
-                ? null
-                : resultSet.getObject(name);
+            Object value;
+            if (isBinary(column)) {
+                byte[] bytes = resultSet.getBytes(name);
+                value = bytes == null ? null : "[BYTEA: " + bytes.length + " bytes]";
+            } else {
+                value = resultSet.getObject(name);
+            }
             if (value != null
                     && "org.postgresql.util.PGobject".equals(value.getClass().getName())) {
                 value = value.toString();

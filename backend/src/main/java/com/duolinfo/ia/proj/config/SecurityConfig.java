@@ -73,16 +73,48 @@ public class SecurityConfig {
 
                 .requestMatchers(HttpMethod.GET,
                     "/api/students/me",
+                    "/api/students/me/institution-members",
                     "/api/teachers/me").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/users/*").authenticated()
+                .requestMatchers(HttpMethod.PATCH, "/api/users/*/profile-picture").authenticated()
+
                 .requestMatchers(HttpMethod.GET,
-                    "/api/students/*/enrollments/active")
-                    .hasAnyRole("STUDENT", "ADMIN")
+                    "/api/students/*/enrollments/active",
+                    "/api/students/*/enrollments")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/students/*")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/students/**")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
 
                 .requestMatchers(HttpMethod.GET, "/api/teachers/**")
-                    .hasAnyRole("TEACHER", "ADMIN")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/teachers/**")
                     .hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/teachers/**")
+                    .hasRole("ADMIN")
+
+                .requestMatchers(HttpMethod.GET, "/api/classes/**")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
+                .requestMatchers("/api/classes/**")
+                    .hasAnyRole("TEACHER", "ADMIN")
+
+                .requestMatchers(HttpMethod.GET, "/api/schools/**")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
+                .requestMatchers("/api/schools/**")
+                    .hasAnyRole("TEACHER", "ADMIN")
+
+                .requestMatchers(HttpMethod.GET, "/api/enrollments/**")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
+                .requestMatchers("/api/enrollments/**")
+                    .hasAnyRole("TEACHER", "ADMIN")
+
+                .requestMatchers("/api/class-teacher-assignments/**")
+                    .hasAnyRole("TEACHER", "ADMIN")
+
+                .requestMatchers(HttpMethod.GET, "/api/achievements/**")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
+                .requestMatchers("/api/achievements/**")
                     .hasRole("ADMIN")
 
                 .requestMatchers(HttpMethod.POST, "/api/exercises")

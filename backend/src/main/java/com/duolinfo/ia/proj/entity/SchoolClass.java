@@ -14,6 +14,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -46,6 +47,9 @@ import lombok.ToString;
                 "shift"
             }
         )
+    },
+    indexes = {
+        @Index(name = "idx_instituicao_turma", columnList = "institution_id, school_id")
     }
 )
 public class SchoolClass {
@@ -91,6 +95,15 @@ public class SchoolClass {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "school_id", nullable = false)
     private School school;
+
+    /**
+     * Instituição à qual a turma pertence.
+     */
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "institution_id")
+    private Institution institution;
 
     /**
      * Professores que já foram ou são responsáveis pela turma.

@@ -39,6 +39,18 @@ public record StudentRequestDTO(
     String googleId,
 
     @Schema(
+        description = "Sexo do estudante (MASCULINO ou FEMININO)",
+        example = "FEMININO"
+    )
+    String gender,
+
+    @Schema(
+        description = "ID da instituição do estudante (opcional)",
+        example = "1"
+    )
+    Long institutionId,
+
+    @Schema(
         description = "Idiomas de preferência e proficiência do estudante"
     )
     List<StudentLanguageRequestDTO> languages

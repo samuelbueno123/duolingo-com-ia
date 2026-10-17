@@ -22,15 +22,21 @@ import org.springframework.web.bind.annotation.RestController;
 import com.duolinfo.ia.proj.dto.request.AdminRoleRequestDTO;
 import com.duolinfo.ia.proj.dto.request.AdminRowUpdateRequestDTO;
 import com.duolinfo.ia.proj.dto.request.AdminUserRequestDTO;
+import com.duolinfo.ia.proj.dto.request.InstitutionAdminRoleRequestDTO;
 import com.duolinfo.ia.proj.dto.request.InstitutionRequestDecisionDTO;
+import com.duolinfo.ia.proj.dto.request.TeacherRequestDecisionDTO;
 import com.duolinfo.ia.proj.dto.response.AdminNotificationResponseDTO;
-import com.duolinfo.ia.proj.dto.response.InstitutionRequestResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableDataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableMetadataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminUserResponseDTO;
+import com.duolinfo.ia.proj.dto.response.InstitutionAdminDashboardDTO;
+import com.duolinfo.ia.proj.dto.response.InstitutionRequestResponseDTO;
+import com.duolinfo.ia.proj.dto.response.StudentAchievementsOverviewDTO;
+import com.duolinfo.ia.proj.dto.response.TeacherResponseDTO;
+import com.duolinfo.ia.proj.entity.InstitutionRequest.Status;
+import com.duolinfo.ia.proj.service.AchievementService;
 import com.duolinfo.ia.proj.service.AdminService;
 import com.duolinfo.ia.proj.service.InstitutionRequestService;
-import com.duolinfo.ia.proj.entity.InstitutionRequest.Status;
 
 import jakarta.validation.Valid;
 
@@ -42,25 +48,31 @@ public class AdminController {
 
     private final AdminService adminService;
     private final InstitutionRequestService institutionRequestService;
+    private final AchievementService achievementService;
 
     public AdminController(
             AdminService adminService,
-            InstitutionRequestService institutionRequestService) {
+            InstitutionRequestService institutionRequestService,
+            AchievementService achievementService) {
         this.adminService = adminService;
         this.institutionRequestService = institutionRequestService;
+        this.achievementService = achievementService;
     }
 
     @GetMapping("/tables")
-    public List<AdminTableMetadataResponseDTO> listTables() {
+    public List<AdminTableMetadataResponseDTO> listTables(Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
         return adminService.listTables();
     }
 
     @GetMapping("/tables/{tableName}/rows")
     public AdminTableDataResponseDTO getRows(
             @PathVariable String tableName,
-            @RequestParam(defaultValue = "100") int limit,
+            @RequestParam(defaultValue = "10") int limit,
             @RequestParam(defaultValue = "0") int offset,
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
         return adminService.getTableRows(tableName, limit, offset, search);
     }
 
@@ -68,33 +80,41 @@ public class AdminController {
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> insertRow(
             @PathVariable String tableName,
-            @RequestBody Map<String, Object> values) {
+            @RequestBody Map<String, Object> values,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
         return adminService.insertRow(tableName, values);
     }
 
     @PutMapping("/tables/{tableName}/rows")
     public Map<String, Object> updateRow(
             @PathVariable String tableName,
-            @RequestBody AdminRowUpdateRequestDTO request) {
+            @RequestBody AdminRowUpdateRequestDTO request,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
         return adminService.updateRow(tableName, request.keys(), request.values());
     }
 
     @DeleteMapping("/tables/{tableName}/rows")
     public Map<String, Object> deleteRow(
             @PathVariable String tableName,
-            @RequestBody Map<String, Object> keys) {
+            @RequestBody Map<String, Object> keys,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
         return adminService.deleteRow(tableName, keys);
     }
 
     @GetMapping("/users")
-    public List<AdminUserResponseDTO> listUsers() {
-        return adminService.listUsers();
+    public List<AdminUserResponseDTO> listUsers(Authentication authentication) {
+        return adminService.listUsers(authentication.getName());
     }
 
     @PostMapping("/users")
     @ResponseStatus(HttpStatus.CREATED)
-    public AdminUserResponseDTO createUser(@Valid @RequestBody AdminUserRequestDTO request) {
-        return adminService.createUser(request);
+    public AdminUserResponseDTO createUser(
+            @Valid @RequestBody AdminUserRequestDTO request,
+            Authentication authentication) {
+        return adminService.createUser(request, authentication.getName());
     }
 
     @PutMapping("/users/{id}")
@@ -113,6 +133,21 @@ public class AdminController {
         return adminService.setAdminRole(id, request.isAdmin(), authentication.getName());
     }
 
+    @PatchMapping("/teachers/{id}/institution-admin")
+    public TeacherResponseDTO setInstitutionAdminRole(
+            @PathVariable Long id,
+            @RequestBody InstitutionAdminRoleRequestDTO request,
+            Authentication authentication) {
+        return adminService.setInstitutionAdminRole(id, request, authentication.getName());
+    }
+
+    @GetMapping("/institution-dashboard")
+    public InstitutionAdminDashboardDTO getInstitutionDashboard(
+            @RequestParam(required = false) Long institutionId,
+            Authentication authentication) {
+        return adminService.getInstitutionDashboard(institutionId, authentication.getName());
+    }
+
     @DeleteMapping("/users/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteUser(@PathVariable Long id, Authentication authentication) {
@@ -120,8 +155,13 @@ public class AdminController {
     }
 
     @GetMapping("/notifications")
-    public List<AdminNotificationResponseDTO> notifications() {
-        return institutionRequestService.notifications();
+    public List<AdminNotificationResponseDTO> notifications(Authentication authentication) {
+        return institutionRequestService.notifications(authentication.getName());
+    }
+
+    @GetMapping("/notifications/unread-count")
+    public Map<String, Long> unreadNotificationsCount(Authentication authentication) {
+        return Map.of("unreadCount", institutionRequestService.unreadCount(authentication.getName()));
     }
 
     @PatchMapping("/notifications/{id}/read")
@@ -141,4 +181,47 @@ public class AdminController {
             @Valid @RequestBody InstitutionRequestDecisionDTO request) {
         return institutionRequestService.decide(id, request);
     }
+
+    @PatchMapping("/teacher-requests/{teacherId}")
+    public TeacherResponseDTO decideTeacherRequest(
+            @PathVariable Long teacherId,
+            @Valid @RequestBody TeacherRequestDecisionDTO request,
+            Authentication authentication) {
+        return institutionRequestService.decideTeacherRequest(teacherId, request, authentication.getName());
+    }
+
+    @GetMapping("/students/achievements")
+    public List<StudentAchievementsOverviewDTO> searchStudentsWithAchievements(
+            @RequestParam(required = false) String search,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
+        return achievementService.searchStudentsWithAchievements(search);
+    }
+
+    @GetMapping("/students/{studentId}/achievements")
+    public StudentAchievementsOverviewDTO getStudentAchievements(
+            @PathVariable Long studentId,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
+        return achievementService.getStudentOverview(studentId);
+    }
+
+    @PostMapping("/students/{studentId}/achievements/{achievementId}")
+    public StudentAchievementsOverviewDTO grantStudentAchievement(
+            @PathVariable Long studentId,
+            @PathVariable Long achievementId,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
+        return achievementService.grantAchievement(studentId, achievementId, authentication.getName());
+    }
+
+    @DeleteMapping("/students/{studentId}/achievements/{achievementId}")
+    public StudentAchievementsOverviewDTO revokeStudentAchievement(
+            @PathVariable Long studentId,
+            @PathVariable Long achievementId,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
+        return achievementService.revokeAchievement(studentId, achievementId);
+    }
 }
+

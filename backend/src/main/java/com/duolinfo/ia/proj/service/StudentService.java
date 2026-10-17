@@ -1,21 +1,30 @@
 package com.duolinfo.ia.proj.service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.duolinfo.ia.proj.dto.response.InstitutionMembersResponseDTO;
+import com.duolinfo.ia.proj.dto.response.InstitutionMembersResponseDTO.MemberStudentDTO;
+import com.duolinfo.ia.proj.dto.response.InstitutionMembersResponseDTO.MemberTeacherDTO;
 import com.duolinfo.ia.proj.entity.Enrollment;
 import com.duolinfo.ia.proj.entity.EnrollmentStatus;
+import com.duolinfo.ia.proj.entity.Institution;
 import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.entity.StudentLanguage;
+import com.duolinfo.ia.proj.entity.Teacher;
 import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.exception.BusinessException;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.repository.EnrollmentRepository;
+import com.duolinfo.ia.proj.repository.InstitutionRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
 import com.duolinfo.ia.proj.repository.TeacherRepository;
 import com.duolinfo.ia.proj.repository.UserRepository;
@@ -30,6 +39,7 @@ public class StudentService {
     private final EnrollmentRepository enrollmentRepository;
     private final UserRepository userRepository;
     private final TeacherRepository teacherRepository;
+    private final InstitutionRepository institutionRepository;
     private final PasswordEncoder passwordEncoder;
 
     @PersistenceContext
@@ -40,12 +50,14 @@ public class StudentService {
             EnrollmentRepository enrollmentRepository,
             UserRepository userRepository,
             TeacherRepository teacherRepository,
+            InstitutionRepository institutionRepository,
             PasswordEncoder passwordEncoder) {
 
         this.studentRepository = studentRepository;
         this.enrollmentRepository = enrollmentRepository;
         this.userRepository = userRepository;
         this.teacherRepository = teacherRepository;
+        this.institutionRepository = institutionRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -55,8 +67,18 @@ public class StudentService {
 
     @Transactional
     public Student create(Student student) {
+        return create(student, null);
+    }
+
+    @Transactional
+    public Student create(Student student, Long institutionId) {
+        student.setAdmin(false);
+        student.setGender(User.normalizeGender(student.getGender()));
+        Institution institution = resolveInstitution(institutionId);
+        student.setInstitution(institution);
+
         if (student.getEmail() != null && !student.getEmail().isBlank()) {
-            String email = student.getEmail().trim().toLowerCase();
+            String email = student.getEmail().trim().toLowerCase(Locale.ROOT);
             student.setEmail(email);
 
             // Bloqueia se já for um estudante cadastrado
@@ -68,13 +90,18 @@ public class StudentService {
             if (baseUserOpt.isPresent()) {
                 User baseUser = baseUserOpt.get();
 
+                if (baseUser.isSuperAdmin() || baseUser.isAdmin()) {
+                    throw new BusinessException("Contas de administrador não podem ser convertidas em aluno.");
+                }
+
                 // Bloqueia se já for um professor cadastrado
                 if (teacherRepository.existsById(baseUser.getId()) || studentRepository.existsById(baseUser.getId())) {
                     throw new BusinessException("E-mail já cadastrado com outro perfil no sistema.");
                 }
 
-                // Proteção contra hijacking de conta com senha existente
-                if (baseUser.getPasswordHash() != null && !baseUser.getPasswordHash().isBlank()) {
+                boolean isGoogleAccount = baseUser.getGoogleId() != null && !baseUser.getGoogleId().isBlank();
+                // Proteção contra hijacking de conta com senha existente (exceto contas Google definindo senha)
+                if (!isGoogleAccount && baseUser.getPasswordHash() != null && !baseUser.getPasswordHash().isBlank()) {
                     if (student.getPasswordHash() == null ||
                         student.getPasswordHash().isBlank() ||
                         !passwordEncoder.matches(student.getPasswordHash(), baseUser.getPasswordHash())) {
@@ -89,12 +116,16 @@ public class StudentService {
                     student.getName() != null && !student.getName().isBlank()) {
                     baseUser.setName(student.getName().trim());
                 }
+                baseUser.setGender(User.normalizeGender(student.getGender()));
+                baseUser.setAdmin(false);
 
                 Long userId = baseUser.getId();
                 userRepository.save(baseUser);
 
-                entityManager.createNativeQuery("INSERT INTO students (id) VALUES (:id)")
+                entityManager.createNativeQuery(
+                    "INSERT INTO students (id, institution_id) VALUES (:id, :institutionId)")
                     .setParameter("id", userId)
+                    .setParameter("institutionId", institution != null ? institution.getId() : null)
                     .executeUpdate();
 
                 if (student.getLanguages() != null && !student.getLanguages().isEmpty()) {
@@ -102,7 +133,7 @@ public class StudentService {
                         if (lang.getLanguageName() != null && !lang.getLanguageName().isBlank()) {
                             String level = (lang.getLevel() != null && !lang.getLevel().isBlank())
                                 ? lang.getLevel()
-                                : "1";
+                                : "Básico";
                             int score = (lang.getScore() != null) ? lang.getScore() : 0;
 
                             entityManager.createNativeQuery(
@@ -132,6 +163,16 @@ public class StudentService {
         return studentRepository.save(student);
     }
 
+    private Institution resolveInstitution(Long institutionId) {
+        if (institutionId != null) {
+            return institutionRepository.findById(institutionId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                    "Instituição não encontrada: " + institutionId));
+        }
+        return institutionRepository.findByCode(InstitutionService.DEFAULT_INSTITUTION_CODE)
+            .orElseGet(() -> institutionRepository.findAll().stream().findFirst().orElse(null));
+    }
+
     private String encodePasswordIfNeeded(String password) {
         if (password == null || password.isBlank()) {
             return null;
@@ -144,6 +185,11 @@ public class StudentService {
 
     @Transactional
     public Student update(Student student) {
+        return update(student, null);
+    }
+
+    @Transactional
+    public Student update(Student student, Long institutionId) {
 
         Student current =
             studentRepository.findById(student.getId())
@@ -151,7 +197,16 @@ public class StudentService {
                 "Estudante não encontrado: " + student.getId()
             ));
 
+        current.setAdmin(false);
         current.setName(student.getName());
+        if (student.getGender() != null && !student.getGender().isBlank()) {
+            current.setGender(User.normalizeGender(student.getGender()));
+        }
+        if (institutionId != null) {
+            current.setInstitution(resolveInstitution(institutionId));
+        } else if (current.getInstitution() == null) {
+            current.setInstitution(resolveInstitution(null));
+        }
         if (student.getEmail() != null && !student.getEmail().isBlank()) {
             String email = student.getEmail().trim().toLowerCase(Locale.ROOT);
             boolean usedByAnotherAccount = userRepository.findByEmailIgnoreCase(email)
@@ -172,6 +227,97 @@ public class StudentService {
         }
 
         return studentRepository.save(current);
+    }
+
+    @Transactional
+    public InstitutionMembersResponseDTO findInstitutionMembers(String studentEmail, String search) {
+        Student student = findByEmail(studentEmail);
+        if (student == null) {
+            throw new ResourceNotFoundException("Estudante não encontrado.");
+        }
+
+        Institution institution = student.getInstitution();
+        if (institution == null) {
+            List<Enrollment> activeEnrollments = findActiveEnrollments(student.getId());
+            if (!activeEnrollments.isEmpty()
+                    && activeEnrollments.get(0).getSchoolClass() != null
+                    && activeEnrollments.get(0).getSchoolClass().getSchool() != null) {
+                institution = activeEnrollments.get(0).getSchoolClass().getSchool().getInstitution();
+            }
+            if (institution == null) {
+                institution = resolveInstitution(null);
+            }
+            if (institution != null) {
+                student.setInstitution(institution);
+                studentRepository.save(student);
+            }
+        }
+
+        if (institution == null) {
+            return new InstitutionMembersResponseDTO(null, "Sem instituição", List.of(), List.of());
+        }
+
+        final Long instId = institution.getId();
+        final String query = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
+
+        List<MemberTeacherDTO> teachers = teacherRepository.findByInstitutionId(instId).stream()
+            .filter(t -> !t.isSuperAdmin())
+            .filter(t -> Boolean.TRUE.equals(t.getApproved()))
+            .filter(t -> query.isEmpty()
+                || (t.getName() != null && t.getName().toLowerCase(Locale.ROOT).contains(query))
+                || (t.getEmail() != null && t.getEmail().toLowerCase(Locale.ROOT).contains(query))
+                || (t.getTaughtLanguages() != null && t.getTaughtLanguages().stream()
+                    .anyMatch(l -> l.toLowerCase(Locale.ROOT).contains(query)))
+                || (t.getSpecializationAreas() != null && t.getSpecializationAreas().stream()
+                    .anyMatch(s -> s.toLowerCase(Locale.ROOT).contains(query))))
+            .map(t -> new MemberTeacherDTO(
+                t.getId(),
+                t.getName(),
+                t.getEmail(),
+                t.getProfilePicture(),
+                t.getNormalizedGender(),
+                t.getTaughtLanguages() == null ? List.of() : List.copyOf(t.getTaughtLanguages()),
+                t.getSpecializationAreas() == null ? List.of() : List.copyOf(t.getSpecializationAreas())
+            ))
+            .toList();
+
+        Map<Long, Student> studentsMap = new LinkedHashMap<>();
+        for (Student s : studentRepository.findByInstitutionId(instId)) {
+            studentsMap.put(s.getId(), s);
+        }
+        for (Student s : studentRepository.findAll()) {
+            if (s.getInstitution() != null && instId.equals(s.getInstitution().getId())) {
+                studentsMap.put(s.getId(), s);
+            }
+        }
+
+        List<MemberStudentDTO> students = new ArrayList<>();
+        for (Student s : studentsMap.values()) {
+            List<String> langs = s.getLanguages() == null
+                ? List.of()
+                : s.getLanguages().stream().map(StudentLanguage::getLanguageName).toList();
+            boolean matches = query.isEmpty()
+                || (s.getName() != null && s.getName().toLowerCase(Locale.ROOT).contains(query))
+                || (s.getEmail() != null && s.getEmail().toLowerCase(Locale.ROOT).contains(query))
+                || langs.stream().anyMatch(l -> l.toLowerCase(Locale.ROOT).contains(query));
+            if (matches) {
+                students.add(new MemberStudentDTO(
+                    s.getId(),
+                    s.getName(),
+                    s.getEmail(),
+                    s.getProfilePicture(),
+                    s.getNormalizedGender(),
+                    langs
+                ));
+            }
+        }
+
+        return new InstitutionMembersResponseDTO(
+            institution.getId(),
+            institution.getName(),
+            teachers,
+            students
+        );
     }
 
     @Transactional

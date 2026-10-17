@@ -3,6 +3,7 @@ package com.duolinfo.ia.proj.service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -11,14 +12,21 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.dto.request.InstitutionRequestCreateDTO;
 import com.duolinfo.ia.proj.dto.request.InstitutionRequestDecisionDTO;
+import com.duolinfo.ia.proj.dto.request.TeacherRequestDecisionDTO;
 import com.duolinfo.ia.proj.dto.response.AdminNotificationResponseDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionRequestResponseDTO;
+import com.duolinfo.ia.proj.dto.response.TeacherResponseDTO;
 import com.duolinfo.ia.proj.entity.AdminNotification;
 import com.duolinfo.ia.proj.entity.Institution;
 import com.duolinfo.ia.proj.entity.InstitutionRequest;
 import com.duolinfo.ia.proj.entity.InstitutionRequest.Status;
+import com.duolinfo.ia.proj.entity.Teacher;
+import com.duolinfo.ia.proj.entity.User;
+import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.repository.AdminNotificationRepository;
 import com.duolinfo.ia.proj.repository.InstitutionRequestRepository;
+import com.duolinfo.ia.proj.repository.TeacherRepository;
+import com.duolinfo.ia.proj.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,10 +35,14 @@ import lombok.RequiredArgsConstructor;
 public class InstitutionRequestService {
 
     private static final String REQUEST_REFERENCE = "INSTITUTION_REQUEST";
+    private static final String TEACHER_REFERENCE = TeacherService.TEACHER_REQUEST_REFERENCE;
+    private static final int EXPIRATION_DAYS = 7;
 
     private final InstitutionRequestRepository requestRepository;
     private final AdminNotificationRepository notificationRepository;
     private final InstitutionService institutionService;
+    private final TeacherRepository teacherRepository;
+    private final UserRepository userRepository;
 
     @Transactional
     public InstitutionRequestResponseDTO create(InstitutionRequestCreateDTO request) {
@@ -56,11 +68,25 @@ public class InstitutionRequestService {
         return toRequestResponse(savedRequest);
     }
 
-    @Transactional(readOnly = true)
-    public List<AdminNotificationResponseDTO> notifications() {
-        return notificationRepository.findAllByOrderByCreatedAtDesc().stream()
+    @Transactional
+    public List<AdminNotificationResponseDTO> notifications(String adminEmail) {
+        expireAndSyncRequests();
+        Long scopedInstitutionId = resolveScopedInstitutionId(adminEmail);
+        List<AdminNotification> list = scopedInstitutionId == null
+            ? notificationRepository.findAllByOrderByCreatedAtDesc()
+            : notificationRepository.findByInstitutionIdOrderByCreatedAtDesc(scopedInstitutionId);
+        return list.stream()
             .map(this::toNotificationResponse)
             .toList();
+    }
+
+    @Transactional
+    public long unreadCount(String adminEmail) {
+        expireAndSyncRequests();
+        Long scopedInstitutionId = resolveScopedInstitutionId(adminEmail);
+        return scopedInstitutionId == null
+            ? notificationRepository.countByReadFalse()
+            : notificationRepository.countByInstitutionIdAndReadFalse(scopedInstitutionId);
     }
 
     @Transactional
@@ -72,8 +98,9 @@ public class InstitutionRequestService {
         return toNotificationResponse(notificationRepository.save(notification));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<InstitutionRequestResponseDTO> requests(Status status) {
+        expireAndSyncRequests();
         List<InstitutionRequest> requests = status == null
             ? requestRepository.findAllByOrderByCreatedAtDesc()
             : requestRepository.findByStatusOrderByCreatedAtDesc(status);
@@ -84,9 +111,14 @@ public class InstitutionRequestService {
     public InstitutionRequestResponseDTO decide(
             Long requestId,
             InstitutionRequestDecisionDTO decision) {
+        expireAndSyncRequests();
         InstitutionRequest request = requestRepository.findById(requestId)
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND, "Solicitação não encontrada."));
+        if (request.getStatus() == Status.EXPIRED) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT, "Esta solicitação expirou após 1 semana e permanece apenas nos logs.");
+        }
         if (request.getStatus() != Status.PENDING) {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT, "Esta solicitação já foi analisada.");
@@ -113,6 +145,120 @@ public class InstitutionRequestService {
         return toRequestResponse(request);
     }
 
+    @Transactional
+    public TeacherResponseDTO decideTeacherRequest(
+            Long teacherId,
+            TeacherRequestDecisionDTO decision,
+            String adminEmail) {
+        expireAndSyncRequests();
+        Teacher teacher = teacherRepository.findById(teacherId)
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND, "Solicitação de professor não encontrada."));
+
+        Long scopedInstitutionId = resolveScopedInstitutionId(adminEmail);
+        if (scopedInstitutionId != null) {
+            Long teacherInstId = teacher.getInstitution() != null ? teacher.getInstitution().getId() : null;
+            if (!Objects.equals(scopedInstitutionId, teacherInstId)) {
+                throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Você só pode aprovar ou recusar professores da sua própria instituição.");
+            }
+        }
+
+        if ("EXPIRED".equalsIgnoreCase(teacher.getApprovalStatus())) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Esta solicitação de cadastro de professor expirou após 1 semana e permanece apenas nos logs.");
+        }
+
+        String action = decision.decision().trim().toUpperCase(Locale.ROOT);
+        if ("APPROVE".equals(action)) {
+            teacher.setApproved(true);
+            teacher.setApprovalStatus("APPROVED");
+        } else if ("REJECT".equals(action)) {
+            if (teacher.isSuperAdmin() || teacher.isPrimaryInstitutionAdmin()) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Esta conta possui status elevado e não pode ser recusada.");
+            }
+            teacher.setApproved(false);
+            teacher.setApprovalStatus("REJECTED");
+        } else {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST, "A decisão deve ser APPROVE ou REJECT.");
+        }
+
+        Teacher saved = teacherRepository.save(teacher);
+        notificationRepository.findByReferenceTypeAndReferenceId(TEACHER_REFERENCE, teacherId)
+            .forEach(notification -> {
+                notification.setRead(true);
+                notificationRepository.save(notification);
+            });
+        return DtoMapper.toTeacherResponse(saved);
+    }
+
+    private void expireAndSyncRequests() {
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(EXPIRATION_DAYS);
+
+        List<InstitutionRequest> pendingRequests = requestRepository.findByStatusOrderByCreatedAtDesc(Status.PENDING);
+        for (InstitutionRequest req : pendingRequests) {
+            if (req.getCreatedAt() != null && req.getCreatedAt().isBefore(cutoff)) {
+                req.setStatus(Status.EXPIRED);
+                req.setProcessedAt(LocalDateTime.now());
+                requestRepository.save(req);
+            }
+        }
+
+        List<Teacher> allTeachers = teacherRepository.findAll();
+        for (Teacher teacher : allTeachers) {
+            if (teacher.isSuperAdmin()) continue;
+            String status = teacher.getApprovalStatus();
+            if (status == null || status.isBlank()) {
+                status = Boolean.TRUE.equals(teacher.getApproved()) ? "APPROVED" : "PENDING";
+                teacher.setApprovalStatus(status);
+                teacherRepository.save(teacher);
+            }
+            if ("PENDING".equalsIgnoreCase(status)) {
+                if (teacher.getCreatedAt() == null) {
+                    teacher.setCreatedAt(LocalDateTime.now());
+                    teacherRepository.save(teacher);
+                } else if (teacher.getCreatedAt().isBefore(cutoff)) {
+                    teacher.setApprovalStatus("EXPIRED");
+                    teacher.setApproved(false);
+                    teacherRepository.save(teacher);
+                }
+            }
+
+            if (!Boolean.TRUE.equals(teacher.getApproved())
+                    && notificationRepository.findByReferenceTypeAndReferenceId(TEACHER_REFERENCE, teacher.getId()).isEmpty()) {
+                AdminNotification notification = new AdminNotification();
+                notification.setType(TEACHER_REFERENCE);
+                notification.setTitle("Solicitação de cadastro de professor");
+                notification.setMessage(
+                    teacher.getName() + " (" + teacher.getEmail() + ") solicitou cadastro como professor na instituição "
+                    + (teacher.getInstitution() != null ? teacher.getInstitution().getName() : "informada") + "."
+                );
+                notification.setReferenceType(TEACHER_REFERENCE);
+                notification.setReferenceId(teacher.getId());
+                notification.setInstitutionId(teacher.getInstitution() != null ? teacher.getInstitution().getId() : null);
+                notificationRepository.save(notification);
+            }
+        }
+    }
+
+    private Long resolveScopedInstitutionId(String adminEmail) {
+        if (adminEmail == null || adminEmail.isBlank()) return null;
+        User user = userRepository.findByEmailIgnoreCase(adminEmail.trim()).orElse(null);
+        if (user == null || user.isSuperAdmin()) {
+            return null;
+        }
+        Teacher teacher = teacherRepository.findById(user.getId()).orElse(null);
+        if (teacher != null && teacher.getInstitution() != null) {
+            return teacher.getInstitution().getId();
+        }
+        return null;
+    }
+
     private void createInstitution(InstitutionRequest request, String chosenName) {
         String name = chosenName == null || chosenName.isBlank()
             ? request.getRequestedName()
@@ -132,6 +278,32 @@ public class InstitutionRequestService {
 
     private AdminNotificationResponseDTO toNotificationResponse(
             AdminNotification notification) {
+        String requestStatus = null;
+        LocalDateTime baseTime = notification.getCreatedAt();
+
+        if (REQUEST_REFERENCE.equalsIgnoreCase(notification.getReferenceType())
+                && notification.getReferenceId() != null) {
+            InstitutionRequest req = requestRepository.findById(notification.getReferenceId()).orElse(null);
+            if (req != null) {
+                requestStatus = req.getStatus().name();
+                if (req.getCreatedAt() != null) {
+                    baseTime = req.getCreatedAt();
+                }
+            }
+        } else if (TEACHER_REFERENCE.equalsIgnoreCase(notification.getReferenceType())
+                && notification.getReferenceId() != null) {
+            Teacher teacher = teacherRepository.findById(notification.getReferenceId()).orElse(null);
+            if (teacher != null) {
+                requestStatus = teacher.getApprovalStatus() != null
+                    ? teacher.getApprovalStatus()
+                    : (Boolean.TRUE.equals(teacher.getApproved()) ? "APPROVED" : "PENDING");
+                if (teacher.getCreatedAt() != null) {
+                    baseTime = teacher.getCreatedAt();
+                }
+            }
+        }
+
+        LocalDateTime expiresAt = baseTime != null ? baseTime.plusDays(EXPIRATION_DAYS) : null;
         return new AdminNotificationResponseDTO(
             notification.getId(),
             notification.getType(),
@@ -140,7 +312,10 @@ public class InstitutionRequestService {
             notification.isRead(),
             notification.getReferenceType(),
             notification.getReferenceId(),
-            notification.getCreatedAt());
+            notification.getCreatedAt(),
+            notification.getInstitutionId(),
+            requestStatus,
+            expiresAt);
     }
 
     private InstitutionRequestResponseDTO toRequestResponse(InstitutionRequest request) {
@@ -160,3 +335,4 @@ public class InstitutionRequestService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 }
+

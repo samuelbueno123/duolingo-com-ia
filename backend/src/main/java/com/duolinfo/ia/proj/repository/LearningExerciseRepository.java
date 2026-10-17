@@ -18,4 +18,6 @@ public interface LearningExerciseRepository
     List<LearningExercise> findByTeacher_IdOrderByCreatedAtDesc(Long teacherId);
 
     Optional<LearningExercise> findByIdAndTeacher_Id(Long id, Long teacherId);
+
+    List<LearningExercise> findBySchoolClass_IdOrderByCreatedAtDesc(Long schoolClassId);
 }

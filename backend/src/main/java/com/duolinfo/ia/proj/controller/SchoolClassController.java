@@ -3,6 +3,7 @@ package com.duolinfo.ia.proj.controller;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.duolinfo.ia.proj.dto.request.SchoolClassRequestDTO;
+import com.duolinfo.ia.proj.dto.response.ClassDashboardResponseDTO;
 import com.duolinfo.ia.proj.dto.response.SchoolClassResponseDTO;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.mapper.RequestMapper;
@@ -40,6 +42,21 @@ public class SchoolClassController {
         this.schoolClassService = schoolClassService;
     }
 
+    @PostMapping("/my-institution")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Cria turma automaticamente vinculada à instituição do professor autenticado")
+    public SchoolClassResponseDTO createForMyInstitution(
+            @Valid @RequestBody SchoolClassRequestDTO request,
+            Authentication authentication) {
+
+        return DtoMapper.toSchoolClassResponse(
+            schoolClassService.createForTeacherInstitution(
+                authentication.getName(),
+                RequestMapper.toSchoolClass(request)
+            )
+        );
+    }
+
     @PostMapping("/school/{schoolId}")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Cria turma em uma escola")
@@ -63,6 +80,12 @@ public class SchoolClassController {
             .stream()
             .map(DtoMapper::toSchoolClassResponse)
             .toList();
+    }
+
+    @GetMapping("/{id}/dashboard")
+    @Operation(summary = "Retorna o dashboard completo com estatísticas de uma turma")
+    public ClassDashboardResponseDTO getDashboard(@PathVariable Long id) {
+        return schoolClassService.getClassDashboard(id);
     }
 
     @GetMapping("/{id}")

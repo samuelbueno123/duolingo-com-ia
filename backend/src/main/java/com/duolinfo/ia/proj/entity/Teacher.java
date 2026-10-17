@@ -1,7 +1,10 @@
 package com.duolinfo.ia.proj.entity;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.hibernate.annotations.CreationTimestamp;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
@@ -9,8 +12,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
@@ -24,7 +27,13 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "teachers")
+@Table(
+    name = "teachers",
+    indexes = {
+        @Index(name = "idx_instituicao_professor", columnList = "institution_id, approved"),
+        @Index(name = "idx_instituicao_administradores", columnList = "institution_id, institution_admin, primary_institution_admin")
+    }
+)
 public class Teacher extends User {
 
     /*
@@ -36,6 +45,18 @@ public class Teacher extends User {
 
     @Column(name = "approved")
     private Boolean approved = false;
+
+    @Column(name = "approval_status", length = 20)
+    private String approvalStatus = "PENDING";
+
+    @Column(name = "institution_admin", nullable = false, columnDefinition = "boolean default false")
+    private boolean institutionAdmin = false;
+
+    @Column(name = "primary_institution_admin", nullable = false, columnDefinition = "boolean default false")
+    private boolean primaryInstitutionAdmin = false;
+
+    @Column(name = "created_at", updatable = false, columnDefinition = "timestamp default current_timestamp")
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     /*
      * Idiomas que o professor leciona.
@@ -62,7 +83,6 @@ public class Teacher extends User {
     /*
      * Biografia / currículo do professor.
      */
-    @Lob
     @Column(name = "bibliography", columnDefinition = "TEXT")
     private String bibliography;
 

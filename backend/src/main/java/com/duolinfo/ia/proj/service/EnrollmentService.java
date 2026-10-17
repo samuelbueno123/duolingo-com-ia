@@ -44,27 +44,27 @@ public class EnrollmentService {
             );
         }
 
-        /*
-         * O aluno não pode possuir duas matrículas ativas.
-         */
         List<Enrollment> activeEnrollments =
             enrollmentRepository.findByStudentIdAndStatus(
                 studentId,
                 EnrollmentStatus.ACTIVE
             );
 
-        if (!activeEnrollments.isEmpty()) {
-            Enrollment active = activeEnrollments.get(0);
-
-            if (active.getSchoolClass().getId().equals(schoolClassId)) {
-                throw new BusinessException(
-                    "O aluno já está matriculado nesta turma."
-                );
-            }
-
+        boolean alreadyInSameClass = activeEnrollments.stream()
+            .anyMatch(active -> active.getSchoolClass() != null
+                && active.getSchoolClass().getId().equals(schoolClassId));
+        if (alreadyInSameClass) {
             throw new BusinessException(
-                "O aluno já possui uma matrícula ativa em outra turma."
+                "O aluno já está matriculado ativamente nesta turma."
             );
+        }
+
+        if (schoolClass.getSchool() != null && schoolClass.getSchool().getInstitution() != null) {
+            student.setInstitution(schoolClass.getSchool().getInstitution());
+            studentRepository.save(student);
+        } else if (schoolClass.getInstitution() != null) {
+            student.setInstitution(schoolClass.getInstitution());
+            studentRepository.save(student);
         }
 
         Enrollment enrollment = Enrollment.builder()

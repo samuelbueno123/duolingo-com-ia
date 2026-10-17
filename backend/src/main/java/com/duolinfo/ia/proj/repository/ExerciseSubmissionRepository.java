@@ -19,4 +19,8 @@ public interface ExerciseSubmissionRepository
     List<ExerciseSubmission> findBySubmittedAtAfterOrderBySubmittedAtDesc(
         Instant submittedAt
     );
+
+    List<ExerciseSubmission> findByExercise_SchoolClass_IdOrderBySubmittedAtDesc(
+        Long schoolClassId
+    );
 }

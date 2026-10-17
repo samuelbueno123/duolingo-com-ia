@@ -46,6 +46,24 @@ public class User {
     @Column(name = "is_admin", nullable = false, columnDefinition = "boolean default false")
     private boolean admin;
 
+    @Column(name = "gender", length = 20)
+    private String gender;
+
+    public boolean isSuperAdmin() {
+        return email != null && "admin@duolingo.com".equalsIgnoreCase(email.trim());
+    }
+
+    public static String normalizeGender(String rawGender) {
+        if (rawGender != null && "FEMININO".equalsIgnoreCase(rawGender.trim())) {
+            return "FEMININO";
+        }
+        return "MASCULINO";
+    }
+
+    public String getNormalizedGender() {
+        return normalizeGender(gender);
+    }
+
     public Long getId() {
         return id;
     }

@@ -40,6 +40,9 @@ public class AdminNotification {
     @Column(name = "reference_id")
     private Long referenceId;
 
+    @Column(name = "institution_id")
+    private Long institutionId;
+
     @Column(name = "is_read", nullable = false)
     private boolean read;
 

@@ -35,10 +35,6 @@ public class CatalogController {
     @GetMapping("/proficiency-levels")
     @Operation(summary = "Lista níveis de proficiência para cadastro")
     public List<String> findProficiencyLevels() {
-        return catalogOptionRepository
-            .findByCatalogTypeAndActiveTrueOrderByValueAsc("proficiency")
-            .stream()
-            .map(option -> option.getValue())
-            .toList();
+        return List.of("Básico", "Intermediário", "Avançado");
     }
 }

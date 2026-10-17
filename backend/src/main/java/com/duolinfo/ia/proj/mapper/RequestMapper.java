@@ -30,12 +30,20 @@ public final class RequestMapper {
     private RequestMapper() {
     }
 
+    public static String normalizeGender(String gender) {
+        if (gender != null && "FEMININO".equalsIgnoreCase(gender.trim())) {
+            return "FEMININO";
+        }
+        return "MASCULINO";
+    }
+
     public static User toNewUser(UserRequestDTO request) {
         User user = new User();
         user.setName(request.name());
         user.setEmail(request.email());
         user.setProfilePicture(request.profilePicture());
         user.setPasswordHash(request.password());
+        user.setGender(normalizeGender(request.gender()));
         return user;
     }
 
@@ -58,6 +66,9 @@ public final class RequestMapper {
         Student student = new Student();
         student.setName(request.name());
         student.setEmail(request.email());
+        if (request.gender() != null && !request.gender().isBlank()) {
+            student.setGender(normalizeGender(request.gender()));
+        }
 
         if (request.languages() != null) {
             request.languages().stream()
@@ -79,7 +90,7 @@ public final class RequestMapper {
             StudentLanguageRequestDTO request) {
         StudentLanguage language = new StudentLanguage();
         language.setLanguageName(request.languageName().trim());
-        language.setLevel(cleanOrDefault(request.level(), "Iniciante"));
+        language.setLevel(cleanOrDefault(request.level(), "Básico"));
         if (request.score() != null) {
             language.setScore(request.score());
         }
@@ -109,6 +120,9 @@ public final class RequestMapper {
         Teacher teacher = new Teacher();
         teacher.setName(request.name());
         teacher.setEmail(request.email());
+        if (request.gender() != null && !request.gender().isBlank()) {
+            teacher.setGender(normalizeGender(request.gender()));
+        }
         teacher.setTaughtLanguages(request.taughtLanguages() == null
             ? new ArrayList<>()
             : new ArrayList<>(request.taughtLanguages()));

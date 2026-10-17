@@ -31,6 +31,16 @@ public record TeacherResponseDTO(
     String bibliography,
 
     @Schema(example = "false")
-    boolean approved
+    boolean approved,
+
+    String gender,
+
+    boolean institutionAdmin,
+
+    boolean primaryInstitutionAdmin,
+
+    String approvalStatus,
+
+    String institutionName
 ) {
-}
+}

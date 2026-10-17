@@ -8,6 +8,12 @@ public record AdminUserResponseDTO(
     String baseProfileType,
     String effectiveRole,
     String googleId,
-    String profilePicture
+    String profilePicture,
+    String gender,
+    boolean superAdmin,
+    boolean institutionAdmin,
+    boolean primaryInstitutionAdmin,
+    Long institutionId,
+    String institutionName
 ) {
 }

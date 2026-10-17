@@ -10,6 +10,9 @@ public record AdminNotificationResponseDTO(
     boolean read,
     String referenceType,
     Long referenceId,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    Long institutionId,
+    String requestStatus,
+    LocalDateTime expiresAt
 ) {
 }

@@ -50,6 +50,7 @@ public class UserService {
 
         user.setName(user.getName().trim());
         user.setEmail(email);
+        user.setGender(User.normalizeGender(user.getGender()));
         encodePassword(user);
 
         String storedPicture = profilePictureStorage.store(user.getProfilePicture());
@@ -87,8 +88,17 @@ public class UserService {
 
         if (user.getEmail() != null && !user.getEmail().isBlank()) {
             String email = normalizeEmail(user.getEmail());
+            if (existingUser.isSuperAdmin() && !"admin@duolingo.com".equalsIgnoreCase(email)) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "O email da conta geral de administrador (admin@duolingo.com) não pode ser alterado.");
+            }
             ensureEmailAvailable(email, existingUser.getId());
             existingUser.setEmail(email);
+        }
+
+        if (user.getGender() != null && !user.getGender().isBlank()) {
+            existingUser.setGender(User.normalizeGender(user.getGender()));
         }
 
         if (user.getGoogleId() != null && !user.getGoogleId().isBlank()) {
@@ -97,7 +107,11 @@ public class UserService {
         if (Boolean.TRUE.equals(user.getGoogleEmailVerified())) {
             existingUser.setGoogleEmailVerified(true);
         }
-        existingUser.setAdmin(user.isAdmin());
+        if (existingUser.isSuperAdmin()) {
+            existingUser.setAdmin(true);
+        } else {
+            existingUser.setAdmin(user.isAdmin());
+        }
 
         String previousPicture = pictureBeforeUpdateProvided
             ? pictureBeforeUpdate
@@ -130,6 +144,10 @@ public class UserService {
             user.setName(request.name().trim());
         }
 
+        if (request.gender() != null && !request.gender().isBlank()) {
+            user.setGender(User.normalizeGender(request.gender()));
+        }
+
         if (request.email() != null && !request.email().isBlank()) {
             String email = normalizeEmail(request.email());
             boolean googleAccount = user.getGoogleId() != null
@@ -150,8 +168,10 @@ public class UserService {
         if (request.password() != null && !request.password().isBlank()) {
             String currentPassword = request.currentPassword();
             String currentHash = user.getPasswordHash();
+            boolean isGoogleAccount = user.getGoogleId() != null && !user.getGoogleId().isBlank();
             if (currentHash != null
                     && !currentHash.isBlank()
+                    && (!isGoogleAccount || (currentPassword != null && !currentPassword.isBlank()))
                     && (currentPassword == null
                         || !passwordEncoder.matches(currentPassword, currentHash))) {
                 throw badRequest("A senha atual informada está incorreta.");
@@ -184,6 +204,11 @@ public class UserService {
     @Transactional
     public void deleteById(Long id) {
         User user = findById(id);
+        if (user.isSuperAdmin()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "A conta geral de administrador (admin@duolingo.com) não pode ser excluída.");
+        }
         userRepository.delete(user);
         schedulePictureCleanup(user.getProfilePicture(), null);
     }

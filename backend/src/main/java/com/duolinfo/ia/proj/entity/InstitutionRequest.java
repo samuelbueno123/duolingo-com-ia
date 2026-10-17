@@ -58,6 +58,7 @@ public class InstitutionRequest {
     public enum Status {
         PENDING,
         APPROVED,
-        REJECTED
+        REJECTED,
+        EXPIRED
     }
 }

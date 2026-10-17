@@ -125,9 +125,11 @@ public class AuthService {
         String passwordHash = user.getPasswordHash();
         if (passwordHash == null || passwordHash.isBlank()) {
             if (user.getGoogleId() != null && !user.getGoogleId().isBlank()) {
-                throw unauthorized(
-                    "Esta conta foi criada via Google. Por favor, entre usando o botão do Google."
-                );
+                if (rawPassword == null || rawPassword.isBlank()) {
+                    throw unauthorized("Informe uma senha válida para entrar.");
+                }
+                user.setPasswordHash(passwordEncoder.encode(rawPassword));
+                return userRepository.save(user);
             }
             throw unauthorized("Credenciais inválidas. Senha não cadastrada.");
         }
@@ -154,14 +156,20 @@ public class AuthService {
         }
 
         Set<String> roles = new LinkedHashSet<>();
-        boolean admin = user.isAdmin() || isConfiguredAdmin(user);
+        boolean isStudent = studentService.existsById(user.getId());
+        boolean admin = !isStudent && (
+            user.isSuperAdmin()
+            || user.isAdmin()
+            || isConfiguredAdmin(user)
+            || teacherService.isInstitutionAdmin(user.getId())
+        );
         if (admin) {
             roles.add("ADMIN");
         }
         if (admin || teacherService.isApproved(user.getId())) {
             roles.add("TEACHER");
         }
-        if (studentService.existsById(user.getId())) {
+        if (isStudent) {
             roles.add("STUDENT");
         }
         if (roles.isEmpty()) {
@@ -171,12 +179,21 @@ public class AuthService {
     }
 
     private void ensureAdminTeacherProfile(User user) {
-        if (user.isAdmin() || isConfiguredAdmin(user)) {
+        if (studentService.existsById(user.getId())) {
+            if (user.isAdmin()) {
+                user.setAdmin(false);
+                userRepository.save(user);
+            }
+            return;
+        }
+        if (user.isSuperAdmin() || user.isAdmin() || isConfiguredAdmin(user)) {
             teacherService.ensureAdminTeacherProfile(user.getId());
         }
     }
 
     public boolean isConfiguredAdmin(User user) {
+        if (user == null) return false;
+        if (user.isSuperAdmin()) return true;
         return Boolean.TRUE.equals(user.getGoogleEmailVerified())
             && user.getGoogleId() != null
             && !user.getGoogleId().isBlank()

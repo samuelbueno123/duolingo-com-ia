@@ -1,5 +1,6 @@
 package com.duolinfo.ia.proj.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -8,12 +9,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.duolinfo.ia.proj.entity.AdminNotification;
 import com.duolinfo.ia.proj.entity.ClassTeacherAssignment;
 import com.duolinfo.ia.proj.entity.Institution;
 import com.duolinfo.ia.proj.entity.Teacher;
 import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.exception.BusinessException;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
+import com.duolinfo.ia.proj.repository.AdminNotificationRepository;
 import com.duolinfo.ia.proj.repository.ClassTeacherAssignmentRepository;
 import com.duolinfo.ia.proj.repository.InstitutionRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
@@ -26,11 +29,14 @@ import jakarta.persistence.PersistenceContext;
 @Service
 public class TeacherService {
 
+    public static final String TEACHER_REQUEST_REFERENCE = "TEACHER_REQUEST";
+
     private final TeacherRepository teacherRepository;
     private final ClassTeacherAssignmentRepository assignmentRepository;
     private final InstitutionRepository institutionRepository;
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
+    private final AdminNotificationRepository notificationRepository;
     private final PasswordEncoder passwordEncoder;
 
     @PersistenceContext
@@ -42,6 +48,7 @@ public class TeacherService {
             InstitutionRepository institutionRepository,
             UserRepository userRepository,
             StudentRepository studentRepository,
+            AdminNotificationRepository notificationRepository,
             PasswordEncoder passwordEncoder) {
 
         this.teacherRepository = teacherRepository;
@@ -49,6 +56,7 @@ public class TeacherService {
         this.institutionRepository = institutionRepository;
         this.userRepository = userRepository;
         this.studentRepository = studentRepository;
+        this.notificationRepository = notificationRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -61,8 +69,6 @@ public class TeacherService {
             Long institutionId,
             Teacher teacher) {
 
-        teacher.setApproved(false);
-
         Institution institution =
             institutionRepository.findById(institutionId)
                 .orElseThrow(() ->
@@ -71,8 +77,20 @@ public class TeacherService {
                     )
                 );
 
+        long existingInInstitution = teacherRepository
+            .countByInstitutionIdAndEmailNotIgnoreCase(institutionId, "admin@duolingo.com");
+        boolean isFirstInInstitution = existingInInstitution == 0;
+
+        teacher.setGender(User.normalizeGender(teacher.getGender()));
+        teacher.setCreatedAt(LocalDateTime.now());
+        teacher.setApproved(isFirstInInstitution);
+        teacher.setApprovalStatus(isFirstInInstitution ? "APPROVED" : "PENDING");
+        teacher.setInstitutionAdmin(isFirstInInstitution);
+        teacher.setPrimaryInstitutionAdmin(isFirstInInstitution);
+        teacher.setAdmin(isFirstInInstitution);
+
         if (teacher.getEmail() != null && !teacher.getEmail().isBlank()) {
-            String email = teacher.getEmail().trim().toLowerCase();
+            String email = teacher.getEmail().trim().toLowerCase(Locale.ROOT);
             teacher.setEmail(email);
 
             if (teacherRepository.findByEmailIgnoreCase(email).isPresent()) {
@@ -87,8 +105,9 @@ public class TeacherService {
                     throw new BusinessException("E-mail já cadastrado com outro perfil no sistema.");
                 }
 
-                // Proteção contra hijacking de conta com senha existente
-                if (baseUser.getPasswordHash() != null && !baseUser.getPasswordHash().isBlank()) {
+                boolean isGoogleAccount = baseUser.getGoogleId() != null && !baseUser.getGoogleId().isBlank();
+                // Proteção contra hijacking de conta com senha existente (exceto contas Google definindo senha)
+                if (!isGoogleAccount && baseUser.getPasswordHash() != null && !baseUser.getPasswordHash().isBlank()) {
                     if (teacher.getPasswordHash() == null ||
                         teacher.getPasswordHash().isBlank() ||
                         !passwordEncoder.matches(teacher.getPasswordHash(), baseUser.getPasswordHash())) {
@@ -102,16 +121,25 @@ public class TeacherService {
                     teacher.getName() != null && !teacher.getName().isBlank()) {
                     baseUser.setName(teacher.getName().trim());
                 }
+                baseUser.setGender(User.normalizeGender(teacher.getGender()));
+                if (isFirstInInstitution) {
+                    baseUser.setAdmin(true);
+                }
 
                 Long userId = baseUser.getId();
                 userRepository.save(baseUser);
 
                 entityManager.createNativeQuery(
-                    "INSERT INTO teachers (id, institution_id, bibliography) VALUES (:id, :institutionId, :bibliography)"
+                    "INSERT INTO teachers (id, institution_id, bibliography, approved, approval_status, institution_admin, primary_institution_admin, created_at) "
+                    + "VALUES (:id, :institutionId, :bibliography, :approved, :approvalStatus, :instAdmin, :primaryInstAdmin, CURRENT_TIMESTAMP)"
                 )
                 .setParameter("id", userId)
                 .setParameter("institutionId", institutionId)
                 .setParameter("bibliography", teacher.getBibliography())
+                .setParameter("approved", isFirstInInstitution)
+                .setParameter("approvalStatus", isFirstInInstitution ? "APPROVED" : "PENDING")
+                .setParameter("instAdmin", isFirstInInstitution)
+                .setParameter("primaryInstAdmin", isFirstInInstitution)
                 .executeUpdate();
 
                 if (teacher.getTaughtLanguages() != null && !teacher.getTaughtLanguages().isEmpty()) {
@@ -159,7 +187,11 @@ public class TeacherService {
                 entityManager.flush();
                 entityManager.clear();
 
-                return teacherRepository.findById(userId).orElseThrow();
+                Teacher created = teacherRepository.findById(userId).orElseThrow();
+                if (!isFirstInInstitution) {
+                    createTeacherRequestNotification(created, institution);
+                }
+                return created;
             }
 
             if (teacher.getPasswordHash() != null && !teacher.getPasswordHash().isBlank()) {
@@ -168,8 +200,25 @@ public class TeacherService {
         }
 
         teacher.setInstitution(institution);
+        Teacher saved = teacherRepository.save(teacher);
+        if (!isFirstInInstitution) {
+            createTeacherRequestNotification(saved, institution);
+        }
+        return saved;
+    }
 
-        return teacherRepository.save(teacher);
+    private void createTeacherRequestNotification(Teacher teacher, Institution institution) {
+        AdminNotification notification = new AdminNotification();
+        notification.setType(TEACHER_REQUEST_REFERENCE);
+        notification.setTitle("Solicitação de cadastro de professor");
+        notification.setMessage(
+            teacher.getName() + " (" + teacher.getEmail() + ") solicitou cadastro como professor na instituição "
+            + (institution != null ? institution.getName() : "informada") + "."
+        );
+        notification.setReferenceType(TEACHER_REQUEST_REFERENCE);
+        notification.setReferenceId(teacher.getId());
+        notification.setInstitutionId(institution != null ? institution.getId() : null);
+        notificationRepository.save(notification);
     }
 
     @Transactional
@@ -182,6 +231,7 @@ public class TeacherService {
         if (teacher != null) {
             if (!Boolean.TRUE.equals(teacher.getApproved())) {
                 teacher.setApproved(true);
+                teacher.setApprovalStatus("APPROVED");
                 teacherRepository.save(teacher);
             }
             return;
@@ -194,8 +244,8 @@ public class TeacherService {
 
         entityManager.flush();
         entityManager.createNativeQuery(
-            "INSERT INTO teachers (id, institution_id, bibliography, approved) "
-                + "VALUES (:id, :institutionId, '', true) ON CONFLICT (id) DO NOTHING")
+            "INSERT INTO teachers (id, institution_id, bibliography, approved, approval_status, institution_admin, primary_institution_admin, created_at) "
+                + "VALUES (:id, :institutionId, '', true, 'APPROVED', false, false, CURRENT_TIMESTAMP) ON CONFLICT (id) DO NOTHING")
             .setParameter("id", userId)
             .setParameter("institutionId", institution.getId())
             .executeUpdate();
@@ -237,6 +287,9 @@ public class TeacherService {
         }
 
         current.setName(data.getName());
+        if (data.getGender() != null && !data.getGender().isBlank()) {
+            current.setGender(User.normalizeGender(data.getGender()));
+        }
         if (data.getEmail() != null && !data.getEmail().isBlank()) {
             String email = data.getEmail().trim().toLowerCase(Locale.ROOT);
             boolean usedByAnotherAccount = userRepository.findByEmailIgnoreCase(email)
@@ -263,8 +316,21 @@ public class TeacherService {
     @Transactional
     public Teacher updateApproval(Long id, boolean approved) {
         Teacher teacher = findById(id);
+        if (teacher.isSuperAdmin() && !approved) {
+            throw new BusinessException("O administrador geral não pode ter a aprovação revogada.");
+        }
+        if (teacher.isPrimaryInstitutionAdmin() && !approved) {
+            throw new BusinessException("O administrador fundador da instituição não pode ser revogado.");
+        }
         teacher.setApproved(approved);
-        return teacherRepository.save(teacher);
+        teacher.setApprovalStatus(approved ? "APPROVED" : "REJECTED");
+        Teacher saved = teacherRepository.save(teacher);
+        notificationRepository.findByReferenceTypeAndReferenceId(TEACHER_REQUEST_REFERENCE, id)
+            .forEach(notification -> {
+                notification.setRead(true);
+                notificationRepository.save(notification);
+            });
+        return saved;
     }
 
     @Transactional
@@ -393,6 +459,13 @@ public class TeacherService {
     public boolean isApproved(Long id) {
         return teacherRepository.findById(id)
             .map(teacher -> Boolean.TRUE.equals(teacher.getApproved()))
+            .orElse(false);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isInstitutionAdmin(Long id) {
+        return teacherRepository.findById(id)
+            .map(Teacher::isInstitutionAdmin)
             .orElse(false);
     }
 

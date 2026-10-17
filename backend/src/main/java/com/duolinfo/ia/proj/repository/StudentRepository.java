@@ -47,4 +47,8 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
         Long schoolClassId,
         EnrollmentStatus status
     );
+
+    List<Student> findByInstitutionId(Long institutionId);
+
+    List<Student> findByNameContainingIgnoreCaseOrderByNameAsc(String name);
 }

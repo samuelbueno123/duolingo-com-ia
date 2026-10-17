@@ -47,6 +47,12 @@ public record UserRequestDTO(
         example = "MinhaNovaSenha123!"
     )
     @Size(min = 6, max = 72, message = "A nova senha deve ter entre 6 e 72 caracteres.")
-    String password
+    String password,
+
+    @Schema(
+        description = "Sexo do usuário (MASCULINO ou FEMININO)",
+        example = "MASCULINO"
+    )
+    String gender
 ) {
 }

@@ -3,12 +3,14 @@ package com.duolinfo.ia.proj.controller.Auth;
 import java.util.Map;
 import java.time.Duration;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,18 +20,24 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.duolinfo.ia.proj.dto.request.DeleteAccountRequestDTO;
+import com.duolinfo.ia.proj.dto.request.ForgotPasswordRequestDTO;
 import com.duolinfo.ia.proj.dto.request.GoogleLoginRequest;
 import com.duolinfo.ia.proj.dto.request.PasswordLoginRequest;
 import com.duolinfo.ia.proj.dto.request.RefreshTokenRequestDTO;
+import com.duolinfo.ia.proj.dto.request.ResetPasswordRequestDTO;
+import com.duolinfo.ia.proj.dto.request.UserPreferencesRequestDTO;
 import com.duolinfo.ia.proj.dto.request.UserRequestDTO;
 import com.duolinfo.ia.proj.dto.response.AuthResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AuthenticatedUserResponseDTO;
+import com.duolinfo.ia.proj.dto.response.UserPreferencesResponseDTO;
 import com.duolinfo.ia.proj.dto.response.UserResponseDTO;
 import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.service.AuthService;
 import com.duolinfo.ia.proj.service.AuthService.LoginResult;
 import com.duolinfo.ia.proj.service.JwtService;
+import com.duolinfo.ia.proj.service.PasswordResetService;
 import com.duolinfo.ia.proj.service.UserService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -51,6 +59,9 @@ public class AuthController {
     private final JwtService jwtService;
     private final UserService userService;
     private final boolean secureRefreshCookie;
+
+    @Autowired(required = false)
+    private PasswordResetService passwordResetService;
 
     public AuthController(
             AuthService authService,
@@ -100,6 +111,32 @@ public class AuthController {
         );
     }
 
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Solicita código temporário de recuperação de senha")
+    public Map<String, Object> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequestDTO request) {
+        if (passwordResetService == null) {
+            throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Serviço de recuperação de senha indisponível."
+            );
+        }
+        return passwordResetService.requestPasswordReset(request);
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(summary = "Redefine a senha usando o código temporário de recuperação")
+    public Map<String, Object> resetPassword(
+            @Valid @RequestBody ResetPasswordRequestDTO request) {
+        if (passwordResetService == null) {
+            throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Serviço de recuperação de senha indisponível."
+            );
+        }
+        return passwordResetService.resetPassword(request);
+    }
+
     @PostMapping("/refresh")
     @Operation(summary = "Renova a sessão usando o token de renovação")
     public AuthResponseDTO refresh(
@@ -126,6 +163,47 @@ public class AuthController {
             DtoMapper.toUserResponse(user),
             authService.resolveProfileType(user),
             authService.resolveRoles(user)
+        );
+    }
+
+    @GetMapping("/me/preferences")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Retorna as preferências do usuário autenticado")
+    public UserPreferencesResponseDTO getMyPreferences(Authentication authentication) {
+        User user = authenticatedUser(authentication);
+        return userService.getPreferences(user.getId());
+    }
+
+    @PutMapping("/me/preferences")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Atualiza as preferências do usuário autenticado")
+    public UserPreferencesResponseDTO updateMyPreferences(
+            Authentication authentication,
+            @Valid @RequestBody UserPreferencesRequestDTO request) {
+        User user = authenticatedUser(authentication);
+        return userService.updatePreferences(user.getId(), request);
+    }
+
+    @DeleteMapping("/me")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Exclui a própria conta do usuário autenticado mediante confirmação")
+    public Map<String, Object> deleteMe(
+            Authentication authentication,
+            @RequestBody(required = false) DeleteAccountRequestDTO request,
+            HttpServletResponse response) {
+        User user = authenticatedUser(authentication);
+        userService.deleteOwnAccount(user.getId(), request);
+        response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from("refreshToken", "")
+            .httpOnly(true)
+            .secure(secureRefreshCookie)
+            .sameSite(secureRefreshCookie ? "None" : "Lax")
+            .path("/api/auth")
+            .maxAge(Duration.ZERO)
+            .build()
+            .toString());
+        return Map.of(
+            "success", true,
+            "message", "Conta excluída com sucesso."
         );
     }
 

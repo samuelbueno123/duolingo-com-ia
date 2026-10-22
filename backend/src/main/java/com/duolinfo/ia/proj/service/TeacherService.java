@@ -5,9 +5,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.entity.AdminNotification;
 import com.duolinfo.ia.proj.entity.ClassTeacherAssignment;
@@ -105,15 +109,21 @@ public class TeacherService {
                     throw new BusinessException("E-mail já cadastrado com outro perfil no sistema.");
                 }
 
-                boolean isGoogleAccount = baseUser.getGoogleId() != null && !baseUser.getGoogleId().isBlank();
-                // Proteção contra hijacking de conta com senha existente (exceto contas Google definindo senha)
-                if (!isGoogleAccount && baseUser.getPasswordHash() != null && !baseUser.getPasswordHash().isBlank()) {
-                    if (teacher.getPasswordHash() == null ||
-                        teacher.getPasswordHash().isBlank() ||
-                        !passwordEncoder.matches(teacher.getPasswordHash(), baseUser.getPasswordHash())) {
-                        throw new BusinessException("Este e-mail já possui uma conta cadastrada. Faça login para continuar.");
-                    }
-                } else if (teacher.getPasswordHash() != null && !teacher.getPasswordHash().isBlank()) {
+                boolean callerAuthenticatedAsUser = isCallerAuthenticatedAs(email);
+                boolean hasExistingPassword = baseUser.getPasswordHash() != null && !baseUser.getPasswordHash().isBlank();
+                boolean providedMatchingPassword = hasExistingPassword
+                        && teacher.getPasswordHash() != null
+                        && !teacher.getPasswordHash().isBlank()
+                        && passwordEncoder.matches(teacher.getPasswordHash(), baseUser.getPasswordHash());
+
+                if (!callerAuthenticatedAsUser && !providedMatchingPassword) {
+                    throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Este e-mail já pertence a uma conta cadastrada. Autentique-se com o Google ou informe a senha atual válida para continuar."
+                    );
+                }
+
+                if (!hasExistingPassword && teacher.getPasswordHash() != null && !teacher.getPasswordHash().isBlank()) {
                     baseUser.setPasswordHash(encodePasswordIfNeeded(teacher.getPasswordHash()));
                 }
 
@@ -205,6 +215,20 @@ public class TeacherService {
             createTeacherRequestNotification(saved, institution);
         }
         return saved;
+    }
+
+    private boolean isCallerAuthenticatedAs(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getName() == null
+                || "anonymousUser".equalsIgnoreCase(auth.getName())) {
+            return false;
+        }
+        boolean isAdmin = auth.getAuthorities() != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        return isAdmin || auth.getName().trim().equalsIgnoreCase(email.trim());
     }
 
     private void createTeacherRequestNotification(Teacher teacher, Institution institution) {

@@ -1,7 +1,9 @@
 package com.duolinfo.ia.proj.controller;
 
 import java.util.List;
+import java.util.Objects;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -18,8 +20,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.duolinfo.ia.proj.dto.request.SchoolClassRequestDTO;
 import com.duolinfo.ia.proj.dto.response.ClassDashboardResponseDTO;
 import com.duolinfo.ia.proj.dto.response.SchoolClassResponseDTO;
+import com.duolinfo.ia.proj.entity.SchoolClass;
+import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.mapper.RequestMapper;
+import com.duolinfo.ia.proj.service.AccessControlService;
 import com.duolinfo.ia.proj.service.SchoolClassService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,6 +40,9 @@ import jakarta.validation.Valid;
 public class SchoolClassController {
 
     private final SchoolClassService schoolClassService;
+
+    @Autowired(required = false)
+    private AccessControlService accessControlService;
 
     public SchoolClassController(
             SchoolClassService schoolClassService) {
@@ -76,7 +84,7 @@ public class SchoolClassController {
     @Operation(summary = "Lista turmas")
     public List<SchoolClassResponseDTO> findAll() {
 
-        return schoolClassService.findAll()
+        return filterClassesForCaller(schoolClassService.findAll())
             .stream()
             .map(DtoMapper::toSchoolClassResponse)
             .toList();
@@ -85,6 +93,9 @@ public class SchoolClassController {
     @GetMapping("/{id}/dashboard")
     @Operation(summary = "Retorna o dashboard completo com estatísticas de uma turma")
     public ClassDashboardResponseDTO getDashboard(@PathVariable Long id) {
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(id);
+        }
         return schoolClassService.getClassDashboard(id);
     }
 
@@ -92,10 +103,11 @@ public class SchoolClassController {
     @Operation(summary = "Busca turma por ID")
     public SchoolClassResponseDTO findById(
             @PathVariable Long id) {
-
-        return DtoMapper.toSchoolClassResponse(
-            schoolClassService.findById(id)
-        );
+        SchoolClass schoolClass = schoolClassService.findById(id);
+        if (accessControlService != null) {
+            accessControlService.assertCanViewSchoolClass(schoolClass);
+        }
+        return DtoMapper.toSchoolClassResponse(schoolClass);
     }
 
     @GetMapping("/school/{schoolId}")
@@ -103,7 +115,7 @@ public class SchoolClassController {
     public List<SchoolClassResponseDTO> findBySchool(
             @PathVariable Long schoolId) {
 
-        return schoolClassService.findBySchool(schoolId)
+        return filterClassesForCaller(schoolClassService.findBySchool(schoolId))
             .stream()
             .map(DtoMapper::toSchoolClassResponse)
             .toList();
@@ -114,7 +126,7 @@ public class SchoolClassController {
     public List<SchoolClassResponseDTO> findActiveBySchool(
             @PathVariable Long schoolId) {
 
-        return schoolClassService.findActiveBySchool(schoolId)
+        return filterClassesForCaller(schoolClassService.findActiveBySchool(schoolId))
             .stream()
             .map(DtoMapper::toSchoolClassResponse)
             .toList();
@@ -126,11 +138,7 @@ public class SchoolClassController {
             @PathVariable Long schoolId,
             @PathVariable String schoolYear) {
 
-        return schoolClassService
-            .findBySchoolAndYear(
-                schoolId,
-                schoolYear
-            )
+        return filterClassesForCaller(schoolClassService.findBySchoolAndYear(schoolId, schoolYear))
             .stream()
             .map(DtoMapper::toSchoolClassResponse)
             .toList();
@@ -143,11 +151,7 @@ public class SchoolClassController {
             @PathVariable Long schoolId,
             @PathVariable String schoolYear) {
 
-        return schoolClassService
-            .findActiveBySchoolAndYear(
-                schoolId,
-                schoolYear
-            )
+        return filterClassesForCaller(schoolClassService.findActiveBySchoolAndYear(schoolId, schoolYear))
             .stream()
             .map(DtoMapper::toSchoolClassResponse)
             .toList();
@@ -159,10 +163,7 @@ public class SchoolClassController {
             @PathVariable Long schoolId,
             @PathVariable String name) {
 
-        return schoolClassService.search(
-                schoolId,
-                name
-            )
+        return filterClassesForCaller(schoolClassService.search(schoolId, name))
             .stream()
             .map(DtoMapper::toSchoolClassResponse)
             .toList();
@@ -173,7 +174,9 @@ public class SchoolClassController {
     public SchoolClassResponseDTO update(
             @PathVariable Long id,
             @Valid @RequestBody SchoolClassRequestDTO request) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(id);
+        }
         return DtoMapper.toSchoolClassResponse(
             schoolClassService.update(
                 id,
@@ -187,7 +190,9 @@ public class SchoolClassController {
     @Operation(summary = "Ativa turma")
     public SchoolClassResponseDTO activate(
             @PathVariable Long id) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(id);
+        }
         return DtoMapper.toSchoolClassResponse(
             schoolClassService.activate(id)
         );
@@ -197,7 +202,9 @@ public class SchoolClassController {
     @Operation(summary = "Desativa turma")
     public SchoolClassResponseDTO deactivate(
             @PathVariable Long id) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(id);
+        }
         return DtoMapper.toSchoolClassResponse(
             schoolClassService.deactivate(id)
         );
@@ -208,8 +215,26 @@ public class SchoolClassController {
     @Operation(summary = "Exclui turma")
     public void delete(
             @PathVariable Long id) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(id);
+        }
         schoolClassService.delete(id);
     }
 
+    private List<SchoolClass> filterClassesForCaller(List<SchoolClass> classes) {
+        if (accessControlService == null) {
+            return classes;
+        }
+        User current = accessControlService.getCurrentUser().orElse(null);
+        if (current == null || current.isSuperAdmin()) {
+            return classes;
+        }
+        Long userInstId = accessControlService.getUserInstitutionId(current);
+        return classes.stream()
+            .filter(sc -> {
+                Long classInstId = accessControlService.getSchoolClassInstitutionId(sc);
+                return userInstId != null && Objects.equals(userInstId, classInstId);
+            })
+            .toList();
+    }
 }

@@ -3,6 +3,8 @@ package com.duolinfo.ia.proj.controller;
 import java.security.Principal;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -12,13 +14,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.server.ResponseStatusException;
 
+import com.duolinfo.ia.proj.dto.request.AiExerciseGenerateRequestDTO;
 import com.duolinfo.ia.proj.dto.request.ExerciseFeedbackRequestDTO;
+import com.duolinfo.ia.proj.dto.request.ExerciseQuestionRequestDTO;
 import com.duolinfo.ia.proj.dto.request.ExerciseSubmissionRequestDTO;
 import com.duolinfo.ia.proj.dto.request.LearningExerciseRequestDTO;
 import com.duolinfo.ia.proj.dto.response.ExerciseSubmissionResponseDTO;
 import com.duolinfo.ia.proj.dto.response.LearningExerciseResponseDTO;
 import com.duolinfo.ia.proj.dto.response.LearningRankingEntryResponseDTO;
+import com.duolinfo.ia.proj.dto.response.StudentProgressSummaryResponseDTO;
+import com.duolinfo.ia.proj.service.AiExerciseGeneratorService;
 import com.duolinfo.ia.proj.service.LearningExerciseService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,6 +41,9 @@ public class LearningExerciseController {
 
     private final LearningExerciseService exerciseService;
 
+    @Autowired(required = false)
+    private AiExerciseGeneratorService aiGeneratorService;
+
     @GetMapping
     @Operation(summary = "Lista atividades para o perfil autenticado")
     public List<LearningExerciseResponseDTO> findMine(
@@ -43,6 +53,27 @@ public class LearningExerciseController {
             return exerciseService.findForTeacher(principal.getName());
         }
         return exerciseService.findForStudent(principal.getName());
+    }
+
+    @GetMapping("/progress/me")
+    @Operation(summary = "Retorna o resumo de progresso, XP, meta diária e sequência (streak) do estudante autenticado")
+    public StudentProgressSummaryResponseDTO findMyProgress(
+            Principal principal,
+            @RequestParam(required = false) String timezone) {
+        return exerciseService.getStudentProgressSummary(principal.getName(), timezone);
+    }
+
+    @PostMapping("/generate-ai")
+    @Operation(summary = "Gera sugestões editáveis de questões usando o provedor de IA configurado no servidor")
+    public List<ExerciseQuestionRequestDTO> generateWithAi(
+            @Valid @RequestBody AiExerciseGenerateRequestDTO request) {
+        if (aiGeneratorService == null) {
+            throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Serviço de geração com IA não está disponível."
+            );
+        }
+        return aiGeneratorService.generateQuestions(request);
     }
 
     @GetMapping("/{id}")
@@ -92,12 +123,17 @@ public class LearningExerciseController {
     }
 
     @PatchMapping("/submissions/{id}/feedback")
-    @Operation(summary = "Registra feedback do professor para uma entrega")
+    @Operation(summary = "Registra feedback e avaliação do professor para uma entrega")
     public ExerciseSubmissionResponseDTO addFeedback(
             @PathVariable Long id,
             @Valid @RequestBody ExerciseFeedbackRequestDTO request,
             Principal principal) {
-        return exerciseService.addFeedback(id, request.feedback(), principal.getName());
+        return exerciseService.addFeedback(
+            id,
+            request.feedback(),
+            request.correctCount(),
+            principal.getName()
+        );
     }
 
     private static boolean hasRole(Authentication authentication, String role) {

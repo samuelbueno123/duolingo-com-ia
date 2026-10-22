@@ -19,7 +19,7 @@ public class GoogleTokenVerifier {
     private final GoogleIdTokenVerifier verifier;
 
     public GoogleTokenVerifier(
-            @Value("${GOOGLE_CLIENT_ID}") String clientId)
+            @Value("${GOOGLE_CLIENT_ID:${google.client-id:}}") String clientId)
             throws GeneralSecurityException, IOException {
 
         List<String> audienceList = Arrays.stream(clientId.split(","))
@@ -31,7 +31,7 @@ public class GoogleTokenVerifier {
                 GoogleNetHttpTransport.newTrustedTransport(),
                 GsonFactory.getDefaultInstance()
         )
-                .setAudience(audienceList)
+                .setAudience(audienceList.isEmpty() ? List.of("default-client-id") : audienceList)
                 .build();
     }
 

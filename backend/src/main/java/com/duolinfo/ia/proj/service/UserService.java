@@ -6,7 +6,10 @@ import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,10 +17,15 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.duolinfo.ia.proj.dto.request.DeleteAccountRequestDTO;
+import com.duolinfo.ia.proj.dto.request.UserPreferencesRequestDTO;
 import com.duolinfo.ia.proj.dto.request.UserRequestDTO;
+import com.duolinfo.ia.proj.dto.response.UserPreferencesResponseDTO;
 import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.repository.UserRepository;
+
+import jakarta.persistence.EntityManager;
 
 @Service
 public class UserService {
@@ -27,6 +35,15 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final ProfilePictureStorageService profilePictureStorage;
+
+    @Autowired(required = false)
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired(required = false)
+    private EntityManager entityManager;
+
+    @Value("${spring.mail.host:}")
+    private String smtpHost;
 
     public UserService(
             UserRepository userRepository,
@@ -113,6 +130,28 @@ public class UserService {
             existingUser.setAdmin(user.isAdmin());
         }
 
+        if (user.getUiLanguage() != null) {
+            existingUser.setUiLanguage(normalizeUiLanguage(user.getUiLanguage()));
+        }
+        if (user.getThemeMode() != null) {
+            existingUser.setThemeMode(normalizeThemeMode(user.getThemeMode()));
+        }
+        if (user.getDailyGoalMinutes() != null) {
+            existingUser.setDailyGoalMinutes(normalizeDailyGoalMinutes(user.getDailyGoalMinutes()));
+        }
+        if (user.getNotifDailyReminders() != null) {
+            existingUser.setNotifDailyReminders(user.getNotifDailyReminders());
+        }
+        if (user.getNotifAchievements() != null) {
+            existingUser.setNotifAchievements(user.getNotifAchievements());
+        }
+        if (user.getNotifRanking() != null) {
+            existingUser.setNotifRanking(user.getNotifRanking());
+        }
+        if (user.getNotifClassUpdates() != null) {
+            existingUser.setNotifClassUpdates(user.getNotifClassUpdates());
+        }
+
         String previousPicture = pictureBeforeUpdateProvided
             ? pictureBeforeUpdate
             : existingUser.getProfilePicture();
@@ -168,18 +207,112 @@ public class UserService {
         if (request.password() != null && !request.password().isBlank()) {
             String currentPassword = request.currentPassword();
             String currentHash = user.getPasswordHash();
-            boolean isGoogleAccount = user.getGoogleId() != null && !user.getGoogleId().isBlank();
-            if (currentHash != null
-                    && !currentHash.isBlank()
-                    && (!isGoogleAccount || (currentPassword != null && !currentPassword.isBlank()))
-                    && (currentPassword == null
-                        || !passwordEncoder.matches(currentPassword, currentHash))) {
-                throw badRequest("A senha atual informada está incorreta.");
+            if (currentHash != null && !currentHash.isBlank()) {
+                if (currentPassword == null
+                        || currentPassword.isBlank()
+                        || !passwordEncoder.matches(currentPassword, currentHash)) {
+                    throw badRequest("A senha atual informada está incorreta.");
+                }
             }
             user.setPasswordHash(request.password());
         }
 
         return update(user, previousPicture, true);
+    }
+
+    @Transactional(readOnly = true)
+    public UserPreferencesResponseDTO getPreferences(Long userId) {
+        User user = findById(userId);
+        return toPreferencesResponse(user);
+    }
+
+    @Transactional
+    public UserPreferencesResponseDTO updatePreferences(Long userId, UserPreferencesRequestDTO dto) {
+        if (dto == null) {
+            throw badRequest("As preferências não foram informadas.");
+        }
+        User user = findById(userId);
+        if (dto.uiLanguage() != null && !dto.uiLanguage().isBlank()) {
+            user.setUiLanguage(normalizeUiLanguage(dto.uiLanguage()));
+        }
+        if (dto.themeMode() != null && !dto.themeMode().isBlank()) {
+            user.setThemeMode(normalizeThemeMode(dto.themeMode()));
+        }
+        if (dto.dailyGoalMinutes() != null) {
+            user.setDailyGoalMinutes(normalizeDailyGoalMinutes(dto.dailyGoalMinutes()));
+        }
+        if (dto.notifDailyReminders() != null) {
+            user.setNotifDailyReminders(dto.notifDailyReminders());
+        }
+        if (dto.notifAchievements() != null) {
+            user.setNotifAchievements(dto.notifAchievements());
+        }
+        if (dto.notifRanking() != null) {
+            user.setNotifRanking(dto.notifRanking());
+        }
+        if (dto.notifClassUpdates() != null) {
+            user.setNotifClassUpdates(dto.notifClassUpdates());
+        }
+        User saved = userRepository.save(user);
+        return toPreferencesResponse(saved);
+    }
+
+    public UserPreferencesResponseDTO toPreferencesResponse(User user) {
+        boolean externalConfigured = smtpHost != null && !smtpHost.isBlank();
+        String notice = externalConfigured
+                ? "Notificações externas ativas."
+                : "Suas preferências foram salvas na conta. O envio externo de e-mail ou push depende da configuração de credenciais SMTP/FCM no ambiente.";
+        int goalMinutes = user.getEffectiveDailyGoalMinutes();
+        return new UserPreferencesResponseDTO(
+                user.getNormalizedUiLanguage(),
+                user.getNormalizedThemeMode(),
+                goalMinutes,
+                goalMinutes * 2,
+                user.isEffectiveNotifDailyReminders(),
+                user.isEffectiveNotifAchievements(),
+                user.isEffectiveNotifRanking(),
+                user.isEffectiveNotifClassUpdates(),
+                externalConfigured,
+                notice
+        );
+    }
+
+    public static String normalizeUiLanguage(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "pt";
+        }
+        String lower = raw.trim().toLowerCase(Locale.ROOT);
+        if (lower.startsWith("en") || lower.contains("ingl")) {
+            return "en";
+        }
+        if (lower.startsWith("es") || lower.contains("espan")) {
+            return "es";
+        }
+        return "pt";
+    }
+
+    public static String normalizeThemeMode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "system";
+        }
+        String lower = raw.trim().toLowerCase(Locale.ROOT);
+        if ("dark".equals(lower) || "escuro".equals(lower)) {
+            return "dark";
+        }
+        if ("light".equals(lower) || "claro".equals(lower)) {
+            return "light";
+        }
+        return "system";
+    }
+
+    public static int normalizeDailyGoalMinutes(Integer minutes) {
+        if (minutes == null) {
+            return 15;
+        }
+        if (minutes < 5 || minutes > 180) {
+            throw badRequest("A meta diária deve estar entre 5 e 180 minutos.");
+        }
+        return minutes;
     }
 
     @Transactional
@@ -192,6 +325,39 @@ public class UserService {
         String previousPicture = user.getProfilePicture();
         user.setProfilePicture(profilePicture);
         return update(user, previousPicture, true);
+    }
+
+    @Transactional
+    public void deleteOwnAccount(Long userId, DeleteAccountRequestDTO dto) {
+        User user = findById(userId);
+        if (user.isSuperAdmin()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "A conta geral de administrador (admin@duolingo.com) não pode ser excluída.");
+        }
+
+        String passwordHash = user.getPasswordHash();
+        boolean hasPassword = passwordHash != null && !passwordHash.isBlank();
+        if (hasPassword) {
+            String providedPassword = dto != null ? dto.currentPassword() : null;
+            if (providedPassword == null
+                    || providedPassword.isBlank()
+                    || !passwordEncoder.matches(providedPassword, passwordHash)) {
+                throw badRequest("Informe sua senha atual correta para confirmar a exclusão da conta.");
+            }
+        } else {
+            String confirmation = dto != null && dto.confirmationText() != null
+                    ? dto.confirmationText().trim()
+                    : "";
+            boolean validConfirmation = "EXCLUIR".equalsIgnoreCase(confirmation)
+                    || "DELETE".equalsIgnoreCase(confirmation)
+                    || (user.getEmail() != null && user.getEmail().equalsIgnoreCase(confirmation));
+            if (!validConfirmation) {
+                throw badRequest("Para confirmar a exclusão desta conta Google sem senha local, digite EXCLUIR ou informe seu e-mail.");
+            }
+        }
+
+        deleteById(userId);
     }
 
     @Transactional
@@ -209,8 +375,44 @@ public class UserService {
                 HttpStatus.CONFLICT,
                 "A conta geral de administrador (admin@duolingo.com) não pode ser excluída.");
         }
-        userRepository.delete(user);
-        schedulePictureCleanup(user.getProfilePicture(), null);
+        String oldPicture = user.getProfilePicture();
+        cleanupUserReferences(id);
+        if (entityManager != null) {
+            entityManager.flush();
+            entityManager.clear();
+        }
+        userRepository.findById(id).ifPresent(userRepository::delete);
+        schedulePictureCleanup(oldPicture, null);
+    }
+
+    private void cleanupUserReferences(Long userId) {
+        if (jdbcTemplate == null || userId == null) {
+            return;
+        }
+        String[] cleanupSql = new String[] {
+            "DELETE FROM password_reset_tokens WHERE user_id = ?",
+            "DELETE FROM exercise_submissions WHERE student_id = ?",
+            "DELETE FROM exercise_submissions WHERE exercise_id IN (SELECT id FROM learning_exercises WHERE created_by_teacher_id = ?)",
+            "DELETE FROM learning_exercise_questions WHERE exercise_id IN (SELECT id FROM learning_exercises WHERE created_by_teacher_id = ?)",
+            "DELETE FROM learning_exercises WHERE created_by_teacher_id = ?",
+            "DELETE FROM student_achievements WHERE student_id = ?",
+            "UPDATE student_achievements SET granted_by_user_id = NULL WHERE granted_by_user_id = ?",
+            "DELETE FROM student_languages WHERE student_id = ?",
+            "DELETE FROM enrollments WHERE student_id = ?",
+            "DELETE FROM class_teacher_assignments WHERE teacher_id = ?",
+            "DELETE FROM teacher_documents WHERE teacher_id = ?",
+            "DELETE FROM teacher_taught_languages WHERE teacher_id = ?",
+            "DELETE FROM teacher_specialization_areas WHERE teacher_id = ?",
+            "UPDATE admin_notifications SET related_user_id = NULL WHERE related_user_id = ?",
+            "DELETE FROM institution_requests WHERE requested_by_teacher_id = ?"
+        };
+        for (String sql : cleanupSql) {
+            try {
+                jdbcTemplate.update(sql, userId);
+            } catch (Exception ignored) {
+                // Table may not exist in minimal unit-test schemas
+            }
+        }
     }
 
     @Transactional

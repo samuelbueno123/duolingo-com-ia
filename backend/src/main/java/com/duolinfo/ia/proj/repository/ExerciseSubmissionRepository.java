@@ -23,4 +23,9 @@ public interface ExerciseSubmissionRepository
     List<ExerciseSubmission> findByExercise_SchoolClass_IdOrderBySubmittedAtDesc(
         Long schoolClassId
     );
+
+    List<ExerciseSubmission> findByStudent_IdAndExercise_IdOrderBySubmittedAtDesc(
+        Long studentId,
+        Long exerciseId
+    );
 }

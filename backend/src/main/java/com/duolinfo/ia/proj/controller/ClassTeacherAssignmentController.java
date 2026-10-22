@@ -2,6 +2,7 @@ package com.duolinfo.ia.proj.controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,7 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.duolinfo.ia.proj.dto.request.ClassTeacherAssignmentFinishDTO;
 import com.duolinfo.ia.proj.dto.request.ClassTeacherAssignmentRequestDTO;
 import com.duolinfo.ia.proj.dto.response.ClassTeacherAssignmentResponseDTO;
+import com.duolinfo.ia.proj.entity.ClassTeacherAssignment;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
+import com.duolinfo.ia.proj.service.AccessControlService;
 import com.duolinfo.ia.proj.service.ClassTeacherAssignmentService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,6 +34,9 @@ import jakarta.validation.Valid;
 public class ClassTeacherAssignmentController {
 
     private final ClassTeacherAssignmentService assignmentService;
+
+    @Autowired(required = false)
+    private AccessControlService accessControlService;
 
     public ClassTeacherAssignmentController(
             ClassTeacherAssignmentService assignmentService) {
@@ -52,7 +58,9 @@ public class ClassTeacherAssignmentController {
             @Valid
             @RequestBody
             ClassTeacherAssignmentRequestDTO request) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(request.schoolClassId());
+        }
         return DtoMapper.toAssignmentResponse(
             assignmentService.assignTeacher(
                 request.schoolClassId(),
@@ -115,7 +123,9 @@ public class ClassTeacherAssignmentController {
             @PathVariable Long schoolClassId,
             @RequestBody(required = false)
             ClassTeacherAssignmentFinishDTO request) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(schoolClassId);
+        }
         return DtoMapper.toAssignmentResponse(
             assignmentService.finishCurrentAssignment(
                 schoolClassId,
@@ -129,7 +139,10 @@ public class ClassTeacherAssignmentController {
     @Operation(summary = "Exclui uma atribuição")
     public void delete(
             @PathVariable Long id) {
-
+        if (accessControlService != null) {
+            ClassTeacherAssignment assignment = assignmentService.findById(id);
+            accessControlService.assertCanManageSchoolClass(assignment.getSchoolClass());
+        }
         assignmentService.delete(id);
     }
 }

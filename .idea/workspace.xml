@@ -1,85 +1,55 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="AutoImportSettings">
-    <option name="autoReloadType" value="SELECTIVE" />
+    <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9f00a422-abfa-4944-8467-87df89e1db05" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/compose.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/compose.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/backend/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/CatalogDataInitializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/CatalogDataInitializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/CorsConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/CorsConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/GoogleTokenVerifier.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/GoogleTokenVerifier.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/config/SecurityConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/AdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/AdminController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/CatalogController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/CatalogController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/Auth/AuthController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/Auth/AuthController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/ClassTeacherAssignmentController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/ClassTeacherAssignmentController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/EnrollmentController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/EnrollmentController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/LearningExerciseController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/LearningExerciseController.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/SchoolClassController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/SchoolClassController.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/StudentController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/StudentController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/AdminUserRequestDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/AdminUserRequestDTO.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/StudentRequestDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/StudentRequestDTO.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/TeacherRequestDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/TeacherRequestDTO.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/UserRequestDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/UserRequestDTO.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/AdminNotificationResponseDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/AdminNotificationResponseDTO.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/AdminUserResponseDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/AdminUserResponseDTO.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/StudentResponseDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/StudentResponseDTO.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/TeacherResponseDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/TeacherResponseDTO.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/UserResponseDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/UserResponseDTO.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/AdminNotification.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/AdminNotification.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/InstitutionRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/InstitutionRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/LearningExercise.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/LearningExercise.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/School.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/School.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/SchoolClass.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/SchoolClass.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/Student.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/Student.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/Teacher.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/Teacher.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/TeacherDocument.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/TeacherDocument.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/TeacherController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/TeacherController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/UserController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/controller/UserController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/ExerciseFeedbackRequestDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/request/ExerciseFeedbackRequestDTO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/ExerciseSubmissionResponseDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/dto/response/ExerciseSubmissionResponseDTO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/ExerciseSubmission.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/ExerciseSubmission.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/User.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/entity/User.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/mapper/DtoMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/mapper/DtoMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/mapper/RequestMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/mapper/RequestMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/AdminNotificationRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/AdminNotificationRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/CatalogOptionRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/CatalogOptionRepository.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/ExerciseSubmissionRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/ExerciseSubmissionRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/LearningExerciseRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/LearningExerciseRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/StudentRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/StudentRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/TeacherRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/repository/TeacherRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/AdminService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/AdminService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/AuthService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/AuthService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/EnrollmentService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/EnrollmentService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/InstitutionRequestService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/InstitutionRequestService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/LearningExerciseService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/LearningExerciseService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/SchoolClassService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/SchoolClassService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/StudentService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/StudentService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/TeacherService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/TeacherService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/UserService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/duolinfo/ia/proj/service/UserService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application-docker.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application-docker.properties" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/test/OAuth_Google/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/test/OAuth_Google/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/test/OAuth_Google/config.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/test/OAuth_Google/config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/test/OAuth_Google/credenciais secretas para login não perder pfv.rar" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/android/.kotlin/sessions/kotlin-compiler-8860440269994404923.salive" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/app.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/app.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/core/config/app_config.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/core/config/app_config.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/datasources/auth_remote_datasource.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/data/datasources/auth_remote_datasource.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/pages/student_signup_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/pages/student_signup_page.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/pages/teacher_signup_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/pages/teacher_signup_page.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/viewmodels/registration_view_model.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/viewmodels/registration_view_model.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/pages/login_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/auth/presentation/pages/login_page.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/data/datasources/dashboard_remote_datasource.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/data/datasources/dashboard_remote_datasource.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/data/models/home_response_model.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/data/models/home_response_model.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/data/models/student_model.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/data/models/student_model.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/data/models/teacher_model.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/data/models/teacher_model.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/data/repositories/dashboard_repository_impl.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/data/repositories/dashboard_repository_impl.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/domain/entities/dashboard_data.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/domain/entities/dashboard_data.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/domain/entities/student_profile.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/domain/entities/student_profile.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/domain/entities/teacher_profile.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/domain/entities/teacher_profile.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/domain/entities/user_profile_type.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/domain/entities/user_profile_type.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/admin_dashboard_view.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/admin_dashboard_view.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/dashboard_error_state.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/dashboard_error_state.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/dashboard_shell.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/dashboard_shell.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/dashboard_sidebar.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/dashboard_sidebar.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/dashboard_top_bar.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/dashboard_top_bar.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/app_theme_selector.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/app_theme_selector.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/edit_profile_dialogs.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/edit_profile_dialogs.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/info_stat_card.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/info_stat_card.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/language_progress_card.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/language_progress_card.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/learning_features.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/learning_features.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/student_dashboard_view.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/student_dashboard_view.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/student_settings_view.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/student_settings_view.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/teacher_create_exercise_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/teacher_create_exercise_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/teacher_dashboard_view.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/teacher_dashboard_view.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/user_dashboard_view.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/user_dashboard_view.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/teacher_settings_view.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/teacher_settings_view.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/user_settings_view.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/features/dashboard/presentation/widgets/user_settings_view.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/lib/main.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sprint-java-frontend/test/core/config/app_config_test.dart" beforeDir="false" afterPath="$PROJECT_DIR$/sprint-java-frontend/test/core/config/app_config_test.dart" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -90,15 +60,42 @@
     <option name="formatViaClangd" value="false" />
   </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/sprint-java-frontend" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 0,
+  "fromUser": false
+}]]></component>
+  <component name="ProjectId" id="3KtZZDPxNE41NoTd10s9Mg0qr0t" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "CidrDebugProfileConversion": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
     "dart.analysis.tool.window.visible": "false",
-    "git-widget-placeholder": "main"
+    "git-widget-placeholder": "main",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "show.migrate.to.gradle.popup": "false",
+    "to.speed.mode.migration.done": "true"
   }
 }]]></component>
   <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="9f00a422-abfa-4944-8467-87df89e1db05" name="Changes" comment="" />
+      <created>1792378883312</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1792378883312</updated>
+    </task>
     <servers />
   </component>
 </project>

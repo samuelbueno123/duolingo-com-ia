@@ -49,6 +49,27 @@ public class User {
     @Column(name = "gender", length = 20)
     private String gender;
 
+    @Column(name = "ui_language", length = 10)
+    private String uiLanguage;
+
+    @Column(name = "theme_mode", length = 10)
+    private String themeMode;
+
+    @Column(name = "daily_goal_minutes")
+    private Integer dailyGoalMinutes;
+
+    @Column(name = "notif_daily_reminders")
+    private Boolean notifDailyReminders;
+
+    @Column(name = "notif_achievements")
+    private Boolean notifAchievements;
+
+    @Column(name = "notif_ranking")
+    private Boolean notifRanking;
+
+    @Column(name = "notif_class_updates")
+    private Boolean notifClassUpdates;
+
     public boolean isSuperAdmin() {
         return email != null && "admin@duolingo.com".equalsIgnoreCase(email.trim());
     }
@@ -62,6 +83,46 @@ public class User {
 
     public String getNormalizedGender() {
         return normalizeGender(gender);
+    }
+
+    public String getNormalizedUiLanguage() {
+        if (uiLanguage != null) {
+            String lang = uiLanguage.trim().toLowerCase();
+            if ("en".equals(lang) || "es".equals(lang) || "pt".equals(lang)) {
+                return lang;
+            }
+        }
+        return "pt";
+    }
+
+    public String getNormalizedThemeMode() {
+        if (themeMode != null && "dark".equalsIgnoreCase(themeMode.trim())) {
+            return "dark";
+        }
+        return "light";
+    }
+
+    public int getEffectiveDailyGoalMinutes() {
+        if (dailyGoalMinutes != null && dailyGoalMinutes > 0) {
+            return dailyGoalMinutes;
+        }
+        return 10;
+    }
+
+    public boolean isEffectiveNotifDailyReminders() {
+        return notifDailyReminders == null || notifDailyReminders;
+    }
+
+    public boolean isEffectiveNotifAchievements() {
+        return notifAchievements == null || notifAchievements;
+    }
+
+    public boolean isEffectiveNotifRanking() {
+        return Boolean.TRUE.equals(notifRanking);
+    }
+
+    public boolean isEffectiveNotifClassUpdates() {
+        return notifClassUpdates == null || notifClassUpdates;
     }
 
     public Long getId() {

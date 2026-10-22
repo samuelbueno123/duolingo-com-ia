@@ -2,7 +2,9 @@ package com.duolinfo.ia.proj.controller;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -20,13 +22,17 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.duolinfo.ia.proj.dto.request.DeleteAccountRequestDTO;
+import com.duolinfo.ia.proj.dto.request.UserPreferencesRequestDTO;
 import com.duolinfo.ia.proj.dto.request.UserRequestDTO;
 import com.duolinfo.ia.proj.dto.response.AuthResponseDTO;
+import com.duolinfo.ia.proj.dto.response.UserPreferencesResponseDTO;
 import com.duolinfo.ia.proj.dto.response.UserResponseDTO;
 import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.mapper.RequestMapper;
+import com.duolinfo.ia.proj.service.AccessControlService;
 import com.duolinfo.ia.proj.service.JwtService;
 import com.duolinfo.ia.proj.service.UserService;
 
@@ -48,6 +54,9 @@ public class UserController {
     private final UserService userService;
     private final JwtService jwtService;
     private final boolean secureRefreshCookie;
+
+    @Autowired(required = false)
+    private AccessControlService accessControlService;
 
     public UserController(
             UserService userService,
@@ -112,6 +121,49 @@ public class UserController {
     }
 
     // ==========================================
+    // PREFERENCES & SELF-MANAGEMENT
+    // ==========================================
+
+    @GetMapping("/me/preferences")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Retorna as preferências do usuário autenticado")
+    public UserPreferencesResponseDTO getMyPreferences() {
+        User current = requireCurrentUser();
+        return userService.getPreferences(current.getId());
+    }
+
+    @PutMapping("/me/preferences")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Atualiza as preferências do usuário autenticado")
+    public UserPreferencesResponseDTO updateMyPreferences(
+            @Valid @RequestBody UserPreferencesRequestDTO request) {
+        User current = requireCurrentUser();
+        return userService.updatePreferences(current.getId(), request);
+    }
+
+    @DeleteMapping("/me")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Exclui a própria conta do usuário autenticado")
+    public Map<String, Object> deleteMyAccount(
+            @RequestBody(required = false) DeleteAccountRequestDTO request,
+            HttpServletResponse response) {
+        User current = requireCurrentUser();
+        userService.deleteOwnAccount(current.getId(), request);
+        response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from("refreshToken", "")
+            .httpOnly(true)
+            .secure(secureRefreshCookie)
+            .sameSite(secureRefreshCookie ? "None" : "Lax")
+            .path("/api/auth")
+            .maxAge(Duration.ZERO)
+            .build()
+            .toString());
+        return Map.of(
+            "success", true,
+            "message", "Conta excluída com sucesso."
+        );
+    }
+
+    // ==========================================
     // READ
     // ==========================================
 
@@ -136,7 +188,9 @@ public class UserController {
     )
     public UserResponseDTO findById(
             @PathVariable Long id) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanReadUser(id);
+        }
         return DtoMapper.toUserResponse(userService.findById(id));
     }
 
@@ -147,10 +201,11 @@ public class UserController {
     )
     public UserResponseDTO findByGoogleId(
             @PathVariable String googleId) {
-
-        return DtoMapper.toUserResponse(
-            requireUser(userService.findByGoogleId(googleId))
-        );
+        User target = requireUser(userService.findByGoogleId(googleId));
+        if (accessControlService != null) {
+            accessControlService.assertCanReadUser(target.getId());
+        }
+        return DtoMapper.toUserResponse(target);
     }
 
     @GetMapping("/email/{email}")
@@ -160,10 +215,11 @@ public class UserController {
     )
     public UserResponseDTO findByEmail(
             @PathVariable String email) {
-
-        return DtoMapper.toUserResponse(
-            requireUser(userService.findByEmail(email))
-        );
+        User target = requireUser(userService.findByEmail(email));
+        if (accessControlService != null) {
+            accessControlService.assertCanReadUser(target.getId());
+        }
+        return DtoMapper.toUserResponse(target);
     }
 
     @GetMapping("/name/{name}")
@@ -198,7 +254,9 @@ public class UserController {
     public void update(
             @PathVariable Long id,
             @Valid @RequestBody UserRequestDTO request) {
-
+        if (accessControlService != null) {
+            accessControlService.assertSelfOrSuperAdmin(id);
+        }
         userService.updateProfile(id, request);
     }
 
@@ -208,7 +266,9 @@ public class UserController {
     public void updateProfilePicture(
             @PathVariable Long id,
             @Valid @RequestBody UserRequestDTO request) {
-
+        if (accessControlService != null) {
+            accessControlService.assertSelfOrSuperAdmin(id);
+        }
         if (request.profilePicture() == null || request.profilePicture().isBlank()) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
@@ -230,8 +290,17 @@ public class UserController {
     )
     public void deleteById(
             @PathVariable Long id) {
-
+        if (accessControlService != null) {
+            accessControlService.assertSelfOrSuperAdmin(id);
+        }
         userService.deleteById(id);
+    }
+
+    private User requireCurrentUser() {
+        if (accessControlService == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuário não autenticado.");
+        }
+        return accessControlService.getCurrentUserOrThrow();
     }
 
     private static User requireUser(User user) {

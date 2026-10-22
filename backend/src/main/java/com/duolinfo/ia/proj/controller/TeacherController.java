@@ -2,6 +2,7 @@ package com.duolinfo.ia.proj.controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,6 +27,7 @@ import com.duolinfo.ia.proj.entity.Teacher;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.mapper.RequestMapper;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
+import com.duolinfo.ia.proj.service.AccessControlService;
 import com.duolinfo.ia.proj.service.TeacherService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,6 +45,9 @@ public class TeacherController {
 
     private final TeacherService teacherService;
 
+    @Autowired(required = false)
+    private AccessControlService accessControlService;
+
     public TeacherController(TeacherService teacherService) {
         this.teacherService = teacherService;
     }
@@ -55,7 +60,9 @@ public class TeacherController {
     )
     public TeacherResponseDTO create(
             @Valid @RequestBody TeacherRequestDTO request) {
-        if (request.password() == null || request.password().isBlank()) {
+        boolean authenticatedGoogleUser = accessControlService != null
+                && accessControlService.isAuthenticatedForEmail(request.email());
+        if ((request.password() == null || request.password().isBlank()) && !authenticatedGoogleUser) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "A senha é obrigatória para criar uma conta de professor.");
@@ -226,6 +233,10 @@ public class TeacherController {
     public TeacherResponseDTO updateApproval(
             @PathVariable Long id,
             @Valid @RequestBody TeacherApprovalRequestDTO request) {
+        if (accessControlService != null) {
+            Teacher target = teacherService.findById(id);
+            accessControlService.assertCanModifyTeacher(target);
+        }
         return DtoMapper.toTeacherResponse(
             teacherService.updateApproval(id, request.approved())
         );
@@ -238,7 +249,10 @@ public class TeacherController {
     @Operation(summary = "Exclui professor")
     public void deleteById(
             @PathVariable Long id) {
-
+        if (accessControlService != null) {
+            Teacher target = teacherService.findById(id);
+            accessControlService.assertCanModifyTeacher(target);
+        }
         teacherService.deleteById(id);
     }
 
@@ -246,10 +260,22 @@ public class TeacherController {
             Long teacherId,
             Authentication authentication,
             TeacherRequestDTO request) {
-        boolean isAdmin = authentication.getAuthorities().stream()
-            .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
-        if (isAdmin) {
-            return;
+        if (accessControlService != null) {
+            Teacher target = teacherService.findById(teacherId);
+            accessControlService.assertCanModifyTeacher(target);
+            var currentUser = accessControlService.getCurrentUserOrThrow();
+            if (currentUser.isSuperAdmin()
+                    || accessControlService.isInstitutionAdminFor(
+                            currentUser,
+                            target.getInstitution() != null ? target.getInstitution().getId() : null)) {
+                return;
+            }
+        } else {
+            boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+            if (isAdmin) {
+                return;
+            }
         }
 
         Teacher authenticatedTeacher = teacherService.findByEmail(authentication.getName());

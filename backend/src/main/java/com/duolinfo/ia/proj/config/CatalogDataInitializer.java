@@ -2,9 +2,11 @@ package com.duolinfo.ia.proj.config;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -28,10 +30,18 @@ public class CatalogDataInitializer {
             UserRepository userRepository,
             AchievementRepository achievementRepository,
             PasswordEncoder passwordEncoder,
-            JdbcTemplate jdbcTemplate) {
+            JdbcTemplate jdbcTemplate,
+            Environment environment,
+            @Value("${app.admin.initial-password:}") String configuredAdminPassword) {
         return args -> {
             Institution defaultInst = ensureDefaultInstitution(institutionRepository);
-            ensureDefaultAdmin(userRepository, passwordEncoder);
+            ensureDefaultAdmin(
+                userRepository,
+                passwordEncoder,
+                ProductionSecurityValidator.isProductionProfile(environment),
+                configuredAdminPassword
+            );
+            migrateLegacyPlaintextPasswords(userRepository, passwordEncoder);
             addMissing(repository, "language", List.of(
                 "Alemão",
                 "Espanhol",
@@ -182,21 +192,52 @@ public class CatalogDataInitializer {
 
     private static void ensureDefaultAdmin(
             UserRepository userRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            boolean productionProfile,
+            String configuredAdminPassword) {
+        String initialPassword = (configuredAdminPassword != null && !configuredAdminPassword.isBlank())
+                ? configuredAdminPassword.trim()
+                : (productionProfile ? null : "duadmin");
+
         User admin = userRepository.findByEmailIgnoreCase("admin@duolingo.com")
             .orElseGet(User::new);
-        admin.setName("Administrador");
+        if (admin.getName() == null || admin.getName().isBlank()) {
+            admin.setName("Administrador");
+        }
         admin.setEmail("admin@duolingo.com");
         admin.setAdmin(true);
         if (admin.getGender() == null || admin.getGender().isBlank()) {
             admin.setGender("MASCULINO");
         }
-        if (admin.getPasswordHash() == null
-                || admin.getPasswordHash().isBlank()
-                || !passwordEncoder.matches("duadmin", admin.getPasswordHash())) {
-            admin.setPasswordHash(passwordEncoder.encode("duadmin"));
+        String currentHash = admin.getPasswordHash();
+        if (currentHash == null || currentHash.isBlank()) {
+            if (initialPassword == null) {
+                throw new IllegalStateException(
+                    "APP_ADMIN_INITIAL_PASSWORD é obrigatório em produção para inicializar a conta administrativa."
+                );
+            }
+            admin.setPasswordHash(passwordEncoder.encode(initialPassword));
+        } else if (!isBcryptHash(currentHash)) {
+            admin.setPasswordHash(passwordEncoder.encode(currentHash));
         }
         userRepository.save(admin);
+    }
+
+    private static void migrateLegacyPlaintextPasswords(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder) {
+        List<User> allUsers = userRepository.findAll();
+        for (User user : allUsers) {
+            String hash = user.getPasswordHash();
+            if (hash != null && !hash.isBlank() && !isBcryptHash(hash)) {
+                user.setPasswordHash(passwordEncoder.encode(hash));
+                userRepository.save(user);
+            }
+        }
+    }
+
+    private static boolean isBcryptHash(String value) {
+        return value != null && (value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$"));
     }
 
     private static Institution ensureDefaultInstitution(InstitutionRepository repository) {

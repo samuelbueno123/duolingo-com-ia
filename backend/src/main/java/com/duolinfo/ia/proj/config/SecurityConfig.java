@@ -59,7 +59,11 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/teachers")
                     .permitAll()
                 .requestMatchers(HttpMethod.POST,
-                    "/api/auth/google", "/api/auth/login", "/api/auth/refresh")
+                    "/api/auth/google",
+                    "/api/auth/login",
+                    "/api/auth/refresh",
+                    "/api/auth/forgot-password",
+                    "/api/auth/reset-password")
                     .permitAll()
 
                 .requestMatchers(HttpMethod.GET,
@@ -75,7 +79,10 @@ public class SecurityConfig {
                     "/api/students/me",
                     "/api/students/me/institution-members",
                     "/api/teachers/me").authenticated()
+                .requestMatchers("/api/users/me", "/api/users/me/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/users/*").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/users/*").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/users/*").authenticated()
                 .requestMatchers(HttpMethod.PATCH, "/api/users/*/profile-picture").authenticated()
 
                 .requestMatchers(HttpMethod.GET,
@@ -83,6 +90,8 @@ public class SecurityConfig {
                     "/api/students/*/enrollments")
                     .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/students/*")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/students/*")
                     .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/students/**")
                     .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
@@ -117,7 +126,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/achievements/**")
                     .hasRole("ADMIN")
 
-                .requestMatchers(HttpMethod.POST, "/api/exercises")
+                .requestMatchers(HttpMethod.POST, "/api/exercises", "/api/exercises/generate-ai")
                     .hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/exercises/submissions/**")
                     .hasAnyRole("TEACHER", "ADMIN")
@@ -128,7 +137,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/rankings/**")
                     .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
 
-                .requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
+                .requestMatchers("/api/auth/me", "/api/auth/me/**", "/api/auth/logout").authenticated()
                 .requestMatchers("/api/home/**").authenticated()
                 .requestMatchers(
                     "/",

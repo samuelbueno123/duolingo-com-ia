@@ -22,9 +22,31 @@ Depois, inicie a API fora do Docker:
 
 No Linux/macOS, use `./mvnw spring-boot:run`.
 
-## Acesso e administração
+## Acesso, segurança em produção e rotação de segredos
 
-Crie o arquivo local `.env.local` (ele é ignorado pelo Git) e configure `JWT_SECRET` com uma chave aleatória de pelo menos 32 bytes. Defina `APP_ADMIN_EMAILS` com os emails Google verificados que terão acesso administrativo, separados por vírgula. O primeiro login Google desses emails cria ou associa a conta e concede o papel `ADMIN`. O arquivo `.env.local` é carregado ao iniciar pelo Maven e pelo Docker Compose. Não grave segredos no `.env` versionado.
+Crie o arquivo local `.env.local` (ignorado pelo Git, veja `.env.example`) e configure `JWT_SECRET` com uma chave aleatória de pelo menos 32 bytes. Defina `APP_ADMIN_EMAILS` com os emails Google verificados que terão acesso administrativo, separados por vírgula. O primeiro login Google desses emails cria ou associa a conta e concede o papel `ADMIN`. O arquivo `.env.local` é carregado ao iniciar pelo Maven e pelo Docker Compose. Não grave segredos no `.env` versionado nem no código do Flutter.
+
+### Validação de Produção (`SPRING_PROFILES_ACTIVE=prod`)
+
+Quando o perfil `prod` ou `production` está ativo (`application-prod.properties`), o `ProductionSecurityValidator` interrompe imediatamente a inicialização caso:
+- `JWT_SECRET` esteja ausente, tenha menos de 32 caracteres ou seja igual ao valor padrão de desenvolvimento;
+- `POSTGRES_PASSWORD` esteja ausente ou utilize `duolingo_dev_password` / `postgres`;
+- `APP_ADMIN_EMAILS` não esteja explicitamente definido;
+- `APP_ADMIN_INITIAL_PASSWORD` esteja ausente, tenha menos de 12 caracteres ou seja igual a `duadmin`.
+
+### Procedimento de Rotação de Segredos (Ambientes Implantados)
+
+Caso credenciais padrão ou segredos antigos tenham sido expostos em ambientes já implantados, execute a rotação na seguinte ordem:
+1. **Chave JWT (`JWT_SECRET`)**:
+   - Gere um novo segredo criptograficamente seguro (`openssl rand -base64 48`).
+   - Atualize a variável `JWT_SECRET` no cofre/ambiente do servidor e reinicie a API. Todos os tokens de acesso e `refreshToken` emitidos anteriormente serão invalidados imediatamente, exigindo novo login seguro.
+2. **Senha Administrativa (`admin@duolingo.com`)**:
+   - Defina `APP_ADMIN_INITIAL_PASSWORD` com uma senha forte (>= 12 caracteres) e altere a senha da conta `admin@duolingo.com` via `PUT /api/auth/me` ou fluxo de redefinição de senha. O `CatalogDataInitializer` preserva hashes BCrypt existentes e nunca sobrescreve a senha em reinicializações.
+3. **Banco de Dados (`POSTGRES_PASSWORD`)**:
+   - No PostgreSQL, execute `ALTER USER duolingo WITH PASSWORD '<nova_senha_forte>';`.
+   - Atualize `POSTGRES_PASSWORD` nas variáveis de ambiente da API e reinicie os containers.
+4. **Provedores Externos (`GOOGLE_CLIENT_ID` e `AI_API_KEY`)**:
+   - No Google Cloud Console / painel do provedor de IA, revogue as chaves antigas, gere novas credenciais e injete `AI_API_KEY` exclusivamente no backend (nunca no cliente Flutter).
 
 O cadastro de professor continua público, mas a conta fica pendente (`approved: false`) até um administrador aprová-la. Para aprovar ou revogar o acesso, use `PATCH /api/teachers/{id}/approval` com `{"approved": true}` ou `{"approved": false}`. Professores aprovados podem editar apenas o próprio perfil; a exclusão e as demais rotas de gestão exigem `ADMIN`.
 

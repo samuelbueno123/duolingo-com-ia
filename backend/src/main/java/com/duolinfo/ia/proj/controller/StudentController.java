@@ -1,7 +1,9 @@
 package com.duolinfo.ia.proj.controller;
 
 import java.util.List;
+import java.util.Objects;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -21,9 +23,11 @@ import com.duolinfo.ia.proj.dto.response.EnrollmentResponseDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionMembersResponseDTO;
 import com.duolinfo.ia.proj.dto.response.StudentResponseDTO;
 import com.duolinfo.ia.proj.entity.Student;
+import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.mapper.RequestMapper;
+import com.duolinfo.ia.proj.service.AccessControlService;
 import com.duolinfo.ia.proj.service.StudentService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,6 +44,9 @@ public class StudentController {
 
     private final StudentService studentService;
 
+    @Autowired(required = false)
+    private AccessControlService accessControlService;
+
     public StudentController(StudentService studentService) {
         this.studentService = studentService;
     }
@@ -52,7 +59,9 @@ public class StudentController {
     )
     public StudentResponseDTO create(
             @Valid @RequestBody StudentRequestDTO request) {
-        if (request.password() == null || request.password().isBlank()) {
+        boolean authenticatedGoogleUser = accessControlService != null
+                && accessControlService.isAuthenticatedForEmail(request.email());
+        if ((request.password() == null || request.password().isBlank()) && !authenticatedGoogleUser) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "A senha é obrigatória para criar uma conta de estudante.");
@@ -68,8 +77,7 @@ public class StudentController {
     @GetMapping
     @Operation(summary = "Lista estudantes")
     public List<StudentResponseDTO> listAll() {
-
-        return studentService.findAll()
+        return filterStudentsForCaller(studentService.findAll())
             .stream()
             .map(DtoMapper::toStudentResponse)
             .toList();
@@ -95,36 +103,40 @@ public class StudentController {
     @Operation(summary = "Busca estudante por ID")
     public StudentResponseDTO findById(
             @PathVariable Long id) {
-
-        return DtoMapper.toStudentResponse(studentService.findById(id));
+        Student student = studentService.findById(id);
+        if (accessControlService != null) {
+            accessControlService.assertCanReadStudent(student);
+        }
+        return DtoMapper.toStudentResponse(student);
     }
 
     @GetMapping("/google/{googleId}")
     @Operation(summary = "Busca estudante por Google ID")
     public StudentResponseDTO findByGoogleId(
             @PathVariable String googleId) {
-
-        return DtoMapper.toStudentResponse(
-            requireStudent(studentService.findByGoogleId(googleId))
-        );
+        Student student = requireStudent(studentService.findByGoogleId(googleId));
+        if (accessControlService != null) {
+            accessControlService.assertCanReadStudent(student);
+        }
+        return DtoMapper.toStudentResponse(student);
     }
 
     @GetMapping("/email/{email}")
     @Operation(summary = "Busca estudante por email")
     public StudentResponseDTO findByEmail(
             @PathVariable String email) {
-
-        return DtoMapper.toStudentResponse(
-            requireStudent(studentService.findByEmail(email))
-        );
+        Student student = requireStudent(studentService.findByEmail(email));
+        if (accessControlService != null) {
+            accessControlService.assertCanReadStudent(student);
+        }
+        return DtoMapper.toStudentResponse(student);
     }
 
     @GetMapping("/name/{name}")
     @Operation(summary = "Busca estudantes por nome")
     public List<StudentResponseDTO> findByName(
             @PathVariable String name) {
-
-        return studentService.findByName(name)
+        return filterStudentsForCaller(studentService.findByName(name))
             .stream()
             .map(DtoMapper::toStudentResponse)
             .toList();
@@ -134,8 +146,7 @@ public class StudentController {
     @Operation(summary = "Busca estudantes por idioma")
     public List<StudentResponseDTO> findByPreferredLanguage(
             @PathVariable String language) {
-
-        return studentService.findByPreferredLanguage(language)
+        return filterStudentsForCaller(studentService.findByPreferredLanguage(language))
             .stream()
             .map(DtoMapper::toStudentResponse)
             .toList();
@@ -145,9 +156,10 @@ public class StudentController {
     @Operation(summary = "Lista matrículas do estudante")
     public List<EnrollmentResponseDTO> findEnrollments(
             @PathVariable Long studentId) {
-
-        verifyStudent(studentId);
-
+        Student student = studentService.findById(studentId);
+        if (accessControlService != null) {
+            accessControlService.assertCanReadStudent(student);
+        }
         return studentService.findEnrollments(studentId)
             .stream()
             .map(DtoMapper::toEnrollmentResponse)
@@ -159,9 +171,12 @@ public class StudentController {
     public List<EnrollmentResponseDTO> findActiveEnrollments(
             @PathVariable Long studentId,
             Authentication authentication) {
-
-        verifyStudentAccess(studentId, authentication);
-
+        Student student = studentService.findById(studentId);
+        if (accessControlService != null) {
+            accessControlService.assertCanReadStudent(student);
+        } else {
+            verifyStudentAccess(studentId, authentication);
+        }
         return studentService.findActiveEnrollments(studentId)
             .stream()
             .map(DtoMapper::toEnrollmentResponse)
@@ -172,7 +187,9 @@ public class StudentController {
     @Operation(summary = "Lista estudantes da turma")
     public List<StudentResponseDTO> findByClass(
             @PathVariable Long schoolClassId) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(schoolClassId);
+        }
         return studentService.findByClass(schoolClassId)
             .stream()
             .map(DtoMapper::toStudentResponse)
@@ -183,7 +200,9 @@ public class StudentController {
     @Operation(summary = "Lista estudantes ativos da turma")
     public List<StudentResponseDTO> findActiveByClass(
             @PathVariable Long schoolClassId) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(schoolClassId);
+        }
         return studentService.findActiveByClass(schoolClassId)
             .stream()
             .map(DtoMapper::toStudentResponse)
@@ -196,7 +215,10 @@ public class StudentController {
     public void update(
             @PathVariable Long id,
             @Valid @RequestBody StudentRequestDTO request) {
-
+        Student target = studentService.findById(id);
+        if (accessControlService != null) {
+            accessControlService.assertCanModifyStudent(target);
+        }
         studentService.update(
             RequestMapper.toStudentUpdate(id, request),
             request.institutionId()
@@ -208,12 +230,37 @@ public class StudentController {
     @Operation(summary = "Exclui estudante")
     public void deleteById(
             @PathVariable Long id) {
-
+        Student target = studentService.findById(id);
+        if (accessControlService != null) {
+            accessControlService.assertCanModifyStudent(target);
+        }
         studentService.deleteById(id);
     }
 
-    private void verifyStudent(Long id) {
-        studentService.findById(id);
+    private List<Student> filterStudentsForCaller(List<Student> candidates) {
+        if (accessControlService == null) {
+            return candidates;
+        }
+        User current = accessControlService.getCurrentUserOrThrow();
+        if (current.isSuperAdmin()) {
+            return candidates;
+        }
+        if (accessControlService.isTeacher(current)) {
+            Long teacherInstId = accessControlService.getUserInstitutionId(current);
+            if (teacherInstId == null) {
+                return List.of();
+            }
+            return candidates.stream()
+                .filter(s -> {
+                    Long sInstId = accessControlService.getUserInstitutionId(s);
+                    return sInstId == null || Objects.equals(teacherInstId, sInstId);
+                })
+                .toList();
+        }
+        throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "Acesso negado: estudantes não têm permissão para listar o diretório completo de alunos."
+        );
     }
 
     private void verifyStudentAccess(Long id, Authentication authentication) {

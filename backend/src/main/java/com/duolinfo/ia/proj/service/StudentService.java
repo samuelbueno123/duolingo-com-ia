@@ -7,9 +7,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.dto.response.InstitutionMembersResponseDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionMembersResponseDTO.MemberStudentDTO;
@@ -99,15 +103,21 @@ public class StudentService {
                     throw new BusinessException("E-mail já cadastrado com outro perfil no sistema.");
                 }
 
-                boolean isGoogleAccount = baseUser.getGoogleId() != null && !baseUser.getGoogleId().isBlank();
-                // Proteção contra hijacking de conta com senha existente (exceto contas Google definindo senha)
-                if (!isGoogleAccount && baseUser.getPasswordHash() != null && !baseUser.getPasswordHash().isBlank()) {
-                    if (student.getPasswordHash() == null ||
-                        student.getPasswordHash().isBlank() ||
-                        !passwordEncoder.matches(student.getPasswordHash(), baseUser.getPasswordHash())) {
-                        throw new BusinessException("Este e-mail já possui uma conta cadastrada. Faça login para continuar.");
-                    }
-                } else if (student.getPasswordHash() != null && !student.getPasswordHash().isBlank()) {
+                boolean callerAuthenticatedAsUser = isCallerAuthenticatedAs(email);
+                boolean hasExistingPassword = baseUser.getPasswordHash() != null && !baseUser.getPasswordHash().isBlank();
+                boolean providedMatchingPassword = hasExistingPassword
+                        && student.getPasswordHash() != null
+                        && !student.getPasswordHash().isBlank()
+                        && passwordEncoder.matches(student.getPasswordHash(), baseUser.getPasswordHash());
+
+                if (!callerAuthenticatedAsUser && !providedMatchingPassword) {
+                    throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Este e-mail já pertence a uma conta cadastrada. Autentique-se com o Google ou informe a senha atual válida para continuar."
+                    );
+                }
+
+                if (!hasExistingPassword && student.getPasswordHash() != null && !student.getPasswordHash().isBlank()) {
                     baseUser.setPasswordHash(encodePasswordIfNeeded(student.getPasswordHash()));
                 }
 
@@ -161,6 +171,20 @@ public class StudentService {
         }
 
         return studentRepository.save(student);
+    }
+
+    private boolean isCallerAuthenticatedAs(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getName() == null
+                || "anonymousUser".equalsIgnoreCase(auth.getName())) {
+            return false;
+        }
+        boolean isAdmin = auth.getAuthorities() != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        return isAdmin || auth.getName().trim().equalsIgnoreCase(email.trim());
     }
 
     private Institution resolveInstitution(Long institutionId) {
@@ -219,9 +243,25 @@ public class StudentService {
         }
 
         if (student.getLanguages() != null) {
+            Map<String, Integer> existingScores = new LinkedHashMap<>();
+            if (current.getLanguages() != null) {
+                for (StudentLanguage existingLang : current.getLanguages()) {
+                    if (existingLang.getLanguageName() != null) {
+                        existingScores.put(
+                            existingLang.getLanguageName().trim().toLowerCase(Locale.ROOT),
+                            existingLang.getScore() != null ? existingLang.getScore() : 0
+                        );
+                    }
+                }
+            }
             current.getLanguages().clear();
             for (StudentLanguage language : student.getLanguages()) {
                 if (language.getLanguageName() == null || language.getLanguageName().isBlank()) continue;
+                String key = language.getLanguageName().trim().toLowerCase(Locale.ROOT);
+                Integer preservedScore = existingScores.get(key);
+                if (preservedScore != null && (language.getScore() == null || language.getScore() == 0)) {
+                    language.setScore(preservedScore);
+                }
                 current.addLanguage(language);
             }
         }
@@ -296,15 +336,16 @@ public class StudentService {
             List<String> langs = s.getLanguages() == null
                 ? List.of()
                 : s.getLanguages().stream().map(StudentLanguage::getLanguageName).toList();
+            boolean isSelf = s.getId().equals(student.getId());
             boolean matches = query.isEmpty()
                 || (s.getName() != null && s.getName().toLowerCase(Locale.ROOT).contains(query))
-                || (s.getEmail() != null && s.getEmail().toLowerCase(Locale.ROOT).contains(query))
+                || (isSelf && s.getEmail() != null && s.getEmail().toLowerCase(Locale.ROOT).contains(query))
                 || langs.stream().anyMatch(l -> l.toLowerCase(Locale.ROOT).contains(query));
             if (matches) {
                 students.add(new MemberStudentDTO(
                     s.getId(),
                     s.getName(),
-                    s.getEmail(),
+                    isSelf ? s.getEmail() : null,
                     s.getProfilePicture(),
                     s.getNormalizedGender(),
                     langs

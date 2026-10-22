@@ -125,22 +125,15 @@ public class AuthService {
         String passwordHash = user.getPasswordHash();
         if (passwordHash == null || passwordHash.isBlank()) {
             if (user.getGoogleId() != null && !user.getGoogleId().isBlank()) {
-                if (rawPassword == null || rawPassword.isBlank()) {
-                    throw unauthorized("Informe uma senha válida para entrar.");
-                }
-                user.setPasswordHash(passwordEncoder.encode(rawPassword));
-                return userRepository.save(user);
+                throw unauthorized(
+                    "Esta conta foi criada com o Google e ainda não possui senha definida. Entre com o Google ou use 'Esqueci minha senha' para definir uma senha."
+                );
             }
             throw unauthorized("Credenciais inválidas. Senha não cadastrada.");
         }
 
-        if (passwordEncoder.matches(rawPassword, passwordHash)) {
+        if (rawPassword != null && passwordEncoder.matches(rawPassword, passwordHash)) {
             return user;
-        }
-
-        if (rawPassword.equals(passwordHash)) {
-            user.setPasswordHash(passwordEncoder.encode(rawPassword));
-            return userRepository.save(user);
         }
 
         throw unauthorized("Credenciais inválidas. Email ou senha incorretos.");

@@ -2,6 +2,7 @@ package com.duolinfo.ia.proj.controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,8 +19,12 @@ import com.duolinfo.ia.proj.dto.request.EnrollmentRequestDTO;
 import com.duolinfo.ia.proj.dto.request.EnrollmentTransferDTO;
 import com.duolinfo.ia.proj.dto.request.EnrollmentStatusRequestDTO;
 import com.duolinfo.ia.proj.dto.response.EnrollmentResponseDTO;
+import com.duolinfo.ia.proj.entity.Enrollment;
+import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
+import com.duolinfo.ia.proj.service.AccessControlService;
 import com.duolinfo.ia.proj.service.EnrollmentService;
+import com.duolinfo.ia.proj.service.StudentService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,6 +40,12 @@ public class EnrollmentController {
 
     private final EnrollmentService enrollmentService;
 
+    @Autowired(required = false)
+    private AccessControlService accessControlService;
+
+    @Autowired(required = false)
+    private StudentService studentService;
+
     public EnrollmentController(
             EnrollmentService enrollmentService) {
 
@@ -48,7 +59,9 @@ public class EnrollmentController {
     )
     public EnrollmentResponseDTO enrollStudent(
             @Valid @RequestBody EnrollmentRequestDTO request) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(request.schoolClassId());
+        }
         return DtoMapper.toEnrollmentResponse(
             enrollmentService.enrollStudent(
                 request.studentId(),
@@ -63,17 +76,21 @@ public class EnrollmentController {
     @Operation(summary = "Busca matrícula por ID")
     public EnrollmentResponseDTO findById(
             @PathVariable Long id) {
-
-        return DtoMapper.toEnrollmentResponse(
-            enrollmentService.findById(id)
-        );
+        Enrollment enrollment = enrollmentService.findById(id);
+        if (accessControlService != null) {
+            accessControlService.assertCanReadEnrollment(enrollment);
+        }
+        return DtoMapper.toEnrollmentResponse(enrollment);
     }
 
     @GetMapping("/student/{studentId}")
     @Operation(summary = "Lista matrículas do estudante")
     public List<EnrollmentResponseDTO> findByStudent(
             @PathVariable Long studentId) {
-
+        if (accessControlService != null && studentService != null) {
+            Student student = studentService.findById(studentId);
+            accessControlService.assertCanReadStudent(student);
+        }
         return enrollmentService.findByStudent(studentId)
             .stream()
             .map(DtoMapper::toEnrollmentResponse)
@@ -84,7 +101,10 @@ public class EnrollmentController {
     @Operation(summary = "Lista matrículas ativas do estudante")
     public List<EnrollmentResponseDTO> findActiveByStudent(
             @PathVariable Long studentId) {
-
+        if (accessControlService != null && studentService != null) {
+            Student student = studentService.findById(studentId);
+            accessControlService.assertCanReadStudent(student);
+        }
         return enrollmentService
             .findActiveByStudent(studentId)
             .stream()
@@ -96,7 +116,9 @@ public class EnrollmentController {
     @Operation(summary = "Lista matrículas da turma")
     public List<EnrollmentResponseDTO> findByClass(
             @PathVariable Long schoolClassId) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(schoolClassId);
+        }
         return enrollmentService
             .findByClass(schoolClassId)
             .stream()
@@ -108,7 +130,9 @@ public class EnrollmentController {
     @Operation(summary = "Lista matrículas ativas da turma")
     public List<EnrollmentResponseDTO> findActiveByClass(
             @PathVariable Long schoolClassId) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(schoolClassId);
+        }
         return enrollmentService
             .findActiveByClass(schoolClassId)
             .stream()
@@ -122,6 +146,10 @@ public class EnrollmentController {
             @PathVariable Long id,
             @RequestBody(required = false)
             EnrollmentActionDTO request) {
+        if (accessControlService != null) {
+            Enrollment enrollment = enrollmentService.findById(id);
+            accessControlService.assertCanManageSchoolClass(enrollment.getSchoolClass());
+        }
         EnrollmentActionDTO action = actionOrEmpty(request);
 
         return DtoMapper.toEnrollmentResponse(
@@ -139,6 +167,10 @@ public class EnrollmentController {
             @PathVariable Long id,
             @RequestBody(required = false)
             EnrollmentActionDTO request) {
+        if (accessControlService != null) {
+            Enrollment enrollment = enrollmentService.findById(id);
+            accessControlService.assertCanManageSchoolClass(enrollment.getSchoolClass());
+        }
         EnrollmentActionDTO action = actionOrEmpty(request);
 
         return DtoMapper.toEnrollmentResponse(
@@ -155,6 +187,10 @@ public class EnrollmentController {
     public EnrollmentResponseDTO updateStatus(
             @PathVariable Long id,
             @Valid @RequestBody EnrollmentStatusRequestDTO request) {
+        if (accessControlService != null) {
+            Enrollment enrollment = enrollmentService.findById(id);
+            accessControlService.assertCanManageSchoolClass(enrollment.getSchoolClass());
+        }
         return DtoMapper.toEnrollmentResponse(
             enrollmentService.updateStatus(id, request.status(), request.notes())
         );
@@ -165,7 +201,9 @@ public class EnrollmentController {
     public EnrollmentResponseDTO transfer(
             @PathVariable Long studentId,
             @Valid @RequestBody EnrollmentTransferDTO request) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(request.newSchoolClassId());
+        }
         return DtoMapper.toEnrollmentResponse(
             enrollmentService.transfer(
                 studentId,
@@ -181,7 +219,10 @@ public class EnrollmentController {
     @Operation(summary = "Exclui matrícula")
     public void delete(
             @PathVariable Long id) {
-
+        if (accessControlService != null) {
+            Enrollment enrollment = enrollmentService.findById(id);
+            accessControlService.assertCanManageSchoolClass(enrollment.getSchoolClass());
+        }
         enrollmentService.delete(id);
     }
 

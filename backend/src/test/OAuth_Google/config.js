@@ -60,7 +60,7 @@ O openid é usado para autenticação OpenID Connect, enquanto User.Read é a pe
 */
 
 const googleConfig = {
-  clientId: "367385027390-dmuj8neeqpgcbph3uk9qfb2cs5ubldhp.apps.googleusercontent.com",
+  clientId: "CONFIGURE_SEU_GOOGLE_CLIENT_ID_VIA_ENV",
   backendUrl: "http://localhost:8080",
   backendLoginPath: "/api/auth/google"
 };

@@ -49,6 +49,12 @@ public class ExerciseSubmission {
     @Column(columnDefinition = "TEXT")
     private String feedback;
 
+    @Column(name = "review_status", length = 30)
+    private String reviewStatus = "AUTO_GRADED";
+
+    @Column(name = "question_feedback_json", columnDefinition = "TEXT")
+    private String questionFeedbackJson;
+
     @Column(name = "reviewed_at")
     private Instant reviewedAt;
 

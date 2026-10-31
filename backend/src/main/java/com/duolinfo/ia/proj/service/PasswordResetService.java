@@ -3,7 +3,6 @@ package com.duolinfo.ia.proj.service;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
@@ -34,14 +33,14 @@ public class PasswordResetService {
     private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
     private static final int EXPIRATION_MINUTES = 15;
     private static final int MAX_REQUESTS_PER_WINDOW = 5;
-    private static final int MAX_VERIFY_ATTEMPTS = 5;
     private static final String GENERIC_RESPONSE_MESSAGE =
-            "Se o e-mail informado estiver cadastrado, um código temporário de recuperação (válido por 15 minutos) foi enviado.";
+            "Se o e-mail informado estiver cadastrado, um link e token de recuperação (válidos por 15 minutos) foram enviados para o seu e-mail.";
 
     private final UserRepository userRepository;
     private final PasswordResetTokenRepository tokenRepository;
     private final PasswordEncoder passwordEncoder;
-    private final SecureRandom secureRandom = new SecureRandom();
+    private final JwtService jwtService;
+    private final EmailService emailService;
 
     @Value("${spring.mail.host:}")
     private String smtpHost;
@@ -49,10 +48,23 @@ public class PasswordResetService {
     public PasswordResetService(
             UserRepository userRepository,
             PasswordResetTokenRepository tokenRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            JwtService jwtService) {
+        this(userRepository, tokenRepository, passwordEncoder, jwtService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PasswordResetService(
+            UserRepository userRepository,
+            PasswordResetTokenRepository tokenRepository,
+            PasswordEncoder passwordEncoder,
+            JwtService jwtService,
+            EmailService emailService) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
+        this.emailService = emailService;
     }
 
     public Map<String, Object> requestPasswordReset(ForgotPasswordRequestDTO dto) {
@@ -71,6 +83,7 @@ public class PasswordResetService {
             );
         }
 
+        boolean emailSent = false;
         Optional<User> userOpt = userRepository.findByEmailIgnoreCase(normalizedEmail);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
@@ -81,23 +94,21 @@ public class PasswordResetService {
             }
             tokenRepository.saveAll(activeTokens);
 
-            String rawCode = generateResetCode();
+            String rawJwtToken = jwtService.generatePasswordResetToken(user);
             PasswordResetToken resetToken = new PasswordResetToken();
             resetToken.setUser(user);
-            resetToken.setTokenHash(hashToken(rawCode));
+            resetToken.setTokenHash(hashToken(rawJwtToken));
             resetToken.setCreatedAt(now);
             resetToken.setExpiresAt(now.plus(EXPIRATION_MINUTES, ChronoUnit.MINUTES));
             resetToken.setUsedAt(null);
             resetToken.setAttemptCount(0);
             tokenRepository.save(resetToken);
 
-            boolean mailConfigured = smtpHost != null && !smtpHost.isBlank();
-            if (!mailConfigured) {
-                log.info("[PASSWORD-RESET] Canal SMTP não configurado. Código temporário gerado para {} (expira em {} min): {}",
-                        normalizedEmail, EXPIRATION_MINUTES, rawCode);
+            if (emailService != null) {
+                emailSent = emailService.sendPasswordResetEmail(normalizedEmail, rawJwtToken, EXPIRATION_MINUTES);
             } else {
-                log.info("[PASSWORD-RESET] Código de recuperação solicitado para {} (expira em {} min).",
-                        normalizedEmail, EXPIRATION_MINUTES);
+                log.info("[PASSWORD-RESET] EmailService indisponível. Token JWT gerado para {} (expira em {} min): {}",
+                        normalizedEmail, EXPIRATION_MINUTES, rawJwtToken);
             }
         }
 
@@ -105,7 +116,8 @@ public class PasswordResetService {
         return Map.of(
                 "message", GENERIC_RESPONSE_MESSAGE,
                 "expiresInMinutes", EXPIRATION_MINUTES,
-                "mailConfigured", mailConfigured
+                "mailConfigured", mailConfigured,
+                "emailSent", emailSent
         );
     }
 
@@ -117,62 +129,46 @@ public class PasswordResetService {
         String rawToken = dto.token() != null ? dto.token().trim() : "";
         String newPassword = dto.newPassword() != null ? dto.newPassword().trim() : "";
 
-        if (normalizedEmail == null || rawToken.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "E-mail e código de recuperação são obrigatórios.");
+        if (rawToken.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Token de recuperação é obrigatório.");
         }
         if (newPassword.length() < 6 || newPassword.length() > 72) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A nova senha deve ter entre 6 e 72 caracteres.");
         }
+        if (!jwtService.isPasswordResetTokenValid(rawToken)) {
+            throw invalidResetToken();
+        }
+
+        String tokenEmail;
+        Optional<Long> userId;
+        try {
+            tokenEmail = normalizeEmail(jwtService.getEmailFromPasswordResetToken(rawToken));
+            userId = jwtService.getUserIdFromPasswordResetToken(rawToken);
+        } catch (RuntimeException exception) {
+            throw invalidResetToken();
+        }
+        if (tokenEmail == null || userId.isEmpty()) {
+            throw invalidResetToken();
+        }
+        if (normalizedEmail != null && !tokenEmail.equals(normalizedEmail)) {
+            throw invalidResetToken();
+        }
 
         Instant now = Instant.now();
-        List<PasswordResetToken> activeTokens =
-                tokenRepository.findByUser_EmailIgnoreCaseAndUsedAtIsNullOrderByCreatedAtDesc(normalizedEmail);
-
-        if (activeTokens.isEmpty()) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Código de recuperação inválido ou expirado."
-            );
-        }
-
-        PasswordResetToken latestToken = activeTokens.get(0);
-        if (latestToken.getExpiresAt().isBefore(now)) {
-            latestToken.setUsedAt(now);
-            tokenRepository.save(latestToken);
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Código de recuperação inválido ou expirado."
-            );
-        }
-
-        if (latestToken.getAttemptCount() >= MAX_VERIFY_ATTEMPTS) {
-            latestToken.setUsedAt(now);
-            tokenRepository.save(latestToken);
-            throw new ResponseStatusException(
-                    HttpStatus.TOO_MANY_REQUESTS,
-                    "Limite de tentativas excedido para este código. Solicite um novo código de recuperação."
-            );
-        }
-
         String candidateHash = hashToken(rawToken);
-        if (!MessageDigest.isEqual(
-                candidateHash.getBytes(StandardCharsets.UTF_8),
-                latestToken.getTokenHash().getBytes(StandardCharsets.UTF_8))) {
-            latestToken.setAttemptCount(latestToken.getAttemptCount() + 1);
-            if (latestToken.getAttemptCount() >= MAX_VERIFY_ATTEMPTS) {
-                latestToken.setUsedAt(now);
-            }
-            tokenRepository.save(latestToken);
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Código de recuperação inválido ou expirado."
-            );
+        Optional<PasswordResetToken> tokenOpt = tokenRepository
+                .findFirstByUser_IdAndTokenHashAndUsedAtIsNullOrderByCreatedAtDesc(userId.get(), candidateHash);
+        if (tokenOpt.isEmpty()) {
+            throw invalidResetToken();
         }
 
-        latestToken.setUsedAt(now);
-        tokenRepository.save(latestToken);
+        PasswordResetToken resetToken = tokenOpt.get();
+        if (resetToken.getExpiresAt() == null || resetToken.getExpiresAt().isBefore(now)
+                || tokenRepository.markUsedIfUnusedAndNotExpired(resetToken.getId(), now) != 1) {
+            throw invalidResetToken();
+        }
 
-        User user = latestToken.getUser();
+        User user = resetToken.getUser();
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
@@ -184,16 +180,18 @@ public class PasswordResetService {
     public static String hashToken(String rawToken) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(rawToken.trim().toUpperCase().getBytes(StandardCharsets.UTF_8));
+            byte[] hash = digest.digest(rawToken.trim().getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 algorithm not available", e);
         }
     }
 
-    private String generateResetCode() {
-        int code = 100000 + secureRandom.nextInt(900000);
-        return String.valueOf(code);
+    private ResponseStatusException invalidResetToken() {
+        return new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Código de recuperação inválido ou expirado."
+        );
     }
 
     private String normalizeEmail(String email) {

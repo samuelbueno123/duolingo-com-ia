@@ -10,6 +10,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -205,15 +208,19 @@ class SecurityAndLearningTests {
     void passwordResetFlowEnforcesSingleUseTokenAndBcryptEncoding() {
         UserRepository userRepository = mock(UserRepository.class);
         PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
-        PasswordResetService resetService = new PasswordResetService(
-                userRepository,
-                tokenRepository,
-                passwordEncoder
-        );
-
         User user = new User();
         user.setId(77L);
         user.setEmail("student@example.com");
+        JwtService jwtService = spy(new JwtService("0123456789abcdef0123456789abcdef"));
+        String rawJwtToken = jwtService.generatePasswordResetToken(user);
+        doReturn(rawJwtToken).when(jwtService).generatePasswordResetToken(user);
+        PasswordResetService resetService = new PasswordResetService(
+                userRepository,
+                tokenRepository,
+                passwordEncoder,
+                jwtService
+        );
+
         when(userRepository.findByEmailIgnoreCase("student@example.com")).thenReturn(Optional.of(user));
         when(tokenRepository.countByUser_EmailIgnoreCaseAndCreatedAtAfter(eq("student@example.com"), any()))
                 .thenReturn(0L);
@@ -228,27 +235,39 @@ class SecurityAndLearningTests {
         ArgumentCaptor<PasswordResetToken> tokenCaptor = ArgumentCaptor.forClass(PasswordResetToken.class);
         verify(tokenRepository).save(tokenCaptor.capture());
         PasswordResetToken savedToken = tokenCaptor.getValue();
-        assertNotNull(savedToken.getTokenHash());
+        savedToken.setId(88L);
+        assertEquals(PasswordResetService.hashToken(rawJwtToken), savedToken.getTokenHash());
         assertNull(savedToken.getUsedAt());
+        assertTrue(jwtService.isPasswordResetTokenValid(rawJwtToken));
+        assertEquals("student@example.com", jwtService.getEmailFromPasswordResetToken(rawJwtToken));
+        assertEquals(Optional.of(77L), jwtService.getUserIdFromPasswordResetToken(rawJwtToken));
+        assertFalse(jwtService.isPasswordResetTokenValid(jwtService.generateToken(user)));
 
-        // Simulate verifying with known code "654321"
-        savedToken.setTokenHash(PasswordResetService.hashToken("654321"));
         savedToken.setExpiresAt(Instant.now().plus(15, ChronoUnit.MINUTES));
-        when(tokenRepository.findByUser_EmailIgnoreCaseAndUsedAtIsNullOrderByCreatedAtDesc("student@example.com"))
-                .thenReturn(List.of(savedToken));
+        when(tokenRepository.findFirstByUser_IdAndTokenHashAndUsedAtIsNullOrderByCreatedAtDesc(
+                77L, PasswordResetService.hashToken(rawJwtToken)))
+                .thenReturn(Optional.of(savedToken), Optional.empty());
+        doAnswer(invocation -> {
+            savedToken.setUsedAt(invocation.getArgument(1));
+            return 1;
+        }).when(tokenRepository).markUsedIfUnusedAndNotExpired(eq(savedToken.getId()), any());
 
-        // Wrong code increments attempt count and throws 400
+        // An invalid JWT is rejected without consuming the valid token.
         assertThrows(
                 ResponseStatusException.class,
-                () -> resetService.resetPassword(new ResetPasswordRequestDTO("student@example.com", "000000", "novaSenha123"))
+                () -> resetService.resetPassword(new ResetPasswordRequestDTO("student@example.com", "invalid.jwt.token", "novaSenha123"))
         );
-        assertEquals(1, savedToken.getAttemptCount());
         assertNull(savedToken.getUsedAt());
 
-        // Correct code marks token as used and hashes password with BCrypt
-        resetService.resetPassword(new ResetPasswordRequestDTO("student@example.com", "654321", "novaSenha123"));
+        // The valid JWT marks the record as used and hashes the password with BCrypt.
+        resetService.resetPassword(new ResetPasswordRequestDTO(rawJwtToken, "novaSenha123"));
+        verify(tokenRepository).markUsedIfUnusedAndNotExpired(eq(savedToken.getId()), any());
         assertNotNull(savedToken.getUsedAt());
         assertTrue(passwordEncoder.matches("novaSenha123", user.getPasswordHash()));
+        assertThrows(
+                ResponseStatusException.class,
+                () -> resetService.resetPassword(new ResetPasswordRequestDTO(rawJwtToken, "outraSenha123"))
+        );
     }
 
     @Test

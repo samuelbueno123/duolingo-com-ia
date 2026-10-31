@@ -58,6 +58,18 @@ public class JwtService {
             .compact();
     }
 
+    public String generatePasswordResetToken(User user) {
+        Instant issuedAt = Instant.now();
+        return Jwts.builder()
+            .subject(user.getEmail())
+            .claim("id", user.getId())
+            .claim("type", "password_reset")
+            .issuedAt(Date.from(issuedAt))
+            .expiration(Date.from(issuedAt.plusMillis(1000L * 60 * 15)))
+            .signWith(signingKey)
+            .compact();
+    }
+
     public long getRefreshTokenLifetimeSeconds() {
         return REFRESH_TOKEN_LIFETIME_MILLIS / 1000;
     }
@@ -108,6 +120,33 @@ public class JwtService {
             return "refresh".equals(getClaims(token).get("type", String.class));
         } catch (RuntimeException exception) {
             return false;
+        }
+    }
+
+    public boolean isPasswordResetTokenValid(String token) {
+        try {
+            return "password_reset".equals(getClaims(token).get("type", String.class));
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    public String getEmailFromPasswordResetToken(String token) {
+        return getClaims(token).getSubject();
+    }
+
+    public Optional<Long> getUserIdFromPasswordResetToken(String token) {
+        Object value = getClaims(token).get("id");
+        if (value instanceof Number number) {
+            return Optional.of(number.longValue());
+        }
+        if (value == null) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Long.parseLong(value.toString()));
+        } catch (NumberFormatException exception) {
+            return Optional.empty();
         }
     }
 

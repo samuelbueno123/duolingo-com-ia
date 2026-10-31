@@ -280,6 +280,12 @@ public class AccessControlService {
         );
     }
 
+    public void assertCanViewSchoolClass(Long schoolClassId) {
+        SchoolClass schoolClass = schoolClassRepository.findById(schoolClassId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Turma não encontrada."));
+        assertCanViewSchoolClass(schoolClass);
+    }
+
     public void assertCanViewSchoolClass(SchoolClass schoolClass) {
         User current = getCurrentUserOrThrow();
         if (current.isSuperAdmin()) {

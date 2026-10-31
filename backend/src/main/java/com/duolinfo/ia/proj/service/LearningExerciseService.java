@@ -111,7 +111,7 @@ public class LearningExerciseService {
         if (!isOwner) {
             Student student = findStudent(email);
             boolean enrolled = enrollmentRepository
-                .findByStudentIdAndStatus(student.getId(), EnrollmentStatus.ACTIVE)
+                .findByStudentId(student.getId())
                 .stream()
                 .anyMatch(item -> Objects.equals(
                     item.getSchoolClass().getId(), exercise.getSchoolClass().getId()
@@ -120,7 +120,14 @@ public class LearningExerciseService {
                 throw new ResourceNotFoundException("Exercício não encontrado.");
             }
         }
-        return toExerciseResponse(exercise, isOwner);
+        boolean hasSubmitted = false;
+        Student callerStudent = studentRepository.findByEmailIgnoreCase(email).orElse(null);
+        if (callerStudent != null) {
+            hasSubmitted = !submissionRepository.findByStudent_IdAndExercise_IdOrderBySubmittedAtDesc(
+                callerStudent.getId(), exercise.getId()
+            ).isEmpty();
+        }
+        return toExerciseResponse(exercise, isOwner || hasSubmitted);
     }
 
     @Transactional
@@ -305,6 +312,16 @@ public class LearningExerciseService {
         newLang.setLevel("Básico");
         newLang.setScore(xpDelta);
         student.addLanguage(newLang);
+    }
+
+    @Transactional(readOnly = true)
+    public ExerciseSubmissionResponseDTO findMySubmissionForExercise(Long exerciseId, String email) {
+        Student student = findStudent(email);
+        return submissionRepository.findByStudent_IdAndExercise_IdOrderBySubmittedAtDesc(student.getId(), exerciseId)
+            .stream()
+            .findFirst()
+            .map(this::toSubmissionResponse)
+            .orElse(null);
     }
 
     @Transactional(readOnly = true)

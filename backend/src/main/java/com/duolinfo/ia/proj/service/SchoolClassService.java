@@ -4,6 +4,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.duolinfo.ia.proj.entity.User;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -47,6 +50,9 @@ public class SchoolClassService {
     private final ClassTeacherAssignmentRepository assignmentRepository;
     private final LearningExerciseRepository exerciseRepository;
     private final ExerciseSubmissionRepository submissionRepository;
+
+    @Autowired(required = false)
+    private AccessControlService accessControlService;
 
     @Transactional
     public SchoolClass create(
@@ -163,11 +169,22 @@ public class SchoolClassService {
             .filter(s -> s.getStudent() != null && s.getStudent().getId() != null)
             .collect(Collectors.groupingBy(s -> s.getStudent().getId()));
 
+        User currentUser = accessControlService != null ? accessControlService.getCurrentUser().orElse(null) : null;
+        boolean callerIsStudent = currentUser != null && accessControlService != null
+            && accessControlService.asStudent(currentUser).isPresent()
+            && !currentUser.isSuperAdmin()
+            && !accessControlService.isTeacher(currentUser);
+
         List<ClassStudentSummaryDTO> studentSummaries = new ArrayList<>();
         for (Enrollment enrollment : enrollments) {
             Student student = enrollment.getStudent();
             if (student == null) continue;
             List<ExerciseSubmission> studentSubs = byStudent.getOrDefault(student.getId(), List.of());
+            if (enrollment.getCancellationDate() != null) {
+                studentSubs = studentSubs.stream()
+                    .filter(s -> s.getSubmittedAt() != null && !s.getSubmittedAt().atZone(java.time.ZoneId.systemDefault()).toLocalDate().isAfter(enrollment.getCancellationDate()))
+                    .toList();
+            }
             int sCount = studentSubs.size();
             int sCorrect = studentSubs.stream().mapToInt(ExerciseSubmission::getCorrectCount).sum();
             int sQuestions = studentSubs.stream().mapToInt(ExerciseSubmission::getQuestionCount).sum();
@@ -176,11 +193,15 @@ public class SchoolClassService {
                 ? 0.0
                 : Math.round(((sCorrect * 100.0) / sQuestions) * 10.0) / 10.0;
 
+            String studentEmail = (callerIsStudent && !Objects.equals(student.getId(), currentUser.getId()))
+                ? null
+                : student.getEmail();
+
             studentSummaries.add(new ClassStudentSummaryDTO(
                 student.getId(),
                 enrollment.getId(),
                 student.getName(),
-                student.getEmail(),
+                studentEmail,
                 student.getNormalizedGender(),
                 enrollment.getStatus() != null ? enrollment.getStatus().name() : "ACTIVE",
                 enrollment.getEnrollmentDate(),

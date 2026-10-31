@@ -101,6 +101,18 @@ public class LearningExerciseController {
         return exerciseService.submit(id, request.answers(), principal.getName());
     }
 
+    @GetMapping("/{id}/my-submission")
+    @Operation(summary = "Busca a última entrega do estudante autenticado para a atividade")
+    public ExerciseSubmissionResponseDTO findMySubmission(
+            @PathVariable Long id,
+            Principal principal) {
+        ExerciseSubmissionResponseDTO submission = exerciseService.findMySubmissionForExercise(id, principal.getName());
+        if (submission == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Nenhuma entrega encontrada para esta atividade.");
+        }
+        return submission;
+    }
+
     @GetMapping("/submissions")
     @Operation(summary = "Lista histórico do estudante ou respostas das turmas do professor")
     public List<ExerciseSubmissionResponseDTO> findSubmissions(

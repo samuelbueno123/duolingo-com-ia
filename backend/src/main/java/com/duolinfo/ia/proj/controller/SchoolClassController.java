@@ -94,7 +94,7 @@ public class SchoolClassController {
     @Operation(summary = "Retorna o dashboard completo com estatísticas de uma turma")
     public ClassDashboardResponseDTO getDashboard(@PathVariable Long id) {
         if (accessControlService != null) {
-            accessControlService.assertCanManageSchoolClass(id);
+            accessControlService.assertCanViewSchoolClass(id);
         }
         return schoolClassService.getClassDashboard(id);
     }

@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
+import com.duolinfo.ia.proj.dto.request.ExerciseFeedbackRequestDTO;
 import com.duolinfo.ia.proj.dto.request.ExerciseQuestionRequestDTO;
 import com.duolinfo.ia.proj.dto.request.LearningExerciseRequestDTO;
 import com.duolinfo.ia.proj.dto.response.ExerciseQuestionResponseDTO;
@@ -624,7 +625,7 @@ public class LearningExerciseService {
             Long submissionId,
             String feedback,
             String email) {
-        return addFeedback(submissionId, feedback, null, email);
+        return addFeedback(submissionId, feedback, null, null, email);
     }
 
     @Transactional
@@ -632,6 +633,16 @@ public class LearningExerciseService {
             Long submissionId,
             String feedback,
             Integer adjustedCorrectCount,
+            String email) {
+        return addFeedback(submissionId, feedback, adjustedCorrectCount, null, email);
+    }
+
+    @Transactional
+    public ExerciseSubmissionResponseDTO addFeedback(
+            Long submissionId,
+            String feedback,
+            Integer adjustedCorrectCount,
+            List<ExerciseFeedbackRequestDTO.QuestionReviewItemDTO> questionReviews,
             String email) {
         Teacher teacher = findTeacher(email);
         ExerciseSubmission submission = submissionRepository.findById(submissionId)
@@ -649,36 +660,120 @@ public class LearningExerciseService {
             throw new ResourceNotFoundException("Entrega não encontrada.");
         }
 
-        if (adjustedCorrectCount != null) {
-            if (adjustedCorrectCount < 0 || adjustedCorrectCount > submission.getQuestionCount()) {
-                throw new BusinessException(
-                    "A quantidade de acertos avaliada deve estar entre 0 e " + submission.getQuestionCount() + "."
-                );
-            }
-            List<ExerciseSubmission> allForExercise = submissionRepository
-                .findByStudent_IdAndExercise_IdOrderBySubmittedAtDesc(
-                    submission.getStudent().getId(),
-                    submission.getExercise().getId()
-                );
-            int totalAwardedSoFar = allForExercise.stream()
-                .mapToInt(ExerciseSubmission::getXpEarned)
-                .sum();
-            int newTargetXp = adjustedCorrectCount * 10;
-            int additionalXp = Math.max(0, newTargetXp - totalAwardedSoFar);
+        int effectiveCorrect = submission.getCorrectCount();
+        if (questionReviews != null && !questionReviews.isEmpty()) {
+            List<ExerciseQuestionRequestDTO> questions = Collections.emptyList();
+            try {
+                if (submission.getExercise() != null && submission.getExercise().getQuestionsJson() != null) {
+                    questions = readQuestions(submission.getExercise());
+                }
+            } catch (Exception ignored) {}
+            List<String> answers = readAnswers(submission);
 
-            submission.setCorrectCount(adjustedCorrectCount);
-            if (additionalXp > 0) {
-                submission.setXpEarned(submission.getXpEarned() + additionalXp);
-                awardLanguageXp(
-                    submission.getStudent(),
-                    submission.getExercise().getLanguageName(),
-                    additionalXp
-                );
-                studentRepository.save(submission.getStudent());
+            Map<Integer, ExerciseFeedbackRequestDTO.QuestionReviewItemDTO> reviewMap = new HashMap<>();
+            for (var r : questionReviews) {
+                if (r != null && r.questionIndex() != null) {
+                    reviewMap.put(r.questionIndex(), r);
+                }
             }
+
+            List<QuestionFeedbackDTO> currentFeedback = readQuestionFeedback(submission);
+            Map<Integer, QuestionFeedbackDTO> feedbackMap = new HashMap<>();
+            for (var cf : currentFeedback) {
+                if (cf != null) {
+                    feedbackMap.put(cf.questionIndex(), cf);
+                }
+            }
+
+            int count = Math.max(questions.size(), Math.max(answers.size(), reviewMap.size()));
+            List<QuestionFeedbackDTO> updatedFeedback = new ArrayList<>();
+            int correctCountFromReviews = 0;
+
+            for (int i = 0; i < count; i++) {
+                ExerciseQuestionRequestDTO q = i < questions.size() ? questions.get(i) : null;
+                String studentAns = i < answers.size() ? answers.get(i) : "";
+                QuestionFeedbackDTO existing = feedbackMap.get(i);
+                var review = reviewMap.get(i);
+
+                String style = existing != null && existing.style() != null && !existing.style().isBlank()
+                    ? existing.style()
+                    : (q != null && q.style() != null ? q.style() : "Objetiva");
+                String questionText = q != null && q.question() != null ? q.question() : "Questão " + (i + 1);
+                List<String> options = q != null && q.options() != null ? q.options() : List.of();
+                String expected = q != null ? (q.correctAnswer() != null ? q.correctAnswer() : q.expectedAnswer()) : null;
+
+                boolean isCorrect;
+                String status;
+                String message;
+
+                if (review != null) {
+                    isCorrect = Boolean.TRUE.equals(review.isCorrect()) || "CORRECT".equalsIgnoreCase(review.status());
+                    status = isCorrect ? "CORRECT" : "INCORRECT";
+                    message = review.feedback() != null ? review.feedback().trim() : (existing != null && existing.message() != null ? existing.message() : "");
+                } else if (existing != null) {
+                    status = existing.status() != null ? existing.status() : "PENDING_REVIEW";
+                    isCorrect = "CORRECT".equalsIgnoreCase(status);
+                    message = existing.message() != null ? existing.message() : "";
+                } else {
+                    isCorrect = false;
+                    status = "INCORRECT";
+                    message = "";
+                }
+
+                if (isCorrect) {
+                    correctCountFromReviews++;
+                }
+
+                updatedFeedback.add(new QuestionFeedbackDTO(
+                    i,
+                    style,
+                    status,
+                    message,
+                    questionText,
+                    options,
+                    expected,
+                    studentAns,
+                    isCorrect
+                ));
+            }
+
+            submission.setQuestionFeedbackJson(writeJson(updatedFeedback));
+            effectiveCorrect = adjustedCorrectCount != null ? adjustedCorrectCount : correctCountFromReviews;
+        } else if (adjustedCorrectCount != null) {
+            effectiveCorrect = adjustedCorrectCount;
         }
 
-        submission.setFeedback(feedback.trim());
+        if (effectiveCorrect < 0 || effectiveCorrect > submission.getQuestionCount()) {
+            throw new BusinessException(
+                "A quantidade de acertos avaliada deve estar entre 0 e " + submission.getQuestionCount() + "."
+            );
+        }
+
+        List<ExerciseSubmission> allForExercise = submissionRepository
+            .findByStudent_IdAndExercise_IdOrderBySubmittedAtDesc(
+                submission.getStudent().getId(),
+                submission.getExercise().getId()
+            );
+        int totalAwardedSoFar = allForExercise.stream()
+            .mapToInt(ExerciseSubmission::getXpEarned)
+            .sum();
+        int newTargetXp = effectiveCorrect * 10;
+        int additionalXp = Math.max(0, newTargetXp - totalAwardedSoFar);
+
+        submission.setCorrectCount(effectiveCorrect);
+        if (additionalXp > 0) {
+            submission.setXpEarned(submission.getXpEarned() + additionalXp);
+            awardLanguageXp(
+                submission.getStudent(),
+                submission.getExercise().getLanguageName(),
+                additionalXp
+            );
+            studentRepository.save(submission.getStudent());
+        }
+
+        if (feedback != null && !feedback.isBlank()) {
+            submission.setFeedback(feedback.trim());
+        }
         submission.setReviewStatus("REVIEWED");
         submission.setReviewedAt(Instant.now());
         ExerciseSubmission saved = submissionRepository.save(submission);
@@ -741,6 +836,8 @@ public class LearningExerciseService {
         if (status == null || status.isBlank()) {
             status = submission.getReviewedAt() != null ? "REVIEWED" : "AUTO_GRADED";
         }
+        String studentPic = submission.getStudent() != null ? submission.getStudent().getProfilePicture() : null;
+        List<QuestionFeedbackDTO> detailedQuestions = buildDetailedQuestionFeedback(submission);
         return new ExerciseSubmissionResponseDTO(
             submission.getId(),
             submission.getExercise().getId(),
@@ -748,6 +845,7 @@ public class LearningExerciseService {
             submission.getExercise().getLanguageName(),
             submission.getStudent().getId(),
             submission.getStudent().getName(),
+            studentPic,
             readAnswers(submission),
             submission.getCorrectCount(),
             submission.getQuestionCount(),
@@ -756,8 +854,73 @@ public class LearningExerciseService {
             submission.getSubmittedAt(),
             submission.getReviewedAt(),
             status,
-            readQuestionFeedback(submission)
+            detailedQuestions
         );
+    }
+
+    private List<QuestionFeedbackDTO> buildDetailedQuestionFeedback(ExerciseSubmission submission) {
+        List<ExerciseQuestionRequestDTO> questions = Collections.emptyList();
+        try {
+            if (submission.getExercise() != null && submission.getExercise().getQuestionsJson() != null) {
+                questions = readQuestions(submission.getExercise());
+            }
+        } catch (Exception ignored) {}
+
+        List<String> answers = readAnswers(submission);
+        List<QuestionFeedbackDTO> rawFeedback = readQuestionFeedback(submission);
+        Map<Integer, QuestionFeedbackDTO> feedbackMap = new HashMap<>();
+        for (QuestionFeedbackDTO qf : rawFeedback) {
+            if (qf != null) {
+                feedbackMap.put(qf.questionIndex(), qf);
+            }
+        }
+
+        int count = Math.max(questions.size(), answers.size());
+        if (count == 0) {
+            return rawFeedback;
+        }
+
+        List<QuestionFeedbackDTO> detailed = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            ExerciseQuestionRequestDTO q = i < questions.size() ? questions.get(i) : null;
+            String studentAns = i < answers.size() ? answers.get(i) : "";
+            QuestionFeedbackDTO existing = feedbackMap.get(i);
+
+            String style = existing != null && existing.style() != null && !existing.style().isBlank()
+                ? existing.style()
+                : (q != null && q.style() != null ? q.style() : "Objetiva");
+
+            String expected = q != null ? (q.correctAnswer() != null ? q.correctAnswer() : q.expectedAnswer()) : null;
+
+            String status;
+            if (existing != null && existing.status() != null && !existing.status().isBlank()) {
+                status = existing.status();
+            } else if (isOpenEndedStyle(style)) {
+                status = "PENDING_REVIEW";
+            } else if (expected != null && normalize(expected).equals(normalize(studentAns))) {
+                status = "CORRECT";
+            } else {
+                status = "INCORRECT";
+            }
+
+            String message = existing != null && existing.message() != null ? existing.message() : "";
+            String questionText = q != null && q.question() != null ? q.question() : "Questão " + (i + 1);
+            List<String> options = q != null && q.options() != null ? q.options() : List.of();
+            boolean isCorrect = "CORRECT".equalsIgnoreCase(status);
+
+            detailed.add(new QuestionFeedbackDTO(
+                i,
+                style,
+                status,
+                message,
+                questionText,
+                options,
+                expected,
+                studentAns,
+                isCorrect
+            ));
+        }
+        return detailed;
     }
 
     private List<ExerciseQuestionRequestDTO> readQuestions(LearningExercise exercise) {

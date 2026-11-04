@@ -172,6 +172,7 @@ public class LearningExerciseController {
             id,
             request.feedback(),
             request.correctCount(),
+            request.questionReviews(),
             principal.getName()
         );
     }

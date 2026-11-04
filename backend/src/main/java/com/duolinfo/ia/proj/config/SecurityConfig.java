@@ -128,7 +128,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/achievements/**")
                     .hasRole("ADMIN")
 
-                .requestMatchers(HttpMethod.POST, "/api/exercises", "/api/exercises/generate-ai")
+                .requestMatchers(HttpMethod.POST, "/api/exercises", "/api/exercises/generate-ai", "/api/exercises/generate-options-ai", "/api/exercises/explain-ai")
                     .hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/exercises/submissions/**")
                     .hasAnyRole("TEACHER", "ADMIN")

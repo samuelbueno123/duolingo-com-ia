@@ -2,6 +2,7 @@ package com.duolinfo.ia.proj.controller;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -74,6 +75,33 @@ public class LearningExerciseController {
             );
         }
         return aiGeneratorService.generateQuestions(request);
+    }
+
+    @PostMapping("/generate-options-ai")
+    @Operation(summary = "Gera opcoes incorretas com IA para uma questao")
+    public List<String> generateOptionsWithAi(@RequestBody Map<String, String> body) {
+        if (aiGeneratorService == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "IA nao configurada.");
+        }
+        return aiGeneratorService.generateOptionsForQuestion(
+            body.getOrDefault("question", ""),
+            body.getOrDefault("correctAnswer", ""),
+            body.getOrDefault("languageName", "Inglês")
+        );
+    }
+
+    @PostMapping("/explain-ai")
+    @Operation(summary = "Gera explicacao pedagogica para uma questao com IA")
+    public Map<String, String> explainWithAi(@RequestBody Map<String, String> body) {
+        if (aiGeneratorService == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "IA nao configurada.");
+        }
+        String explanation = aiGeneratorService.generateExplanation(
+            body.getOrDefault("question", ""),
+            body.getOrDefault("correctAnswer", ""),
+            body.getOrDefault("languageName", "Inglês")
+        );
+        return Map.of("explanation", explanation);
     }
 
     @GetMapping("/{id}")

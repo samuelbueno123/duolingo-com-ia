@@ -31,7 +31,7 @@ import com.duolinfo.ia.proj.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
+
 public class InstitutionRequestService {
 
     private static final String REQUEST_REFERENCE = "INSTITUTION_REQUEST";
@@ -43,6 +43,35 @@ public class InstitutionRequestService {
     private final InstitutionService institutionService;
     private final TeacherRepository teacherRepository;
     private final UserRepository userRepository;
+    private final SseEmitterService sseEmitterService;
+    private final com.duolinfo.ia.proj.config.UserAuthCache userAuthCache;
+
+    public InstitutionRequestService(
+            InstitutionRequestRepository requestRepository,
+            AdminNotificationRepository notificationRepository,
+            InstitutionService institutionService,
+            TeacherRepository teacherRepository,
+            UserRepository userRepository) {
+        this(requestRepository, notificationRepository, institutionService, teacherRepository, userRepository, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public InstitutionRequestService(
+            InstitutionRequestRepository requestRepository,
+            AdminNotificationRepository notificationRepository,
+            InstitutionService institutionService,
+            TeacherRepository teacherRepository,
+            UserRepository userRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) SseEmitterService sseEmitterService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.duolinfo.ia.proj.config.UserAuthCache userAuthCache) {
+        this.requestRepository = requestRepository;
+        this.notificationRepository = notificationRepository;
+        this.institutionService = institutionService;
+        this.teacherRepository = teacherRepository;
+        this.userRepository = userRepository;
+        this.sseEmitterService = sseEmitterService;
+        this.userAuthCache = userAuthCache;
+    }
 
     @Transactional
     public InstitutionRequestResponseDTO create(InstitutionRequestCreateDTO request) {
@@ -63,7 +92,8 @@ public class InstitutionRequestService {
             + " solicitou o cadastro de " + savedRequest.getRequestedName() + ".");
         notification.setReferenceType(REQUEST_REFERENCE);
         notification.setReferenceId(savedRequest.getId());
-        notificationRepository.save(notification);
+        AdminNotification savedNotification = notificationRepository.save(notification);
+        notifyAdminNotification(savedNotification);
 
         return toRequestResponse(savedRequest);
     }
@@ -140,7 +170,8 @@ public class InstitutionRequestService {
                 REQUEST_REFERENCE, requestId)
             .forEach(notification -> {
                 notification.setRead(true);
-                notificationRepository.save(notification);
+                AdminNotification savedNotification = notificationRepository.save(notification);
+        notifyAdminNotification(savedNotification);
             });
         return toRequestResponse(request);
     }
@@ -189,10 +220,19 @@ public class InstitutionRequestService {
         }
 
         Teacher saved = teacherRepository.save(teacher);
+        if (userAuthCache != null) {
+            userAuthCache.evict(teacherId);
+        }
+        if (sseEmitterService != null) {
+            sseEmitterService.sendToUser(teacherId, "PROFILE_UPDATED", java.util.Map.of(
+                "approvalStatus", saved.getApprovalStatus() != null ? saved.getApprovalStatus() : "UNKNOWN"
+            ));
+        }
         notificationRepository.findByReferenceTypeAndReferenceId(TEACHER_REFERENCE, teacherId)
             .forEach(notification -> {
                 notification.setRead(true);
-                notificationRepository.save(notification);
+                AdminNotification savedNotification = notificationRepository.save(notification);
+        notifyAdminNotification(savedNotification);
             });
         return DtoMapper.toTeacherResponse(saved);
     }
@@ -241,7 +281,8 @@ public class InstitutionRequestService {
                 notification.setReferenceType(TEACHER_REFERENCE);
                 notification.setReferenceId(teacher.getId());
                 notification.setInstitutionId(teacher.getInstitution() != null ? teacher.getInstitution().getId() : null);
-                notificationRepository.save(notification);
+                AdminNotification savedNotification = notificationRepository.save(notification);
+        notifyAdminNotification(savedNotification);
             }
         }
     }
@@ -329,6 +370,20 @@ public class InstitutionRequestService {
             request.getMessage(),
             request.getStatus().name(),
             request.getCreatedAt());
+    }
+
+    private void notifyAdminNotification(AdminNotification notification) {
+        if (notification == null || sseEmitterService == null) return;
+        try {
+            java.util.Map<String, Object> data = new java.util.HashMap<>();
+            data.put("notificationId", notification.getId());
+            data.put("type", notification.getType());
+            data.put("title", notification.getTitle());
+            data.put("message", notification.getMessage());
+            data.put("institutionId", notification.getInstitutionId());
+            sseEmitterService.sendToRole("ADMIN", "NOTIFICATION_ADDED", data);
+        } catch (Exception ignored) {
+        }
     }
 
     private static String clean(String value) {

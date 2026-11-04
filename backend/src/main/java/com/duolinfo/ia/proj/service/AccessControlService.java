@@ -48,8 +48,16 @@ public class AccessControlService {
 
     public Optional<User> getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth.getName() == null
-                || "anonymousUser".equalsIgnoreCase(auth.getName())) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return Optional.empty();
+        }
+        if (auth.getDetails() instanceof User user) {
+            return Optional.of(user);
+        }
+        if (auth.getPrincipal() instanceof User user) {
+            return Optional.of(user);
+        }
+        if (auth.getName() == null || "anonymousUser".equalsIgnoreCase(auth.getName())) {
             return Optional.empty();
         }
         return userRepository.findByEmailIgnoreCase(auth.getName().trim());

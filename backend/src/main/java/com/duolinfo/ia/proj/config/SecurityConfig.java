@@ -75,10 +75,12 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/media/profile-pictures/**")
                     .permitAll()
 
-                .requestMatchers(HttpMethod.GET,
+                .requestMatchers(
                     "/api/students/me",
-                    "/api/students/me/institution-members",
-                    "/api/teachers/me").authenticated()
+                    "/api/students/me/**").hasAnyRole("STUDENT", "ADMIN")
+                .requestMatchers(
+                    "/api/teachers/me",
+                    "/api/teachers/me/**").hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers("/api/users/me", "/api/users/me/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/users/*").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/users/*").authenticated()
@@ -139,6 +141,7 @@ public class SecurityConfig {
 
                 .requestMatchers("/api/auth/me", "/api/auth/me/**", "/api/auth/logout").authenticated()
                 .requestMatchers("/api/home/**").authenticated()
+                .requestMatchers("/api/realtime/**").authenticated()
                 .requestMatchers(
                     "/",
                     "/index.html",

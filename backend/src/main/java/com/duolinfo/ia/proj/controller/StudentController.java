@@ -18,7 +18,13 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.duolinfo.ia.proj.dto.request.StudentJoinClassRequestDTO;
 import com.duolinfo.ia.proj.dto.request.StudentRequestDTO;
+import com.duolinfo.ia.proj.dto.response.SchoolClassResponseDTO;
+import com.duolinfo.ia.proj.entity.Enrollment;
+import com.duolinfo.ia.proj.entity.SchoolClass;
+import com.duolinfo.ia.proj.service.EnrollmentService;
+import com.duolinfo.ia.proj.service.SchoolClassService;
 import com.duolinfo.ia.proj.dto.response.EnrollmentResponseDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionMembersResponseDTO;
 import com.duolinfo.ia.proj.dto.response.StudentResponseDTO;
@@ -46,6 +52,12 @@ public class StudentController {
 
     @Autowired(required = false)
     private AccessControlService accessControlService;
+
+    @Autowired(required = false)
+    private EnrollmentService enrollmentService;
+
+    @Autowired(required = false)
+    private SchoolClassService schoolClassService;
 
     public StudentController(StudentService studentService) {
         this.studentService = studentService;
@@ -97,6 +109,69 @@ public class StudentController {
             @RequestParam(required = false) String search,
             Authentication authentication) {
         return studentService.findInstitutionMembers(authentication.getName(), search);
+    }
+
+    @PostMapping("/me/enrollments")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Matricula o estudante autenticado em uma turma")
+    public EnrollmentResponseDTO joinClass(
+            @Valid @RequestBody StudentJoinClassRequestDTO request,
+            Authentication authentication) {
+        Student student = requireStudent(studentService.findByEmail(authentication.getName()));
+        if (enrollmentService == null || schoolClassService == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Serviço de turmas indisponível.");
+        }
+        SchoolClass schoolClass = schoolClassService.findById(request.schoolClassId());
+        if (!Boolean.TRUE.equals(schoolClass.getActive())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível entrar em uma turma inativa.");
+        }
+        return DtoMapper.toEnrollmentResponse(
+            enrollmentService.enrollStudent(
+                student.getId(),
+                request.schoolClassId(),
+                java.time.LocalDate.now(),
+                request.notes() != null && !request.notes().isBlank()
+                    ? request.notes()
+                    : "Matrícula realizada pelo próprio estudante"
+            )
+        );
+    }
+
+    @DeleteMapping("/me/enrollments/{enrollmentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Cancela a matrícula do estudante autenticado")
+    public void leaveClass(
+            @PathVariable Long enrollmentId,
+            Authentication authentication) {
+        Student student = requireStudent(studentService.findByEmail(authentication.getName()));
+        if (enrollmentService == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Serviço de turmas indisponível.");
+        }
+        Enrollment enrollment = enrollmentService.findById(enrollmentId);
+        if (!Objects.equals(enrollment.getStudent().getId(), student.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Esta matrícula não pertence a você.");
+        }
+        enrollmentService.cancel(enrollmentId, java.time.LocalDate.now(), "Cancelado pelo estudante");
+    }
+
+    @GetMapping("/me/available-classes")
+    @Operation(summary = "Lista turmas ativas disponíveis para o estudante se matricular")
+    public List<SchoolClassResponseDTO> listAvailableClasses(Authentication authentication) {
+        Student student = requireStudent(studentService.findByEmail(authentication.getName()));
+        if (schoolClassService == null) {
+            return List.of();
+        }
+        Long instId = student.getInstitution() != null ? student.getInstitution().getId() : null;
+        return schoolClassService.findAll().stream()
+            .filter(sc -> Boolean.TRUE.equals(sc.getActive()))
+            .filter(sc -> {
+                if (instId == null) return true;
+                Long classInstId = sc.getInstitution() != null ? sc.getInstitution().getId() :
+                    (sc.getSchool() != null && sc.getSchool().getInstitution() != null ? sc.getSchool().getInstitution().getId() : null);
+                return classInstId == null || Objects.equals(classInstId, instId);
+            })
+            .map(DtoMapper::toSchoolClassResponse)
+            .toList();
     }
 
     @GetMapping("/{id}")

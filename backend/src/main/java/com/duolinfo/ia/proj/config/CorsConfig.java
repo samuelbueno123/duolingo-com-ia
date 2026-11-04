@@ -1,5 +1,3 @@
-// Lugar para Autorizar outras URLs, métodos e headers para o CORS. O Spring Security já tem um filtro de CORS, então não é necessário criar um filtro manualmente.
-
 package com.duolinfo.ia.proj.config;
 
 import java.util.Arrays;
@@ -23,12 +21,24 @@ public class CorsConfig {
 
 		CorsConfiguration configuration = new CorsConfiguration();
 
-		configuration.setAllowedOrigins(
-				Arrays.stream(allowedOrigins.split(","))
-				      .map(String::trim)
-				      .filter(origin -> !origin.isBlank())
-				      .toList()
-		                               );
+		List<String> origins = Arrays.stream(allowedOrigins.split(","))
+				.map(String::trim)
+				.filter(origin -> !origin.isBlank())
+				.toList();
+
+		if (origins.contains("*")) {
+			configuration.setAllowedOriginPatterns(List.of("*"));
+		} else {
+			// Permite origens explicitamente configuradas e também origens de rede local/IP para acesso mobile
+			configuration.setAllowedOriginPatterns(List.of(
+					"*",
+					"http://localhost:*",
+					"http://127.0.0.1:*",
+					"http://192.168.*.*:*",
+					"http://10.*.*.*:*",
+					"http://172.*.*.*:*"
+			));
+		}
 
 		configuration.setAllowedMethods(
 				List.of(
@@ -38,8 +48,8 @@ public class CorsConfig {
 						"DELETE",
 						"PATCH",
 						"OPTIONS"
-				       )
-		                               );
+				)
+		);
 
 		configuration.setAllowedHeaders(List.of("*"));
 		configuration.setAllowCredentials(true);

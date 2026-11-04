@@ -42,6 +42,12 @@ public class UserService {
     @Autowired(required = false)
     private EntityManager entityManager;
 
+    @Autowired(required = false)
+    private com.duolinfo.ia.proj.config.UserAuthCache userAuthCache;
+
+    @Autowired(required = false)
+    private SseEmitterService sseEmitterService;
+
     @Value("${spring.mail.host:}")
     private String smtpHost;
 
@@ -535,6 +541,7 @@ public class UserService {
         try {
             User savedUser = userRepository.save(user);
             schedulePictureCleanup(previousPicture, currentPicture);
+            invalidateAndNotify(savedUser.getId());
             return savedUser;
         } catch (RuntimeException exception) {
             if (!Objects.equals(previousPicture, currentPicture)) {
@@ -599,6 +606,19 @@ public class UserService {
             return null;
         }
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private void invalidateAndNotify(Long userId) {
+        if (userId == null) return;
+        try {
+            if (userAuthCache != null) {
+                userAuthCache.evict(userId);
+            }
+            if (sseEmitterService != null) {
+                sseEmitterService.sendToUser(userId, "PROFILE_UPDATED", java.util.Map.of("userId", userId));
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private static boolean isEncodedPassword(String password) {

@@ -26,14 +26,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserService userService;
     private final AuthService authService;
+    private final UserAuthCache userAuthCache;
 
     public JwtAuthenticationFilter(
             JwtService jwtService,
             UserService userService,
-            AuthService authService) {
+            AuthService authService,
+            UserAuthCache userAuthCache) {
         this.jwtService = jwtService;
         this.userService = userService;
         this.authService = authService;
+        this.userAuthCache = userAuthCache;
     }
 
     @Override
@@ -42,9 +45,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
 
+        String token = null;
         String authorization = request.getHeader("Authorization");
         if (authorization != null && authorization.startsWith("Bearer ")) {
-            authenticate(authorization.substring(7).trim());
+            token = authorization.substring(7).trim();
+        } else if (request.getParameter("token") != null) {
+            token = request.getParameter("token").trim();
+        }
+
+        if (token != null && !token.isBlank()) {
+            authenticate(token);
         }
 
         filterChain.doFilter(request, response);
@@ -55,30 +65,51 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        var userId = jwtService.getUserIdFromToken(token);
-        User user;
-        if (userId.isPresent()) {
-            try {
-                user = userService.findById(userId.get());
-            } catch (ResourceNotFoundException exception) {
-                return;
+        var userIdOpt = jwtService.getUserIdFromToken(token);
+        User user = null;
+        List<SimpleGrantedAuthority> authorities = null;
+
+        if (userIdOpt.isPresent()) {
+            Long userId = userIdOpt.get();
+            var cached = userAuthCache.getById(userId);
+            if (cached != null) {
+                user = cached.user();
+                authorities = cached.authorities();
+            } else {
+                try {
+                    user = userService.findById(userId);
+                } catch (ResourceNotFoundException exception) {
+                    return;
+                }
             }
         } else {
-            user = userService.findByEmail(jwtService.getEmailFromToken(token));
+            String email = jwtService.getEmailFromToken(token);
+            var cached = userAuthCache.getByEmail(email);
+            if (cached != null) {
+                user = cached.user();
+                authorities = cached.authorities();
+            } else {
+                user = userService.findByEmail(email);
+            }
         }
+
         if (user == null) {
             return;
         }
 
-        List<SimpleGrantedAuthority> authorities = authService.resolveRoles(user)
-            .stream()
-            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-            .toList();
+        if (authorities == null) {
+            authorities = authService.resolveRoles(user)
+                .stream()
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                .toList();
+            userAuthCache.put(user, authorities);
+        }
 
         var authentication = new UsernamePasswordAuthenticationToken(
             user.getEmail(),
             null,
             authorities);
+        authentication.setDetails(user);
         SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

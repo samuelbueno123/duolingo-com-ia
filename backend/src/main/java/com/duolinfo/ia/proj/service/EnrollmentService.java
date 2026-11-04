@@ -19,12 +19,32 @@ import com.duolinfo.ia.proj.repository.StudentRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
+
 public class EnrollmentService {
 
     private final EnrollmentRepository enrollmentRepository;
     private final StudentRepository studentRepository;
     private final SchoolClassRepository schoolClassRepository;
+    private final SseEmitterService sseEmitterService;
+
+    public EnrollmentService(
+            EnrollmentRepository enrollmentRepository,
+            StudentRepository studentRepository,
+            SchoolClassRepository schoolClassRepository) {
+        this(enrollmentRepository, studentRepository, schoolClassRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public EnrollmentService(
+            EnrollmentRepository enrollmentRepository,
+            StudentRepository studentRepository,
+            SchoolClassRepository schoolClassRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) SseEmitterService sseEmitterService) {
+        this.enrollmentRepository = enrollmentRepository;
+        this.studentRepository = studentRepository;
+        this.schoolClassRepository = schoolClassRepository;
+        this.sseEmitterService = sseEmitterService;
+    }
 
     @Transactional
     public Enrollment enrollStudent(
@@ -79,7 +99,9 @@ public class EnrollmentService {
             .notes(notes)
             .build();
 
-        return enrollmentRepository.save(enrollment);
+        Enrollment saved = enrollmentRepository.save(enrollment);
+        notifyEnrollmentChanged(saved);
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -158,7 +180,9 @@ public class EnrollmentService {
             enrollment.setNotes(notes);
         }
 
-        return enrollmentRepository.save(enrollment);
+        Enrollment saved = enrollmentRepository.save(enrollment);
+        notifyEnrollmentChanged(saved);
+        return saved;
     }
 
     @Transactional
@@ -188,7 +212,9 @@ public class EnrollmentService {
             enrollment.setNotes(notes);
         }
 
-        return enrollmentRepository.save(enrollment);
+        Enrollment saved = enrollmentRepository.save(enrollment);
+        notifyEnrollmentChanged(saved);
+        return saved;
     }
 
     @Transactional
@@ -208,7 +234,9 @@ public class EnrollmentService {
         }
         enrollment.setStatus(status);
         if (notes != null) enrollment.setNotes(notes);
-        return enrollmentRepository.save(enrollment);
+        Enrollment saved = enrollmentRepository.save(enrollment);
+        notifyEnrollmentChanged(saved);
+        return saved;
     }
 
     @Transactional
@@ -308,6 +336,32 @@ public class EnrollmentService {
             .orElseThrow(() -> new ResourceNotFoundException(
                 "Aluno não encontrado: " + id
             ));
+    }
+
+    private void notifyEnrollmentChanged(Enrollment enrollment) {
+        if (enrollment == null || sseEmitterService == null) return;
+        try {
+            java.util.Map<String, Object> data = new java.util.HashMap<>();
+            data.put("enrollmentId", enrollment.getId());
+            if (enrollment.getStudent() != null) {
+                data.put("studentId", enrollment.getStudent().getId());
+                data.put("studentName", enrollment.getStudent().getName());
+            }
+            if (enrollment.getSchoolClass() != null) {
+                data.put("classId", enrollment.getSchoolClass().getId());
+                data.put("className", enrollment.getSchoolClass().getName());
+            }
+            if (enrollment.getStatus() != null) {
+                data.put("status", enrollment.getStatus().name());
+            }
+
+            if (enrollment.getStudent() != null) {
+                sseEmitterService.sendToUser(enrollment.getStudent().getId(), "ENROLLMENT_UPDATED", data);
+            }
+            sseEmitterService.sendToRole("TEACHER", "ENROLLMENT_UPDATED", data);
+            sseEmitterService.sendToRole("ADMIN", "ENROLLMENT_UPDATED", data);
+        } catch (Exception ignored) {
+        }
     }
 
     private SchoolClass findSchoolClass(Long id) {

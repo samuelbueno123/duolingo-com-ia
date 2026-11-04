@@ -49,7 +49,7 @@ import com.duolinfo.ia.proj.repository.TeacherRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
-@RequiredArgsConstructor
+
 public class LearningExerciseService {
 
     private static final TypeReference<List<ExerciseQuestionRequestDTO>> QUESTION_LIST =
@@ -67,6 +67,46 @@ public class LearningExerciseService {
     private final EnrollmentRepository enrollmentRepository;
     private final ClassTeacherAssignmentRepository assignmentRepository;
     private final AchievementService achievementService;
+    private final SseEmitterService sseEmitterService;
+
+    public LearningExerciseService(
+            ObjectMapper objectMapper,
+            LearningExerciseRepository exerciseRepository,
+            ExerciseSubmissionRepository submissionRepository,
+            TeacherRepository teacherRepository,
+            StudentRepository studentRepository,
+            SchoolClassRepository schoolClassRepository,
+            EnrollmentRepository enrollmentRepository,
+            ClassTeacherAssignmentRepository assignmentRepository,
+            AchievementService achievementService) {
+        this(objectMapper, exerciseRepository, submissionRepository, teacherRepository,
+             studentRepository, schoolClassRepository, enrollmentRepository, assignmentRepository,
+             achievementService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public LearningExerciseService(
+            ObjectMapper objectMapper,
+            LearningExerciseRepository exerciseRepository,
+            ExerciseSubmissionRepository submissionRepository,
+            TeacherRepository teacherRepository,
+            StudentRepository studentRepository,
+            SchoolClassRepository schoolClassRepository,
+            EnrollmentRepository enrollmentRepository,
+            ClassTeacherAssignmentRepository assignmentRepository,
+            AchievementService achievementService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) SseEmitterService sseEmitterService) {
+        this.objectMapper = objectMapper;
+        this.exerciseRepository = exerciseRepository;
+        this.submissionRepository = submissionRepository;
+        this.teacherRepository = teacherRepository;
+        this.studentRepository = studentRepository;
+        this.schoolClassRepository = schoolClassRepository;
+        this.enrollmentRepository = enrollmentRepository;
+        this.assignmentRepository = assignmentRepository;
+        this.achievementService = achievementService;
+        this.sseEmitterService = sseEmitterService;
+    }
 
     @Transactional(readOnly = true)
     public List<LearningExerciseResponseDTO> findForStudent(String email) {
@@ -183,7 +223,9 @@ public class LearningExerciseService {
         exercise.setTeacher(teacher);
         exercise.setQuestionsJson(writeJson(questions == null ? List.of() : questions));
         exercise.setCreatedAt(Instant.now());
-        return toExerciseResponse(exerciseRepository.save(exercise), true);
+        LearningExercise saved = exerciseRepository.save(exercise);
+        notifyStudentsNewExercise(saved);
+        return toExerciseResponse(saved, true);
     }
 
     @Transactional
@@ -294,6 +336,7 @@ public class LearningExerciseService {
             studentRepository.save(student);
         }
         achievementService.evaluateAutoAchievements(student);
+        notifyExerciseSubmitted(submission, xpDelta);
         return toSubmissionResponse(submission);
     }
 
@@ -640,6 +683,7 @@ public class LearningExerciseService {
         submission.setReviewedAt(Instant.now());
         ExerciseSubmission saved = submissionRepository.save(submission);
         achievementService.evaluateAutoAchievements(saved.getStudent());
+        notifySubmissionReviewed(saved);
         return toSubmissionResponse(saved);
     }
 
@@ -761,6 +805,91 @@ public class LearningExerciseService {
 
     private static String clean(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void notifyStudentsNewExercise(LearningExercise exercise) {
+        if (exercise == null || exercise.getSchoolClass() == null || sseEmitterService == null) return;
+        try {
+            var enrollments = enrollmentRepository.findBySchoolClassIdAndStatusOrderByEnrollmentDateAsc(
+                exercise.getSchoolClass().getId(), EnrollmentStatus.ACTIVE);
+            List<Long> studentIds = enrollments.stream()
+                .map(e -> e.getStudent().getId())
+                .distinct()
+                .toList();
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("exerciseId", exercise.getId());
+            data.put("classId", exercise.getSchoolClass().getId());
+            data.put("title", exercise.getTitle());
+            data.put("language", exercise.getLanguageName());
+            data.put("proficiencyLevel", exercise.getProficiencyLevel());
+
+            sseEmitterService.sendToUsers(studentIds, "EXERCISE_CREATED", data);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void notifyExerciseSubmitted(ExerciseSubmission submission, int xpDelta) {
+        if (submission == null || sseEmitterService == null) return;
+        try {
+            LearningExercise ex = submission.getExercise();
+            if (ex != null && ex.getTeacher() != null) {
+                Map<String, Object> teacherData = new HashMap<>();
+                teacherData.put("submissionId", submission.getId());
+                teacherData.put("exerciseId", ex.getId());
+                teacherData.put("exerciseTitle", ex.getTitle());
+                teacherData.put("studentId", submission.getStudent().getId());
+                teacherData.put("studentName", submission.getStudent().getName());
+                teacherData.put("reviewStatus", submission.getReviewStatus());
+                teacherData.put("xpEarned", submission.getXpEarned());
+
+                sseEmitterService.sendToUser(ex.getTeacher().getId(), "EXERCISE_SUBMITTED", teacherData);
+            }
+
+            if (submission.getStudent() != null) {
+                Map<String, Object> rankData = new HashMap<>();
+                rankData.put("studentId", submission.getStudent().getId());
+                rankData.put("xpDelta", xpDelta);
+                if (ex != null && ex.getSchoolClass() != null) {
+                    rankData.put("classId", ex.getSchoolClass().getId());
+                }
+
+                sseEmitterService.sendToUser(submission.getStudent().getId(), "RANKING_UPDATED", rankData);
+
+                if (ex != null && ex.getSchoolClass() != null) {
+                    var peers = enrollmentRepository.findBySchoolClassIdAndStatusOrderByEnrollmentDateAsc(
+                        ex.getSchoolClass().getId(), EnrollmentStatus.ACTIVE);
+                    List<Long> peerIds = peers.stream()
+                        .map(e -> e.getStudent().getId())
+                        .distinct()
+                        .toList();
+                    sseEmitterService.sendToUsers(peerIds, "RANKING_UPDATED", rankData);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void notifySubmissionReviewed(ExerciseSubmission submission) {
+        if (submission == null || sseEmitterService == null || submission.getStudent() == null) return;
+        try {
+            Map<String, Object> studentData = new HashMap<>();
+            studentData.put("submissionId", submission.getId());
+            studentData.put("exerciseId", submission.getExercise() != null ? submission.getExercise().getId() : null);
+            studentData.put("exerciseTitle", submission.getExercise() != null ? submission.getExercise().getTitle() : "");
+            studentData.put("reviewStatus", submission.getReviewStatus());
+            studentData.put("feedback", submission.getFeedback() != null ? submission.getFeedback() : "");
+            studentData.put("correctCount", submission.getCorrectCount());
+            studentData.put("questionCount", submission.getQuestionCount());
+            studentData.put("xpEarned", submission.getXpEarned());
+
+            sseEmitterService.sendToUser(submission.getStudent().getId(), "SUBMISSION_GRADED", studentData);
+            sseEmitterService.sendToUser(submission.getStudent().getId(), "RANKING_UPDATED", Map.of(
+                "studentId", submission.getStudent().getId(),
+                "xpEarned", submission.getXpEarned()
+            ));
+        } catch (Exception ignored) {
+        }
     }
 
     private static String normalize(String value) {

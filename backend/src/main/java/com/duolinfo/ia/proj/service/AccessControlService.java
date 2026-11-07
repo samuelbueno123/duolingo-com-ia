@@ -9,7 +9,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.duolinfo.ia.proj.entity.ClassTeacherAssignment;
 import com.duolinfo.ia.proj.entity.Enrollment;
+import com.duolinfo.ia.proj.entity.School;
 import com.duolinfo.ia.proj.entity.SchoolClass;
 import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.entity.Teacher;
@@ -17,6 +19,7 @@ import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.repository.ClassTeacherAssignmentRepository;
 import com.duolinfo.ia.proj.repository.EnrollmentRepository;
 import com.duolinfo.ia.proj.repository.SchoolClassRepository;
+import com.duolinfo.ia.proj.repository.SchoolRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
 import com.duolinfo.ia.proj.repository.TeacherRepository;
 import com.duolinfo.ia.proj.repository.UserRepository;
@@ -30,6 +33,7 @@ public class AccessControlService {
     private final SchoolClassRepository schoolClassRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final ClassTeacherAssignmentRepository assignmentRepository;
+    private final SchoolRepository schoolRepository;
 
     public AccessControlService(
             UserRepository userRepository,
@@ -38,12 +42,26 @@ public class AccessControlService {
             SchoolClassRepository schoolClassRepository,
             EnrollmentRepository enrollmentRepository,
             ClassTeacherAssignmentRepository assignmentRepository) {
+        this(userRepository, studentRepository, teacherRepository, schoolClassRepository,
+             enrollmentRepository, assignmentRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AccessControlService(
+            UserRepository userRepository,
+            StudentRepository studentRepository,
+            TeacherRepository teacherRepository,
+            SchoolClassRepository schoolClassRepository,
+            EnrollmentRepository enrollmentRepository,
+            ClassTeacherAssignmentRepository assignmentRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) SchoolRepository schoolRepository) {
         this.userRepository = userRepository;
         this.studentRepository = studentRepository;
         this.teacherRepository = teacherRepository;
         this.schoolClassRepository = schoolClassRepository;
         this.enrollmentRepository = enrollmentRepository;
         this.assignmentRepository = assignmentRepository;
+        this.schoolRepository = schoolRepository;
     }
 
     public Optional<User> getCurrentUser() {
@@ -244,6 +262,22 @@ public class AccessControlService {
         );
     }
 
+    public void assertCanReadTeacher(Teacher targetTeacher) {
+        User current = getCurrentUserOrThrow();
+        if (current.isSuperAdmin() || Objects.equals(current.getId(), targetTeacher.getId())) {
+            return;
+        }
+        Long userInstId = getUserInstitutionId(current);
+        Long teacherInstId = targetTeacher.getInstitution() != null ? targetTeacher.getInstitution().getId() : null;
+        if (userInstId != null && teacherInstId != null && Objects.equals(userInstId, teacherInstId)) {
+            return;
+        }
+        throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Acesso negado aos dados deste professor."
+        );
+    }
+
     public boolean canTeacherAccessClass(Teacher teacher, SchoolClass schoolClass) {
         if (teacher == null || schoolClass == null) {
             return false;
@@ -340,6 +374,74 @@ public class AccessControlService {
         throw new ResponseStatusException(
                 HttpStatus.FORBIDDEN,
                 "Acesso negado a esta matrícula."
+        );
+    }
+
+    public void assertCanManageInstitution(Long institutionId) {
+        User current = getCurrentUserOrThrow();
+        if (current.isSuperAdmin()) {
+            return;
+        }
+        if (institutionId != null && isInstitutionAdminFor(current, institutionId)) {
+            return;
+        }
+        throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Acesso negado: apenas administradores desta instituição ou administrador geral podem gerenciá-la."
+        );
+    }
+
+    public void assertCanManageSchool(Long schoolId) {
+        User current = getCurrentUserOrThrow();
+        if (current.isSuperAdmin() || schoolRepository == null) {
+            return;
+        }
+        School school = schoolRepository.findById(schoolId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Escola não encontrada."));
+        Long instId = school.getInstitution() != null ? school.getInstitution().getId() : null;
+        if (instId != null && isInstitutionAdminFor(current, instId)) {
+            return;
+        }
+        throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Acesso negado: você não tem permissão para gerenciar escolas desta instituição."
+        );
+    }
+
+    public void assertCanViewSchool(Long schoolId) {
+        User current = getCurrentUserOrThrow();
+        if (current.isSuperAdmin() || schoolRepository == null) {
+            return;
+        }
+        School school = schoolRepository.findById(schoolId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Escola não encontrada."));
+        Long userInstId = getUserInstitutionId(current);
+        Long schoolInstId = school.getInstitution() != null ? school.getInstitution().getId() : null;
+        if (userInstId != null && schoolInstId != null && Objects.equals(userInstId, schoolInstId)) {
+            return;
+        }
+        throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Acesso negado a esta escola."
+        );
+    }
+
+    public void assertCanViewTeacherAssignments(Long teacherId) {
+        User current = getCurrentUserOrThrow();
+        if (current.isSuperAdmin() || Objects.equals(current.getId(), teacherId)) {
+            return;
+        }
+        Teacher targetTeacher = teacherRepository.findById(teacherId).orElse(null);
+        if (targetTeacher != null) {
+            Long currentInstId = getUserInstitutionId(current);
+            Long teacherInstId = targetTeacher.getInstitution() != null ? targetTeacher.getInstitution().getId() : null;
+            if (currentInstId != null && Objects.equals(currentInstId, teacherInstId) && isTeacher(current)) {
+                return;
+            }
+        }
+        throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Acesso negado às atribuições deste professor."
         );
     }
 }

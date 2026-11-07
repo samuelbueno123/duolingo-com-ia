@@ -76,6 +76,48 @@ import com.duolinfo.ia.proj.service.ProfilePictureStorageService;
 import com.duolinfo.ia.proj.service.StudentService;
 import com.duolinfo.ia.proj.service.TeacherService;
 import com.duolinfo.ia.proj.service.UserService;
+import com.duolinfo.ia.proj.service.SpacedRepetitionService;
+import com.duolinfo.ia.proj.service.AiConversationService;
+import com.duolinfo.ia.proj.service.PronunciationService;
+import com.duolinfo.ia.proj.service.CommunityReviewService;
+import com.duolinfo.ia.proj.service.LearningPathService;
+import com.duolinfo.ia.proj.dto.srs.SpacedReviewAnswerDTO;
+import com.duolinfo.ia.proj.dto.srs.SpacedReviewItemResponseDTO;
+import com.duolinfo.ia.proj.dto.ai.AiConversationStartDTO;
+import com.duolinfo.ia.proj.dto.ai.AiConversationMessageRequestDTO;
+import com.duolinfo.ia.proj.dto.ai.AiConversationSessionResponseDTO;
+import com.duolinfo.ia.proj.dto.pronunciation.PronunciationEvaluationRequestDTO;
+import com.duolinfo.ia.proj.dto.pronunciation.PronunciationEvaluationResponseDTO;
+import com.duolinfo.ia.proj.dto.community.CommunitySubmissionRequestDTO;
+import com.duolinfo.ia.proj.dto.community.CommunitySubmissionResponseDTO;
+import com.duolinfo.ia.proj.dto.community.CommunityReviewRequestDTO;
+import com.duolinfo.ia.proj.dto.community.CommunityReviewResponseDTO;
+import com.duolinfo.ia.proj.dto.learningpath.DiagnosticAnswerDTO;
+import com.duolinfo.ia.proj.dto.learningpath.DiagnosticResultDTO;
+import com.duolinfo.ia.proj.dto.learningpath.LearningGoalUpdateDTO;
+import com.duolinfo.ia.proj.dto.learningpath.LearningPathDTO;
+import com.duolinfo.ia.proj.entity.SpacedReviewItem;
+import com.duolinfo.ia.proj.entity.AiConversationSession;
+import com.duolinfo.ia.proj.entity.AiConversationMessage;
+import com.duolinfo.ia.proj.entity.PronunciationChallenge;
+import com.duolinfo.ia.proj.entity.PronunciationAttempt;
+import com.duolinfo.ia.proj.entity.CommunitySubmission;
+import com.duolinfo.ia.proj.entity.CommunityReview;
+import com.duolinfo.ia.proj.entity.StudentLearningPath;
+import com.duolinfo.ia.proj.entity.LearningPathModule;
+import com.duolinfo.ia.proj.repository.SpacedReviewItemRepository;
+import com.duolinfo.ia.proj.repository.AiConversationSessionRepository;
+import com.duolinfo.ia.proj.repository.AiConversationMessageRepository;
+import com.duolinfo.ia.proj.repository.PronunciationChallengeRepository;
+import com.duolinfo.ia.proj.repository.PronunciationAttemptRepository;
+import com.duolinfo.ia.proj.repository.CommunitySubmissionRepository;
+import com.duolinfo.ia.proj.repository.CommunityReviewRepository;
+import com.duolinfo.ia.proj.repository.CommunityReportRepository;
+import com.duolinfo.ia.proj.repository.StudentLearningPathRepository;
+import com.duolinfo.ia.proj.repository.LearningPathModuleRepository;
+import com.duolinfo.ia.proj.repository.StudentModuleProgressRepository;
+import com.duolinfo.ia.proj.repository.StudentLanguageRepository;
+import com.duolinfo.ia.proj.repository.SchoolRepository;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -503,5 +545,286 @@ class SecurityAndLearningTests {
         assertEquals(1, parsed.size());
         assertEquals("Objetiva", parsed.get(0).style());
         assertEquals("am", parsed.get(0).correctAnswer());
+    }
+
+    @Test
+    void accessControlBlocksCrossInstitutionSchoolAndClassManagement() {
+        UserRepository userRepository = mock(UserRepository.class);
+        TeacherRepository teacherRepository = mock(TeacherRepository.class);
+        StudentRepository studentRepository = mock(StudentRepository.class);
+        SchoolClassRepository schoolClassRepository = mock(SchoolClassRepository.class);
+        EnrollmentRepository enrollmentRepository = mock(EnrollmentRepository.class);
+        ClassTeacherAssignmentRepository assignmentRepository = mock(ClassTeacherAssignmentRepository.class);
+        SchoolRepository schoolRepository = mock(SchoolRepository.class);
+
+        Institution inst1 = new Institution(); inst1.setId(10L);
+        Institution inst2 = new Institution(); inst2.setId(20L);
+
+        Teacher teacherInst1 = new Teacher();
+        teacherInst1.setId(1L);
+        teacherInst1.setEmail("prof@inst1.com");
+        teacherInst1.setInstitution(inst1);
+        teacherInst1.setInstitutionAdmin(false);
+
+        School schoolInst2 = new School();
+        schoolInst2.setId(200L);
+        schoolInst2.setInstitution(inst2);
+
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("prof@inst1.com", null, List.of(new SimpleGrantedAuthority("ROLE_TEACHER")))
+        );
+
+        when(userRepository.findByEmailIgnoreCase("prof@inst1.com")).thenReturn(Optional.of(teacherInst1));
+        when(teacherRepository.findByEmailIgnoreCase("prof@inst1.com")).thenReturn(Optional.of(teacherInst1));
+        when(schoolRepository.findById(200L)).thenReturn(Optional.of(schoolInst2));
+
+        AccessControlService acs = new AccessControlService(
+                userRepository,
+                studentRepository,
+                teacherRepository,
+                schoolClassRepository,
+                enrollmentRepository,
+                assignmentRepository,
+                schoolRepository
+        );
+
+        // Teacher from institution 1 cannot manage school from institution 2 -> 403 FORBIDDEN
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                acs.assertCanManageSchool(200L)
+        );
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+    }
+
+    @Test
+    void spacedRepetitionCalculatesSm2IntervalsCorrectly() {
+        SpacedReviewItemRepository itemRepository = mock(SpacedReviewItemRepository.class);
+        StudentRepository studentRepository = mock(StudentRepository.class);
+
+        Student student = new Student();
+        student.setId(5L);
+        student.setEmail("aluno@teste.com");
+
+        SpacedReviewItem item = SpacedReviewItem.builder()
+                .id(100L)
+                .student(student)
+                .languageName("Inglês")
+                .term("to look forward to")
+                .translation("esperar ansiosamente por")
+                .repetitionNumber(0)
+                .intervalDays(1)
+                .easeFactor(2.5)
+                .lapseCount(0)
+                .dueDate(java.time.LocalDate.now())
+                .build();
+
+        when(studentRepository.findByEmailIgnoreCase("aluno@teste.com")).thenReturn(Optional.of(student));
+        when(itemRepository.findByIdAndStudent_Id(100L, 5L)).thenReturn(Optional.of(item));
+        when(itemRepository.save(any(SpacedReviewItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SpacedRepetitionService srs = new SpacedRepetitionService(itemRepository, studentRepository);
+
+        // 1st review with quality 5 (Perfect)
+        SpacedReviewItemResponseDTO r1 = srs.reviewItem("aluno@teste.com", 100L, new SpacedReviewAnswerDTO(5));
+        assertEquals(1, r1.repetitionNumber());
+        assertEquals(1, r1.intervalDays());
+        assertTrue(r1.easeFactor() >= 2.5);
+
+        // 2nd review with quality 4 (Good)
+        SpacedReviewItemResponseDTO r2 = srs.reviewItem("aluno@teste.com", 100L, new SpacedReviewAnswerDTO(4));
+        assertEquals(2, r2.repetitionNumber());
+        assertEquals(6, r2.intervalDays());
+
+        // 3rd review with quality 0 (Blackout) -> resets repetition number and interval
+        SpacedReviewItemResponseDTO r3 = srs.reviewItem("aluno@teste.com", 100L, new SpacedReviewAnswerDTO(0));
+        assertEquals(0, r3.repetitionNumber());
+        assertEquals(1, r3.intervalDays());
+        assertEquals(1, r3.lapseCount());
+    }
+
+    @Test
+    void aiConversationDetectsGrammarMistakesAndProvidesCorrection() {
+        AiConversationSessionRepository sessionRepo = mock(AiConversationSessionRepository.class);
+        AiConversationMessageRepository messageRepo = mock(AiConversationMessageRepository.class);
+        StudentRepository studentRepo = mock(StudentRepository.class);
+        StudentLanguageRepository slRepo = mock(StudentLanguageRepository.class);
+
+        Student student = new Student();
+        student.setId(10L);
+        student.setEmail("user@test.com");
+
+        AiConversationSession session = AiConversationSession.builder()
+                .id(1L)
+                .studentId(10L)
+                .scenarioCode("coffee_shop")
+                .scenarioTitle("Café da Manhã")
+                .targetLanguage("Inglês")
+                .cefrLevel("A1")
+                .personaRole("Barista")
+                .active(true)
+                .totalTurns(0)
+                .grammarCorrectionsCount(0)
+                .build();
+
+        when(sessionRepo.findById(1L)).thenReturn(Optional.of(session));
+        when(sessionRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(messageRepo.save(any())).thenAnswer(i -> {
+            AiConversationMessage m = i.getArgument(0);
+            m.setId(99L);
+            return m;
+        });
+        when(messageRepo.findBySessionIdOrderByTimestampAsc(1L)).thenReturn(List.of());
+
+        AiConversationService service = new AiConversationService(
+                sessionRepo, messageRepo, studentRepo, slRepo, objectMapper,
+                "", "", "" // unconfigured API key tests robust intelligent fallback engine
+        );
+
+        // Student says "i have 20 years" (classic Portuguese interference mistake)
+        AiConversationSessionResponseDTO response = service.sendMessage(
+                10L, 1L, new AiConversationMessageRequestDTO("i have 20 years", null)
+        );
+
+        ArgumentCaptor<AiConversationMessage> captor = ArgumentCaptor.forClass(AiConversationMessage.class);
+        verify(messageRepo, org.mockito.Mockito.atLeastOnce()).save(captor.capture());
+
+        List<AiConversationMessage> savedMessages = captor.getAllValues();
+        AiConversationMessage userSaved = savedMessages.stream().filter(m -> "USER".equals(m.getSender())).findFirst().orElseThrow();
+
+        assertTrue(userSaved.getHasGrammarIssues());
+        assertNotNull(userSaved.getGrammarCorrection());
+        assertTrue(userSaved.getGrammarCorrection().contains("years old"));
+        assertTrue(userSaved.getExplanation().contains("to be"));
+        assertEquals(1, session.getGrammarCorrectionsCount());
+    }
+
+    @Test
+    void pronunciationServiceEvaluatesSpeechPhonetically() {
+        PronunciationChallengeRepository challengeRepo = mock(PronunciationChallengeRepository.class);
+        PronunciationAttemptRepository attemptRepo = mock(PronunciationAttemptRepository.class);
+        StudentRepository studentRepo = mock(StudentRepository.class);
+        StudentLanguageRepository slRepo = mock(StudentLanguageRepository.class);
+
+        PronunciationChallenge challenge = PronunciationChallenge.builder()
+                .id(1L)
+                .language("Inglês")
+                .cefrLevel("A1")
+                .category("Cumprimentos")
+                .phraseText("Good morning, nice to meet you!")
+                .phoneticTips("Ligue as palavras com suavidade.")
+                .build();
+
+        when(challengeRepo.findById(1L)).thenReturn(Optional.of(challenge));
+        when(attemptRepo.save(any())).thenAnswer(i -> {
+            PronunciationAttempt a = i.getArgument(0);
+            a.setId(10L);
+            return a;
+        });
+
+        PronunciationService service = new PronunciationService(challengeRepo, attemptRepo, studentRepo, slRepo, objectMapper);
+
+        // Test near-perfect speech
+        PronunciationEvaluationResponseDTO result = service.evaluateAttempt(
+                5L, new PronunciationEvaluationRequestDTO(1L, "Good morning nice to meet you")
+        );
+
+        assertTrue(result.accuracyScore() >= 95.0);
+        assertTrue(result.completenessScore() >= 95.0);
+        assertTrue(result.finalScore() >= 90.0);
+        assertEquals(15, result.xpEarned());
+        assertTrue(result.feedbackSummary().contains("fantástica") || result.feedbackSummary().contains("excelente"));
+    }
+
+    @Test
+    void communityPeerReviewWorkflowEnforcesIntegrity() {
+        CommunitySubmissionRepository subRepo = mock(CommunitySubmissionRepository.class);
+        CommunityReviewRepository reviewRepo = mock(CommunityReviewRepository.class);
+        CommunityReportRepository reportRepo = mock(CommunityReportRepository.class);
+        StudentRepository studentRepo = mock(StudentRepository.class);
+        StudentLanguageRepository slRepo = mock(StudentLanguageRepository.class);
+
+        Student author = new Student();
+        author.setId(1L);
+        author.setName("Autor");
+
+        Student reviewer = new Student();
+        reviewer.setId(2L);
+        reviewer.setName("Revisor Fluente");
+
+        CommunitySubmission sub = CommunitySubmission.builder()
+                .id(50L)
+                .authorStudentId(1L)
+                .authorName("Autor")
+                .language("Inglês")
+                .promptTitle("Meu café da manhã")
+                .content("I eat bread and coffee.")
+                .reviewCount(0)
+                .status("PENDING_REVIEW")
+                .build();
+
+        when(subRepo.findById(50L)).thenReturn(Optional.of(sub));
+        when(studentRepo.findById(1L)).thenReturn(Optional.of(author));
+        when(studentRepo.findById(2L)).thenReturn(Optional.of(reviewer));
+        when(reviewRepo.existsBySubmissionIdAndReviewerStudentId(50L, 2L)).thenReturn(false);
+        when(reviewRepo.save(any())).thenAnswer(i -> {
+            CommunityReview r = i.getArgument(0);
+            r.setId(500L);
+            return r;
+        });
+
+        CommunityReviewService service = new CommunityReviewService(subRepo, reviewRepo, reportRepo, studentRepo, slRepo);
+
+        // Author cannot review own submission -> 400 Bad Request
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                service.addReview(1L, new CommunityReviewRequestDTO(50L, "Muito bom", "I have bread and coffee", "Use have", 5))
+        );
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+
+        // Peer submits review
+        CommunityReviewResponseDTO review = service.addReview(
+                2L, new CommunityReviewRequestDTO(50L, "Boa frase!", "I usually have bread and coffee for breakfast.", "Nativos dizem 'have breakfast'", 5)
+        );
+        assertNotNull(review);
+        assertEquals(1, sub.getReviewCount());
+        assertEquals("REVIEWED", sub.getStatus());
+    }
+
+    @Test
+    void learningPathDiagnosticScoresCorrectlyAndUnlocksModules() {
+        StudentLearningPathRepository pathRepo = mock(StudentLearningPathRepository.class);
+        LearningPathModuleRepository moduleRepo = mock(LearningPathModuleRepository.class);
+        StudentModuleProgressRepository progressRepo = mock(StudentModuleProgressRepository.class);
+        StudentRepository studentRepo = mock(StudentRepository.class);
+        StudentLanguageRepository slRepo = mock(StudentLanguageRepository.class);
+
+        when(pathRepo.findByStudentIdAndLanguageIgnoreCase(7L, "Inglês")).thenReturn(Optional.empty());
+        when(pathRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        LearningPathModule m1 = LearningPathModule.builder().id(1L).language("Inglês").cefrLevel("A1").moduleOrder(1).title("M1").build();
+        LearningPathModule m2 = LearningPathModule.builder().id(2L).language("Inglês").cefrLevel("A2").moduleOrder(2).title("M2").build();
+        LearningPathModule m3 = LearningPathModule.builder().id(3L).language("Inglês").cefrLevel("B1").moduleOrder(3).title("M3").build();
+        LearningPathModule m4 = LearningPathModule.builder().id(4L).language("Inglês").cefrLevel("B2").moduleOrder(4).title("M4").build();
+
+        when(moduleRepo.findByLanguageIgnoreCaseOrderByModuleOrderAsc("Inglês")).thenReturn(List.of(m1, m2, m3, m4));
+        when(progressRepo.findByStudentIdAndModuleId(eq(7L), any())).thenReturn(Optional.empty());
+
+        LearningPathService service = new LearningPathService(pathRepo, moduleRepo, progressRepo, studentRepo, slRepo);
+
+        // Answer 8 questions correctly (100%) -> should determine level B2
+        Map<Integer, Integer> answers = Map.of(
+                1, 1,
+                2, 0,
+                3, 1,
+                4, 1,
+                5, 1,
+                6, 1,
+                7, 0,
+                8, 1
+        );
+
+        DiagnosticResultDTO result = service.submitDiagnostic(7L, new DiagnosticAnswerDTO("Inglês", answers));
+        assertEquals("B2", result.determinedCefrLevel());
+        assertEquals(8, result.correctCount());
+        assertEquals(100.0, result.scorePercentage());
+        assertTrue(result.diagnosticSummary().contains("B2"));
     }
 }

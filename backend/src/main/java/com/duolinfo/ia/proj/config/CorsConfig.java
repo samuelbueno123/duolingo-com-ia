@@ -27,17 +27,25 @@ public class CorsConfig {
 				.toList();
 
 		if (origins.contains("*")) {
-			configuration.setAllowedOriginPatterns(List.of("*"));
-		} else {
-			// Permite origens explicitamente configuradas e também origens de rede local/IP para acesso mobile
+			// Wildcard origin cannot be used with credentials in secure CORS
 			configuration.setAllowedOriginPatterns(List.of(
-					"*",
 					"http://localhost:*",
 					"http://127.0.0.1:*",
 					"http://192.168.*.*:*",
 					"http://10.*.*.*:*",
 					"http://172.*.*.*:*"
 			));
+		} else {
+			// Permite origens explicitamente configuradas e origens locais seguras para desenvolvimento e mobile
+			List<String> patterns = new java.util.ArrayList<>(origins);
+			patterns.addAll(List.of(
+					"http://localhost:*",
+					"http://127.0.0.1:*",
+					"http://192.168.*.*:*",
+					"http://10.*.*.*:*",
+					"http://172.*.*.*:*"
+			));
+			configuration.setAllowedOriginPatterns(patterns.stream().distinct().toList());
 		}
 
 		configuration.setAllowedMethods(

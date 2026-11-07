@@ -2,7 +2,9 @@ package com.duolinfo.ia.proj.controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -13,11 +15,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.dto.request.InstitutionRequestDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionResponseDTO;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.mapper.RequestMapper;
+import com.duolinfo.ia.proj.service.AccessControlService;
 import com.duolinfo.ia.proj.service.InstitutionService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,6 +38,9 @@ public class InstitutionController {
 
     private final InstitutionService institutionService;
 
+    @Autowired(required = false)
+    private AccessControlService accessControlService;
+
     public InstitutionController(
             InstitutionService institutionService) {
 
@@ -42,10 +49,19 @@ public class InstitutionController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Cria instituição")
     public InstitutionResponseDTO create(
             @Valid @RequestBody InstitutionRequestDTO request) {
-
+        if (accessControlService != null) {
+            var current = accessControlService.getCurrentUserOrThrow();
+            if (!current.isSuperAdmin()) {
+                throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Apenas o administrador geral pode criar instituições diretamente. Solicite pelo formulário público de instituições."
+                );
+            }
+        }
         return DtoMapper.toInstitutionResponse(
             institutionService.create(RequestMapper.toInstitution(request))
         );
@@ -125,11 +141,14 @@ public class InstitutionController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Atualiza instituição")
     public InstitutionResponseDTO update(
             @PathVariable Long id,
             @Valid @RequestBody InstitutionRequestDTO request) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageInstitution(id);
+        }
         return DtoMapper.toInstitutionResponse(
             institutionService.update(
                 id,
@@ -139,20 +158,26 @@ public class InstitutionController {
     }
 
     @PatchMapping("/{id}/activate")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Ativa instituição")
     public InstitutionResponseDTO activate(
             @PathVariable Long id) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageInstitution(id);
+        }
         return DtoMapper.toInstitutionResponse(
             institutionService.activate(id)
         );
     }
 
     @PatchMapping("/{id}/deactivate")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Desativa instituição")
     public InstitutionResponseDTO deactivate(
             @PathVariable Long id) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageInstitution(id);
+        }
         return DtoMapper.toInstitutionResponse(
             institutionService.deactivate(id)
         );
@@ -160,11 +185,19 @@ public class InstitutionController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Exclui instituição")
     public void delete(
             @PathVariable Long id) {
-
+        if (accessControlService != null) {
+            var current = accessControlService.getCurrentUserOrThrow();
+            if (!current.isSuperAdmin()) {
+                throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Apenas o administrador geral pode excluir instituições do sistema."
+                );
+            }
+        }
         institutionService.delete(id);
     }
-
 }

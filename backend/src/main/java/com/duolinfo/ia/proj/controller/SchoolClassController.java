@@ -71,7 +71,9 @@ public class SchoolClassController {
     public SchoolClassResponseDTO create(
             @PathVariable Long schoolId,
             @Valid @RequestBody SchoolClassRequestDTO request) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchool(schoolId);
+        }
         return DtoMapper.toSchoolClassResponse(
             schoolClassService.create(
                 schoolId,

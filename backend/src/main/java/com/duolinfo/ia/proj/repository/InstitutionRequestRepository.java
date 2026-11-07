@@ -15,4 +15,8 @@ public interface InstitutionRequestRepository extends JpaRepository<InstitutionR
     List<InstitutionRequest> findByStatusOrderByCreatedAtDesc(Status status);
 
     Optional<InstitutionRequest> findByIdAndStatus(Long id, Status status);
+
+    boolean existsByRequesterEmailIgnoreCaseAndStatus(String requesterEmail, Status status);
+
+    boolean existsByRequesterEmailIgnoreCaseAndRequestedNameIgnoreCaseAndStatus(String requesterEmail, String requestedName, Status status);
 }

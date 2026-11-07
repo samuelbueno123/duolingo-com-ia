@@ -203,6 +203,10 @@ public class EnrollmentController {
             @Valid @RequestBody EnrollmentTransferDTO request) {
         if (accessControlService != null) {
             accessControlService.assertCanManageSchoolClass(request.newSchoolClassId());
+            if (studentService != null) {
+                Student student = studentService.findById(studentId);
+                accessControlService.assertCanModifyStudent(student);
+            }
         }
         return DtoMapper.toEnrollmentResponse(
             enrollmentService.transfer(

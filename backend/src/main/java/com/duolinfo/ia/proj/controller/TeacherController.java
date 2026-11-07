@@ -1,6 +1,7 @@
 package com.duolinfo.ia.proj.controller;
 
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,7 @@ import com.duolinfo.ia.proj.dto.request.TeacherRequestDTO;
 import com.duolinfo.ia.proj.dto.response.ClassTeacherAssignmentResponseDTO;
 import com.duolinfo.ia.proj.dto.response.TeacherResponseDTO;
 import com.duolinfo.ia.proj.entity.Teacher;
+import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.mapper.RequestMapper;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
@@ -78,8 +80,7 @@ public class TeacherController {
     @GetMapping
     @Operation(summary = "Lista professores")
     public List<TeacherResponseDTO> listAll() {
-
-        return teacherService.findAll()
+        return filterTeachersForCaller(teacherService.findAll())
             .stream()
             .map(DtoMapper::toTeacherResponse)
             .toList();
@@ -99,36 +100,40 @@ public class TeacherController {
     @Operation(summary = "Busca professor por ID")
     public TeacherResponseDTO findById(
             @PathVariable Long id) {
-
-        return DtoMapper.toTeacherResponse(teacherService.findById(id));
+        Teacher teacher = teacherService.findById(id);
+        if (accessControlService != null) {
+            accessControlService.assertCanReadTeacher(teacher);
+        }
+        return DtoMapper.toTeacherResponse(teacher);
     }
 
     @GetMapping("/google/{googleId}")
     @Operation(summary = "Busca professor por Google ID")
     public TeacherResponseDTO findByGoogleId(
             @PathVariable String googleId) {
-
-        return DtoMapper.toTeacherResponse(
-            requireTeacher(teacherService.findByGoogleId(googleId))
-        );
+        Teacher teacher = requireTeacher(teacherService.findByGoogleId(googleId));
+        if (accessControlService != null) {
+            accessControlService.assertCanReadTeacher(teacher);
+        }
+        return DtoMapper.toTeacherResponse(teacher);
     }
 
     @GetMapping("/email/{email}")
     @Operation(summary = "Busca professor por email")
     public TeacherResponseDTO findByEmail(
             @PathVariable String email) {
-
-        return DtoMapper.toTeacherResponse(
-            requireTeacher(teacherService.findByEmail(email))
-        );
+        Teacher teacher = requireTeacher(teacherService.findByEmail(email));
+        if (accessControlService != null) {
+            accessControlService.assertCanReadTeacher(teacher);
+        }
+        return DtoMapper.toTeacherResponse(teacher);
     }
 
     @GetMapping("/name/{name}")
     @Operation(summary = "Busca professores por nome")
     public List<TeacherResponseDTO> findByName(
             @PathVariable String name) {
-
-        return teacherService.findByName(name)
+        return filterTeachersForCaller(teacherService.findByName(name))
             .stream()
             .map(DtoMapper::toTeacherResponse)
             .toList();
@@ -138,8 +143,7 @@ public class TeacherController {
     @Operation(summary = "Busca professores pelo nome da instituição")
     public List<TeacherResponseDTO> findByInstitution(
             @PathVariable String institution) {
-
-        return teacherService.findByInstitution(institution)
+        return filterTeachersForCaller(teacherService.findByInstitution(institution))
             .stream()
             .map(DtoMapper::toTeacherResponse)
             .toList();
@@ -149,7 +153,15 @@ public class TeacherController {
     @Operation(summary = "Lista professores da instituição")
     public List<TeacherResponseDTO> findByInstitutionId(
             @PathVariable Long institutionId) {
-
+        if (accessControlService != null) {
+            var current = accessControlService.getCurrentUserOrThrow();
+            if (!current.isSuperAdmin()) {
+                Long userInstId = accessControlService.getUserInstitutionId(current);
+                if (userInstId != null && !Objects.equals(userInstId, institutionId)) {
+                    return List.of();
+                }
+            }
+        }
         return teacherService.findByInstitutionId(institutionId)
             .stream()
             .map(DtoMapper::toTeacherResponse)
@@ -161,7 +173,15 @@ public class TeacherController {
     public List<TeacherResponseDTO> findByTaughtLanguage(
             @PathVariable Long institutionId,
             @PathVariable String language) {
-
+        if (accessControlService != null) {
+            var current = accessControlService.getCurrentUserOrThrow();
+            if (!current.isSuperAdmin()) {
+                Long userInstId = accessControlService.getUserInstitutionId(current);
+                if (userInstId != null && !Objects.equals(userInstId, institutionId)) {
+                    return List.of();
+                }
+            }
+        }
         return teacherService.findByTaughtLanguage(
                 institutionId,
                 language
@@ -178,7 +198,15 @@ public class TeacherController {
     public List<TeacherResponseDTO> findBySpecializationArea(
             @PathVariable Long institutionId,
             @PathVariable String specializationArea) {
-
+        if (accessControlService != null) {
+            var current = accessControlService.getCurrentUserOrThrow();
+            if (!current.isSuperAdmin()) {
+                Long userInstId = accessControlService.getUserInstitutionId(current);
+                if (userInstId != null && !Objects.equals(userInstId, institutionId)) {
+                    return List.of();
+                }
+            }
+        }
         return teacherService.findBySpecializationArea(
                 institutionId,
                 specializationArea
@@ -193,7 +221,9 @@ public class TeacherController {
     public List<ClassTeacherAssignmentResponseDTO>
         findClassAssignments(
             @PathVariable Long teacherId) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanViewTeacherAssignments(teacherId);
+        }
         return teacherService.findClassAssignments(teacherId)
             .stream()
             .map(DtoMapper::toAssignmentResponse)
@@ -204,7 +234,9 @@ public class TeacherController {
     @Operation(summary = "Verifica se professor possui histórico")
     public boolean hasClassAssignments(
             @PathVariable Long teacherId) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanViewTeacherAssignments(teacherId);
+        }
         return teacherService.hasClassAssignments(teacherId);
     }
 
@@ -300,6 +332,23 @@ public class TeacherController {
             throw new AccessDeniedException(
                 "Somente um administrador pode alterar a instituição de um professor.");
         }
+    }
+
+    private List<Teacher> filterTeachersForCaller(List<Teacher> teachers) {
+        if (accessControlService == null) {
+            return teachers;
+        }
+        User current = accessControlService.getCurrentUser().orElse(null);
+        if (current == null || current.isSuperAdmin()) {
+            return teachers;
+        }
+        Long userInstId = accessControlService.getUserInstitutionId(current);
+        if (userInstId == null) {
+            return List.of();
+        }
+        return teachers.stream()
+            .filter(t -> t.getInstitution() != null && Objects.equals(userInstId, t.getInstitution().getId()))
+            .toList();
     }
 
     private static Teacher requireTeacher(Teacher teacher) {

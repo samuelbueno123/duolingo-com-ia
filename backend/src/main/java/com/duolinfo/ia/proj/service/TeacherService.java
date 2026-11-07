@@ -43,6 +43,9 @@ public class TeacherService {
     private final AdminNotificationRepository notificationRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.duolinfo.ia.proj.repository.InstitutionRequestRepository institutionRequestRepository;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -85,13 +88,25 @@ public class TeacherService {
             .countByInstitutionIdAndEmailNotIgnoreCase(institutionId, "admin@duolingo.com");
         boolean isFirstInInstitution = existingInInstitution == 0;
 
+        String normalizedEmail = teacher.getEmail() != null ? teacher.getEmail().trim().toLowerCase(Locale.ROOT) : "";
+        boolean isDefaultInstitution = institution.getCode() != null
+            && InstitutionService.DEFAULT_INSTITUTION_CODE.equalsIgnoreCase(institution.getCode());
+        boolean isSuperAdmin = "admin@duolingo.com".equalsIgnoreCase(normalizedEmail);
+        boolean matchesInstitutionRequester = institutionRequestRepository != null && !normalizedEmail.isBlank() &&
+            (institutionRequestRepository.existsByRequesterEmailIgnoreCaseAndRequestedNameIgnoreCaseAndStatus(
+                normalizedEmail, institution.getName(), com.duolinfo.ia.proj.entity.InstitutionRequest.Status.APPROVED)
+             || institutionRequestRepository.existsByRequesterEmailIgnoreCaseAndStatus(
+                normalizedEmail, com.duolinfo.ia.proj.entity.InstitutionRequest.Status.APPROVED));
+
+        boolean grantPrimaryAdmin = isFirstInInstitution && (isDefaultInstitution || isSuperAdmin || matchesInstitutionRequester);
+
         teacher.setGender(User.normalizeGender(teacher.getGender()));
         teacher.setCreatedAt(LocalDateTime.now());
-        teacher.setApproved(isFirstInInstitution);
-        teacher.setApprovalStatus(isFirstInInstitution ? "APPROVED" : "PENDING");
-        teacher.setInstitutionAdmin(isFirstInInstitution);
-        teacher.setPrimaryInstitutionAdmin(isFirstInInstitution);
-        teacher.setAdmin(isFirstInInstitution);
+        teacher.setApproved(grantPrimaryAdmin);
+        teacher.setApprovalStatus(grantPrimaryAdmin ? "APPROVED" : "PENDING");
+        teacher.setInstitutionAdmin(grantPrimaryAdmin);
+        teacher.setPrimaryInstitutionAdmin(grantPrimaryAdmin);
+        teacher.setAdmin(grantPrimaryAdmin);
 
         if (teacher.getEmail() != null && !teacher.getEmail().isBlank()) {
             String email = teacher.getEmail().trim().toLowerCase(Locale.ROOT);
@@ -132,7 +147,7 @@ public class TeacherService {
                     baseUser.setName(teacher.getName().trim());
                 }
                 baseUser.setGender(User.normalizeGender(teacher.getGender()));
-                if (isFirstInInstitution) {
+                if (grantPrimaryAdmin) {
                     baseUser.setAdmin(true);
                 }
 
@@ -146,10 +161,10 @@ public class TeacherService {
                 .setParameter("id", userId)
                 .setParameter("institutionId", institutionId)
                 .setParameter("bibliography", teacher.getBibliography())
-                .setParameter("approved", isFirstInInstitution)
-                .setParameter("approvalStatus", isFirstInInstitution ? "APPROVED" : "PENDING")
-                .setParameter("instAdmin", isFirstInInstitution)
-                .setParameter("primaryInstAdmin", isFirstInInstitution)
+                .setParameter("approved", grantPrimaryAdmin)
+                .setParameter("approvalStatus", grantPrimaryAdmin ? "APPROVED" : "PENDING")
+                .setParameter("instAdmin", grantPrimaryAdmin)
+                .setParameter("primaryInstAdmin", grantPrimaryAdmin)
                 .executeUpdate();
 
                 if (teacher.getTaughtLanguages() != null && !teacher.getTaughtLanguages().isEmpty()) {
@@ -198,7 +213,7 @@ public class TeacherService {
                 entityManager.clear();
 
                 Teacher created = teacherRepository.findById(userId).orElseThrow();
-                if (!isFirstInInstitution) {
+                if (!grantPrimaryAdmin) {
                     createTeacherRequestNotification(created, institution);
                 }
                 return created;
@@ -211,7 +226,7 @@ public class TeacherService {
 
         teacher.setInstitution(institution);
         Teacher saved = teacherRepository.save(teacher);
-        if (!isFirstInInstitution) {
+        if (!grantPrimaryAdmin) {
             createTeacherRequestNotification(saved, institution);
         }
         return saved;

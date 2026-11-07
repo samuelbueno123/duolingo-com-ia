@@ -171,14 +171,18 @@ public class AdminController {
 
     @GetMapping("/institution-requests")
     public List<InstitutionRequestResponseDTO> institutionRequests(
-            @RequestParam(required = false) Status status) {
+            @RequestParam(required = false) Status status,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
         return institutionRequestService.requests(status);
     }
 
     @PatchMapping("/institution-requests/{id}")
     public InstitutionRequestResponseDTO decideInstitutionRequest(
             @PathVariable Long id,
-            @Valid @RequestBody InstitutionRequestDecisionDTO request) {
+            @Valid @RequestBody InstitutionRequestDecisionDTO request,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
         return institutionRequestService.decide(id, request);
     }
 
@@ -224,4 +228,3 @@ public class AdminController {
         return achievementService.revokeAchievement(studentId, achievementId);
     }
 }
-

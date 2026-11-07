@@ -75,17 +75,20 @@ public class ClassTeacherAssignmentController {
     @Operation(summary = "Busca atribuição por ID")
     public ClassTeacherAssignmentResponseDTO findById(
             @PathVariable Long id) {
-
-        return DtoMapper.toAssignmentResponse(
-            assignmentService.findById(id)
-        );
+        ClassTeacherAssignment assignment = assignmentService.findById(id);
+        if (accessControlService != null && assignment.getSchoolClass() != null) {
+            accessControlService.assertCanViewSchoolClass(assignment.getSchoolClass());
+        }
+        return DtoMapper.toAssignmentResponse(assignment);
     }
 
     @GetMapping("/class/{schoolClassId}")
     @Operation(summary = "Lista histórico de professores da turma")
     public List<ClassTeacherAssignmentResponseDTO> findByClass(
             @PathVariable Long schoolClassId) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanViewSchoolClass(schoolClassId);
+        }
         return assignmentService
             .findByClass(schoolClassId)
             .stream()
@@ -97,7 +100,9 @@ public class ClassTeacherAssignmentController {
     @Operation(summary = "Busca professor atual da turma")
     public ClassTeacherAssignmentResponseDTO findCurrentTeacher(
             @PathVariable Long schoolClassId) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanViewSchoolClass(schoolClassId);
+        }
         return DtoMapper.toAssignmentResponse(
             assignmentService.findCurrentTeacher(
                 schoolClassId
@@ -109,7 +114,9 @@ public class ClassTeacherAssignmentController {
     @Operation(summary = "Lista turmas do professor")
     public List<ClassTeacherAssignmentResponseDTO> findByTeacher(
             @PathVariable Long teacherId) {
-
+        if (accessControlService != null) {
+            accessControlService.assertCanViewTeacherAssignments(teacherId);
+        }
         return assignmentService
             .findByTeacher(teacherId)
             .stream()

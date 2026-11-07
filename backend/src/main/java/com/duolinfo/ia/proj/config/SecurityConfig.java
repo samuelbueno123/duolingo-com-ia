@@ -139,6 +139,18 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/rankings/**")
                     .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
 
+                // Language learning modules
+                .requestMatchers("/api/srs/**")
+                    .hasAnyRole("STUDENT", "ADMIN")
+                .requestMatchers("/api/ai/**")
+                    .hasAnyRole("STUDENT", "ADMIN")
+                .requestMatchers("/api/pronunciation/**")
+                    .hasAnyRole("STUDENT", "ADMIN")
+                .requestMatchers("/api/community/**")
+                    .hasAnyRole("STUDENT", "ADMIN")
+                .requestMatchers("/api/learning-path/**")
+                    .hasAnyRole("STUDENT", "ADMIN")
+
                 .requestMatchers("/api/auth/me", "/api/auth/me/**", "/api/auth/logout").authenticated()
                 .requestMatchers("/api/home/**").authenticated()
                 .requestMatchers("/api/realtime/**").authenticated()

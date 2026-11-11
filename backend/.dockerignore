@@ -1,6 +1,12 @@
-target
-.git
-.idea
-.vscode
+target/
+.git/
+.github/
+.idea/
+.vscode/
 *.log
-data
+*.dump
+*.tar
+data/
+uploads/
+.env*
+!.env.example

@@ -107,8 +107,9 @@ public class PasswordResetService {
             if (emailService != null) {
                 emailSent = emailService.sendPasswordResetEmail(normalizedEmail, rawJwtToken, EXPIRATION_MINUTES);
             } else {
-                log.info("[PASSWORD-RESET] EmailService indisponível. Token JWT gerado para {} (expira em {} min): {}",
-                        normalizedEmail, EXPIRATION_MINUTES, rawJwtToken);
+                String masked = rawJwtToken.length() > 10 ? rawJwtToken.substring(0, 5) + "..." + rawJwtToken.substring(rawJwtToken.length() - 5) : "***";
+                log.info("[PASSWORD-RESET] EmailService indisponível. Token de recuperação gerado para {} (máscara: {}, expira em {} min)",
+                        normalizedEmail, masked, EXPIRATION_MINUTES);
             }
         }
 

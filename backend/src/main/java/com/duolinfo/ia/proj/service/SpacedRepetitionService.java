@@ -19,6 +19,7 @@ import com.duolinfo.ia.proj.dto.srs.SpacedReviewSessionSummaryDTO;
 import com.duolinfo.ia.proj.entity.SpacedReviewItem;
 import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.entity.StudentLanguage;
+import com.duolinfo.ia.proj.exception.BusinessException;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.repository.SpacedReviewItemRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
@@ -107,6 +108,10 @@ public class SpacedRepetitionService {
         Student student = requireStudent(email);
         SpacedReviewItem item = itemRepository.findByIdAndStudent_Id(itemId, student.getId())
             .orElseThrow(() -> new ResourceNotFoundException("Item de vocabulário não encontrado."));
+
+        if (answer == null || answer.rating() < 0 || answer.rating() > 5) {
+            throw new BusinessException("A avaliação de revisão deve estar entre 0 (Blackout) e 5 (Perfeito).");
+        }
 
         int rating = answer.rating(); // 1=Again, 2=Hard, 3=Good, 4=Easy
         int repetition = item.getRepetitionNumber();
@@ -204,15 +209,23 @@ public class SpacedRepetitionService {
     }
 
     private void awardXpToStudentLanguage(Student student, String languageName, int xp) {
-        if (student.getLanguages() == null || student.getLanguages().isEmpty()) {
+        if (xp <= 0 || languageName == null || languageName.isBlank()) {
             return;
         }
-        for (StudentLanguage sl : student.getLanguages()) {
-            if (sl.getLanguageName() != null && sl.getLanguageName().trim().equalsIgnoreCase(languageName.trim())) {
-                sl.setScore((sl.getScore() != null ? sl.getScore() : 0) + xp);
-                break;
+        if (student.getLanguages() != null) {
+            for (StudentLanguage sl : student.getLanguages()) {
+                if (sl.getLanguageName() != null && sl.getLanguageName().trim().equalsIgnoreCase(languageName.trim())) {
+                    sl.setScore((sl.getScore() != null ? sl.getScore() : 0) + xp);
+                    studentRepository.save(student);
+                    return;
+                }
             }
         }
+        StudentLanguage newLang = new StudentLanguage();
+        newLang.setLanguageName(languageName.trim());
+        newLang.setLevel("Básico");
+        newLang.setScore(xp);
+        student.addLanguage(newLang);
         studentRepository.save(student);
     }
 

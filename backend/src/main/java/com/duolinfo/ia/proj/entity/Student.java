@@ -56,6 +56,24 @@ public class Student extends User {
     )
     private List<Enrollment> enrollments = new ArrayList<>();
 
+    @jakarta.persistence.Column(name = "current_streak", columnDefinition = "integer default 0")
+    private Integer currentStreak = 0;
+
+    @jakarta.persistence.Column(name = "longest_streak", columnDefinition = "integer default 0")
+    private Integer longestStreak = 0;
+
+    @jakarta.persistence.Column(name = "last_active_date")
+    private java.time.LocalDate lastActiveDate;
+
+    @jakarta.persistence.Column(name = "streak_freezes", columnDefinition = "integer default 2")
+    private Integer streakFreezes = 2;
+
+    @jakarta.persistence.Column(name = "today_xp_earned", columnDefinition = "integer default 0")
+    private Integer todayXpEarned = 0;
+
+    @jakarta.persistence.Column(name = "daily_xp_goal", columnDefinition = "integer default 50")
+    private Integer dailyXpGoal = 50;
+
     /*
      * Adiciona um idioma ao aluno.
      */

@@ -16,4 +16,8 @@ public interface CatalogOptionRepository
     boolean existsByCatalogTypeAndValue(String catalogType, String value);
 
     List<CatalogOption> findByCatalogType(String catalogType);
+
+    long countByCatalogTypeAndActiveTrue(String catalogType);
+
+    List<CatalogOption> findByOrderByCatalogTypeAscValueAsc();
 }

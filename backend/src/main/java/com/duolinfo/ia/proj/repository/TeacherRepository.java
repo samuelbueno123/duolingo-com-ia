@@ -13,8 +13,10 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
 
     Optional<Teacher> findByGoogleId(String googleId);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
     Optional<Teacher> findByEmail(String email);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
     Optional<Teacher> findByEmailIgnoreCase(String email);
 
     List<Teacher> findByNameContainingIgnoreCase(String name);
@@ -44,4 +46,15 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     long countByInstitutionIdAndEmailNotIgnoreCase(Long institutionId, String email);
 
     List<Teacher> findByInstitutionIdAndApprovedTrue(Long institutionId);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
+    List<Teacher> findWithDetailsByInstitutionId(Long institutionId);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
+    @org.springframework.data.jpa.repository.Query("SELECT t FROM Teacher t")
+    List<Teacher> findAllWithDetails();
+
+    long countByApprovedFalse();
+
+    List<Teacher> findByApprovedFalse();
 }

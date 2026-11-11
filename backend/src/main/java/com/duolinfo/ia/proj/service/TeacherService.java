@@ -1,9 +1,14 @@
 package com.duolinfo.ia.proj.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -168,28 +173,24 @@ public class TeacherService {
                 .executeUpdate();
 
                 if (teacher.getTaughtLanguages() != null && !teacher.getTaughtLanguages().isEmpty()) {
-                    for (String lang : teacher.getTaughtLanguages()) {
-                        if (lang != null && !lang.isBlank()) {
-                            entityManager.createNativeQuery(
-                                "INSERT INTO teacher_taught_languages (teacher_id, language_name) VALUES (:teacherId, :lang)"
-                            )
-                            .setParameter("teacherId", userId)
-                            .setParameter("lang", lang.trim())
-                            .executeUpdate();
-                        }
+                    for (String lang : deduplicateAndTrim(teacher.getTaughtLanguages())) {
+                        entityManager.createNativeQuery(
+                            "INSERT INTO teacher_taught_languages (teacher_id, language_name) VALUES (:teacherId, :lang)"
+                        )
+                        .setParameter("teacherId", userId)
+                        .setParameter("lang", lang)
+                        .executeUpdate();
                     }
                 }
 
                 if (teacher.getSpecializationAreas() != null && !teacher.getSpecializationAreas().isEmpty()) {
-                    for (String area : teacher.getSpecializationAreas()) {
-                        if (area != null && !area.isBlank()) {
-                            entityManager.createNativeQuery(
-                                "INSERT INTO teacher_specialization_areas (teacher_id, specialization_area) VALUES (:teacherId, :area)"
-                            )
-                            .setParameter("teacherId", userId)
-                            .setParameter("area", area.trim())
-                            .executeUpdate();
-                        }
+                    for (String area : deduplicateAndTrim(teacher.getSpecializationAreas())) {
+                        entityManager.createNativeQuery(
+                            "INSERT INTO teacher_specialization_areas (teacher_id, specialization_area) VALUES (:teacherId, :area)"
+                        )
+                        .setParameter("teacherId", userId)
+                        .setParameter("area", area)
+                        .executeUpdate();
                     }
                 }
 
@@ -224,6 +225,8 @@ public class TeacherService {
             }
         }
 
+        teacher.setTaughtLanguages(deduplicateAndTrim(teacher.getTaughtLanguages()));
+        teacher.setSpecializationAreas(deduplicateAndTrim(teacher.getSpecializationAreas()));
         teacher.setInstitution(institution);
         Teacher saved = teacherRepository.save(teacher);
         if (!grantPrimaryAdmin) {
@@ -340,10 +343,10 @@ public class TeacherService {
             current.setEmail(email);
         }
         current.setTaughtLanguages(
-            data.getTaughtLanguages()
+            deduplicateAndTrim(data.getTaughtLanguages())
         );
         current.setSpecializationAreas(
-            data.getSpecializationAreas()
+            deduplicateAndTrim(data.getSpecializationAreas())
         );
         current.setBibliography(
             data.getBibliography()
@@ -400,7 +403,7 @@ public class TeacherService {
 
     @Transactional(readOnly = true)
     public List<Teacher> findAll() {
-        return teacherRepository.findAll();
+        return teacherRepository.findAllWithDetails();
     }
 
     @Transactional(readOnly = true)
@@ -439,7 +442,7 @@ public class TeacherService {
 
     @Transactional(readOnly = true)
     public List<Teacher> findByInstitutionId(Long institutionId) {
-        return teacherRepository.findByInstitutionId(institutionId);
+        return teacherRepository.findWithDetailsByInstitutionId(institutionId);
     }
 
     @Transactional(readOnly = true)
@@ -521,5 +524,17 @@ public class TeacherService {
     @Transactional(readOnly = true)
     public boolean existsByName(String name) {
         return teacherRepository.existsByNameIgnoreCase(name);
+    }
+
+    public static List<String> deduplicateAndTrim(java.util.Collection<String> list) {
+        if (list == null) return List.of();
+        Map<String, String> map = new LinkedHashMap<>();
+        for (String item : list) {
+            if (item != null && !item.isBlank()) {
+                String trimmed = item.trim();
+                map.putIfAbsent(trimmed.toLowerCase(Locale.ROOT), trimmed);
+            }
+        }
+        return new ArrayList<>(map.values());
     }
 }

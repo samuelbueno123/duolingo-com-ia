@@ -410,7 +410,25 @@ public class UserService {
             "DELETE FROM teacher_taught_languages WHERE teacher_id = ?",
             "DELETE FROM teacher_specialization_areas WHERE teacher_id = ?",
             "UPDATE admin_notifications SET related_user_id = NULL WHERE related_user_id = ?",
-            "DELETE FROM institution_requests WHERE requested_by_teacher_id = ?"
+            "DELETE FROM institution_requests WHERE requested_by_teacher_id = ?",
+            "DELETE FROM spaced_review_items WHERE student_id = ?",
+            "DELETE FROM ai_conversation_messages WHERE session_id IN (SELECT id FROM ai_conversation_sessions WHERE student_id = ?)",
+            "DELETE FROM ai_conversation_sessions WHERE student_id = ?",
+            "DELETE FROM pronunciation_attempts WHERE student_id = ?",
+            "DELETE FROM community_reports WHERE reported_by_student_id = ?",
+            "DELETE FROM community_reports WHERE reported_review_id IN (SELECT id FROM community_reviews WHERE reviewer_student_id = ?)",
+            "DELETE FROM community_reports WHERE reported_review_id IN (SELECT id FROM community_reviews WHERE submission_id IN (SELECT id FROM community_submissions WHERE author_student_id = ?))",
+            "DELETE FROM community_reviews WHERE reviewer_student_id = ?",
+            "DELETE FROM community_reviews WHERE submission_id IN (SELECT id FROM community_submissions WHERE author_student_id = ?)",
+            "DELETE FROM community_submissions WHERE author_student_id = ?",
+            "DELETE FROM student_module_progress WHERE student_id = ?",
+            "DELETE FROM student_learning_paths WHERE student_id = ?",
+            "DELETE FROM student_mistakes WHERE student_id = ?",
+            "DELETE FROM student_vocabularies WHERE student_id = ?",
+            "DELETE FROM student_notifications WHERE student_id = ?",
+            "DELETE FROM teacher_student_notes WHERE student_id = ?",
+            "DELETE FROM teacher_student_notes WHERE teacher_id = ?",
+            "DELETE FROM class_announcements WHERE teacher_id = ?"
         };
         for (String sql : cleanupSql) {
             try {

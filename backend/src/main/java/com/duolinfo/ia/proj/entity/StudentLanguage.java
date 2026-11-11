@@ -15,13 +15,28 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import jakarta.persistence.Index;
+import jakarta.persistence.UniqueConstraint;
+
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "student_languages")
+@Table(
+    name = "student_languages",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_student_language_name",
+            columnNames = { "student_id", "language_name" }
+        )
+    },
+    indexes = {
+        @Index(name = "idx_student_languages_student", columnList = "student_id"),
+        @Index(name = "idx_student_languages_lang", columnList = "language_name")
+    }
+)
 public class StudentLanguage {
 
     @Id

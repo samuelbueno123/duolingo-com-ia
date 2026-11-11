@@ -20,6 +20,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
@@ -31,28 +32,48 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.duolinfo.ia.proj.config.ExternalAiHealthIndicator;
 import com.duolinfo.ia.proj.dto.request.AdminUserRequestDTO;
+import com.duolinfo.ia.proj.dto.request.CatalogOptionRequestDTO;
 import com.duolinfo.ia.proj.dto.request.InstitutionAdminRoleRequestDTO;
+import com.duolinfo.ia.proj.dto.response.AdminDashboardOverviewDTO;
+import com.duolinfo.ia.proj.dto.response.AdminSystemHealthDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableColumnResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableDataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableMetadataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminUserResponseDTO;
+import com.duolinfo.ia.proj.dto.response.AuditLogResponseDTO;
+import com.duolinfo.ia.proj.dto.response.CatalogOptionResponseDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionAdminDashboardDTO;
 import com.duolinfo.ia.proj.dto.response.SchoolClassResponseDTO;
 import com.duolinfo.ia.proj.dto.response.SchoolResponseDTO;
 import com.duolinfo.ia.proj.dto.response.StudentResponseDTO;
+import com.duolinfo.ia.proj.dto.response.TeacherDocumentAdminDTO;
 import com.duolinfo.ia.proj.dto.response.TeacherResponseDTO;
+import com.duolinfo.ia.proj.entity.CatalogOption;
 import com.duolinfo.ia.proj.entity.Institution;
 import com.duolinfo.ia.proj.entity.School;
 import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.entity.Teacher;
+import com.duolinfo.ia.proj.entity.TeacherDocument;
 import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.mapper.DtoMapper;
+import com.duolinfo.ia.proj.repository.CatalogOptionRepository;
+import com.duolinfo.ia.proj.repository.EnrollmentRepository;
+import com.duolinfo.ia.proj.repository.ExerciseSubmissionRepository;
 import com.duolinfo.ia.proj.repository.InstitutionRepository;
+import com.duolinfo.ia.proj.repository.LearningExerciseRepository;
 import com.duolinfo.ia.proj.repository.SchoolClassRepository;
 import com.duolinfo.ia.proj.repository.SchoolRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
+import com.duolinfo.ia.proj.repository.TeacherDocumentRepository;
 import com.duolinfo.ia.proj.repository.TeacherRepository;
+import com.duolinfo.ia.proj.repository.UserRepository;
+import org.springframework.cache.CacheManager;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 @Service
 public class AdminService {
@@ -85,6 +106,15 @@ public class AdminService {
     private final InstitutionRepository institutionRepository;
     private final SchoolRepository schoolRepository;
     private final SchoolClassRepository schoolClassRepository;
+    private final UserRepository userRepository;
+    private final CatalogOptionRepository catalogOptionRepository;
+    private final TeacherDocumentRepository teacherDocumentRepository;
+    private final AuditLogService auditLogService;
+    private final EnrollmentRepository enrollmentRepository;
+    private final LearningExerciseRepository learningExerciseRepository;
+    private final ExerciseSubmissionRepository exerciseSubmissionRepository;
+    private final ExternalAiHealthIndicator externalAiHealthIndicator;
+    private final CacheManager cacheManager;
 
     public AdminService(
             DataSource dataSource,
@@ -96,7 +126,16 @@ public class AdminService {
             TeacherService teacherService,
             InstitutionRepository institutionRepository,
             SchoolRepository schoolRepository,
-            SchoolClassRepository schoolClassRepository) {
+            SchoolClassRepository schoolClassRepository,
+            UserRepository userRepository,
+            CatalogOptionRepository catalogOptionRepository,
+            TeacherDocumentRepository teacherDocumentRepository,
+            AuditLogService auditLogService,
+            EnrollmentRepository enrollmentRepository,
+            LearningExerciseRepository learningExerciseRepository,
+            ExerciseSubmissionRepository exerciseSubmissionRepository,
+            ExternalAiHealthIndicator externalAiHealthIndicator,
+            CacheManager cacheManager) {
         this.dataSource = dataSource;
         this.jdbcTemplate = jdbcTemplate;
         this.userService = userService;
@@ -107,6 +146,15 @@ public class AdminService {
         this.institutionRepository = institutionRepository;
         this.schoolRepository = schoolRepository;
         this.schoolClassRepository = schoolClassRepository;
+        this.userRepository = userRepository;
+        this.catalogOptionRepository = catalogOptionRepository;
+        this.teacherDocumentRepository = teacherDocumentRepository;
+        this.auditLogService = auditLogService;
+        this.enrollmentRepository = enrollmentRepository;
+        this.learningExerciseRepository = learningExerciseRepository;
+        this.exerciseSubmissionRepository = exerciseSubmissionRepository;
+        this.externalAiHealthIndicator = externalAiHealthIndicator;
+        this.cacheManager = cacheManager;
     }
 
     public void requireSuperAdmin(String adminEmail) {
@@ -287,11 +335,17 @@ public class AdminService {
         return Map.of("success", true);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<AdminUserResponseDTO> listUsers(String currentAdminEmail) {
         Long scopedInstId = resolveScopedInstitutionId(currentAdminEmail);
-        return userService.findAll().stream()
-            .map(this::toAdminUser)
+        List<User> users = userService.findAll();
+        Map<Long, Teacher> teachersById = teacherRepository.findAll().stream()
+            .collect(Collectors.toMap(Teacher::getId, t -> t, (a, b) -> a));
+        Map<Long, Student> studentsById = studentRepository.findAll().stream()
+            .collect(Collectors.toMap(Student::getId, s -> s, (a, b) -> a));
+
+        return users.stream()
+            .map(u -> toAdminUser(u, teachersById.get(u.getId()), studentsById.get(u.getId())))
             .filter(userDto -> scopedInstId == null || Objects.equals(scopedInstId, userDto.institutionId()))
             .toList();
     }
@@ -463,9 +517,13 @@ public class AdminService {
     }
 
     private AdminUserResponseDTO toAdminUser(User user) {
-        List<String> roles = authService.resolveRoles(user);
         Teacher teacher = teacherRepository.findById(user.getId()).orElse(null);
         Student student = teacher == null ? studentRepository.findById(user.getId()).orElse(null) : null;
+        return toAdminUser(user, teacher, student);
+    }
+
+    private AdminUserResponseDTO toAdminUser(User user, Teacher teacher, Student student) {
+        List<String> roles = authService.resolveRoles(user);
         String baseProfileType = teacher != null
             ? "TEACHER"
             : student != null ? "STUDENT" : "USER";
@@ -490,7 +548,8 @@ public class AdminService {
             teacher != null && teacher.isInstitutionAdmin(),
             teacher != null && teacher.isPrimaryInstitutionAdmin(),
             instId,
-            instName);
+            instName,
+            user.isActive());
     }
 
     private void ensureAdminCanChangeRole(
@@ -818,6 +877,311 @@ public class AdminService {
             HttpStatus.SERVICE_UNAVAILABLE,
             "Não foi possível acessar o banco de dados. Verifique se o PostgreSQL está ativo.",
             exception);
+    }
+
+    public AdminSystemHealthDTO getSystemHealth() {
+        Map<String, Object> dbStats = new LinkedHashMap<>();
+        try {
+            long start = System.currentTimeMillis();
+            jdbcTemplate.queryForObject("SELECT 1", Integer.class);
+            long pingMs = System.currentTimeMillis() - start;
+            dbStats.put("status", "UP");
+            dbStats.put("pingMs", pingMs);
+        } catch (Exception e) {
+            dbStats.put("status", "DOWN");
+            dbStats.put("error", e.getMessage());
+        }
+
+        if (dataSource instanceof com.zaxxer.hikari.HikariDataSource hikariDs) {
+            dbStats.put("poolName", hikariDs.getPoolName());
+            dbStats.put("maximumPoolSize", hikariDs.getMaximumPoolSize());
+            dbStats.put("minimumIdle", hikariDs.getMinimumIdle());
+            if (hikariDs.getHikariPoolMXBean() != null) {
+                dbStats.put("activeConnections", hikariDs.getHikariPoolMXBean().getActiveConnections());
+                dbStats.put("idleConnections", hikariDs.getHikariPoolMXBean().getIdleConnections());
+                dbStats.put("totalConnections", hikariDs.getHikariPoolMXBean().getTotalConnections());
+                dbStats.put("threadsAwaitingConnection", hikariDs.getHikariPoolMXBean().getThreadsAwaitingConnection());
+            }
+        }
+
+        Map<String, Object> aiStats = new LinkedHashMap<>();
+        try {
+            if (externalAiHealthIndicator != null) {
+                var health = externalAiHealthIndicator.health();
+                aiStats.put("status", health.getStatus().getCode());
+                aiStats.putAll(health.getDetails());
+            } else {
+                aiStats.put("status", "NOT_CONFIGURED");
+            }
+        } catch (Exception e) {
+            aiStats.put("status", "UNKNOWN");
+            aiStats.put("message", e.getMessage());
+        }
+
+        Runtime rt = Runtime.getRuntime();
+        long maxMb = rt.maxMemory() / (1024 * 1024);
+        long totalMb = rt.totalMemory() / (1024 * 1024);
+        long freeMb = rt.freeMemory() / (1024 * 1024);
+        long usedMb = totalMb - freeMb;
+        double usedPct = maxMb > 0 ? (usedMb * 100.0) / maxMb : (usedMb * 100.0) / totalMb;
+        long uptimeSec = java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime() / 1000;
+
+        Map<String, Object> sysStats = new LinkedHashMap<>();
+        sysStats.put("jvmMaxMemoryMb", maxMb);
+        sysStats.put("jvmTotalMemoryMb", totalMb);
+        sysStats.put("jvmUsedMemoryMb", usedMb);
+        sysStats.put("jvmFreeMemoryMb", freeMb);
+        sysStats.put("memoryUsedPercent", Math.round(usedPct * 10.0) / 10.0);
+        sysStats.put("availableProcessors", rt.availableProcessors());
+        sysStats.put("uptimeSeconds", uptimeSec);
+
+        Map<String, Object> appStats = new LinkedHashMap<>();
+        appStats.put("applicationName", "Duolinfo Backend");
+        appStats.put("javaVersion", System.getProperty("java.version"));
+        appStats.put("springBootVersion", org.springframework.boot.SpringBootVersion.getVersion());
+        appStats.put("currentTime", LocalDateTime.now());
+
+        String overallStatus = "UP";
+        if ("DOWN".equals(dbStats.get("status"))) {
+            overallStatus = "DOWN";
+        } else if (usedPct > 90.0) {
+            overallStatus = "DEGRADED";
+        }
+
+        return new AdminSystemHealthDTO(overallStatus, dbStats, aiStats, sysStats, appStats);
+    }
+
+    @Transactional(readOnly = true)
+    public AdminDashboardOverviewDTO getDashboardOverview() {
+        long totalUsers = userRepository.count();
+        long totalStudents = studentRepository.count();
+        long totalTeachers = teacherRepository.count();
+        long pendingTeachers = teacherRepository.findByApprovedFalse().size();
+        long totalInstitutions = institutionRepository.count();
+        long totalClasses = schoolClassRepository.count();
+        long totalExercises = learningExerciseRepository.count();
+        long totalSubmissions = exerciseSubmissionRepository.count();
+        long totalEnrollments = enrollmentRepository.count();
+        long totalLanguages = catalogOptionRepository.countByCatalogTypeAndActiveTrue("LANGUAGE");
+        if (totalLanguages == 0) {
+            totalLanguages = catalogOptionRepository.findByCatalogType("LANGUAGE").size();
+        }
+
+        long adminCount = userRepository.countByAdminTrue();
+        long userOnlyCount = Math.max(0, totalUsers - totalStudents - totalTeachers);
+
+        Map<String, Long> profileDistribution = new LinkedHashMap<>();
+        profileDistribution.put("STUDENT", totalStudents);
+        profileDistribution.put("TEACHER", totalTeachers);
+        profileDistribution.put("ADMIN", adminCount);
+        profileDistribution.put("USER", userOnlyCount);
+
+        long activeUsers = userRepository.countByActiveTrue();
+        long suspendedUsers = Math.max(0, totalUsers - activeUsers);
+        Map<String, Long> userStatus = Map.of(
+            "active", activeUsers,
+            "suspended", suspendedUsers
+        );
+
+        List<Map<String, Object>> topLanguages = new ArrayList<>();
+        try {
+            topLanguages = jdbcTemplate.queryForList(
+                "SELECT language as name, COUNT(*) as count FROM student_languages GROUP BY language ORDER BY count DESC LIMIT 5"
+            );
+        } catch (Exception ignored) {}
+
+        List<Map<String, Object>> topSpecializations = new ArrayList<>();
+        try {
+            topSpecializations = jdbcTemplate.queryForList(
+                "SELECT specialization as name, COUNT(*) as count FROM teacher_specializations GROUP BY specialization ORDER BY count DESC LIMIT 5"
+            );
+        } catch (Exception ignored) {}
+
+        Map<String, Long> auditSummary = auditLogService.getSeverityCounts();
+        List<AuditLogResponseDTO> recentActivities = auditLogService.getRecentLogs(10);
+
+        return new AdminDashboardOverviewDTO(
+            totalUsers,
+            totalStudents,
+            totalTeachers,
+            pendingTeachers,
+            totalInstitutions,
+            totalClasses,
+            totalExercises,
+            totalSubmissions,
+            totalEnrollments,
+            totalLanguages,
+            profileDistribution,
+            userStatus,
+            topLanguages,
+            topSpecializations,
+            auditSummary,
+            recentActivities
+        );
+    }
+
+    @Transactional
+    public AdminUserResponseDTO toggleUserActive(Long userId, String adminEmail) {
+        requireSuperAdmin(adminEmail);
+        User user = userService.findById(userId);
+        if (user.isSuperAdmin()) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "A conta geral de administrador (admin@duolingo.com) não pode ser desativada.");
+        }
+        boolean newActive = !user.isActive();
+        user.setActive(newActive);
+        User saved = userRepository.save(user);
+
+        auditLogService.recordEvent(
+            "ADMIN",
+            newActive ? "INFO" : "WARN",
+            newActive ? "USER_REACTIVATED" : "USER_SUSPENDED",
+            adminEmail,
+            "SUPER_ADMIN",
+            "User",
+            String.valueOf(user.getId()),
+            "SUCCESS",
+            "127.0.0.1",
+            null,
+            "Usuário " + user.getEmail() + (newActive ? " reativado." : " suspenso pelo administrador.")
+        );
+
+        return toAdminUser(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CatalogOptionResponseDTO> listCatalogOptions(String type) {
+        List<CatalogOption> options;
+        if (type != null && !type.isBlank() && !"ALL".equalsIgnoreCase(type)) {
+            options = catalogOptionRepository.findByCatalogType(type.trim().toUpperCase());
+        } else {
+            options = catalogOptionRepository.findByOrderByCatalogTypeAscValueAsc();
+        }
+        return options.stream()
+            .map(o -> new CatalogOptionResponseDTO(o.getId(), o.getCatalogType(), o.getValue(), o.isActive()))
+            .toList();
+    }
+
+    @Transactional
+    public CatalogOptionResponseDTO createCatalogOption(CatalogOptionRequestDTO request, String adminEmail) {
+        requireSuperAdmin(adminEmail);
+        String type = request.catalogType().trim().toUpperCase();
+        String val = request.value().trim();
+        if (catalogOptionRepository.existsByCatalogTypeAndValue(type, val)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta opção já está cadastrada no catálogo.");
+        }
+        CatalogOption opt = new CatalogOption(type, val);
+        opt.setActive(request.active());
+        CatalogOption saved = catalogOptionRepository.save(opt);
+
+        evictCatalogCache();
+
+        auditLogService.recordEvent(
+            "CATALOG",
+            "INFO",
+            "CATALOG_OPTION_CREATED",
+            adminEmail,
+            "SUPER_ADMIN",
+            "CatalogOption",
+            String.valueOf(saved.getId()),
+            "SUCCESS",
+            "127.0.0.1",
+            null,
+            "Opção de catálogo criada: tipo=" + type + ", valor=" + val
+        );
+
+        return new CatalogOptionResponseDTO(saved.getId(), saved.getCatalogType(), saved.getValue(), saved.isActive());
+    }
+
+    @Transactional
+    public CatalogOptionResponseDTO toggleCatalogOption(Long id, String adminEmail) {
+        requireSuperAdmin(adminEmail);
+        CatalogOption opt = catalogOptionRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Opção de catálogo não encontrada."));
+        opt.setActive(!opt.isActive());
+        CatalogOption saved = catalogOptionRepository.save(opt);
+
+        evictCatalogCache();
+
+        auditLogService.recordEvent(
+            "CATALOG",
+            "INFO",
+            "CATALOG_OPTION_TOGGLED",
+            adminEmail,
+            "SUPER_ADMIN",
+            "CatalogOption",
+            String.valueOf(saved.getId()),
+            "SUCCESS",
+            "127.0.0.1",
+            null,
+            "Opção de catálogo " + saved.getValue() + " alterada para active=" + saved.isActive()
+        );
+
+        return new CatalogOptionResponseDTO(saved.getId(), saved.getCatalogType(), saved.getValue(), saved.isActive());
+    }
+
+    @Transactional
+    public void deleteCatalogOption(Long id, String adminEmail) {
+        requireSuperAdmin(adminEmail);
+        CatalogOption opt = catalogOptionRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Opção de catálogo não encontrada."));
+        catalogOptionRepository.delete(opt);
+
+        evictCatalogCache();
+
+        auditLogService.recordEvent(
+            "CATALOG",
+            "WARN",
+            "CATALOG_OPTION_DELETED",
+            adminEmail,
+            "SUPER_ADMIN",
+            "CatalogOption",
+            String.valueOf(id),
+            "SUCCESS",
+            "127.0.0.1",
+            null,
+            "Opção de catálogo removida: " + opt.getValue()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public Page<TeacherDocumentAdminDTO> listTeacherDocuments(String search, int page, int size, String adminEmail) {
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)), Sort.by(Sort.Direction.DESC, "id"));
+        String searchTerm = (search != null && !search.isBlank()) ? search.trim() : null;
+        Page<TeacherDocument> docPage = teacherDocumentRepository.searchDocuments(searchTerm, pageable);
+        return docPage.map(doc -> {
+            Teacher t = doc.getTeacher();
+            String instName = t != null && t.getInstitution() != null ? t.getInstitution().getName() : "Sem Instituição";
+            return new TeacherDocumentAdminDTO(
+                doc.getId(),
+                doc.getFileName(),
+                doc.getContentType(),
+                doc.getFileSize(),
+                t != null ? t.getId() : null,
+                t != null ? t.getName() : "Desconhecido",
+                t != null ? t.getEmail() : "",
+                instName,
+                t != null && Boolean.TRUE.equals(t.getApproved())
+            );
+        });
+    }
+
+    @Transactional(readOnly = true)
+    public TeacherDocument getTeacherDocument(Long id) {
+        return teacherDocumentRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Documento não encontrado."));
+    }
+
+    private void evictCatalogCache() {
+        try {
+            if (cacheManager != null) {
+                var c1 = cacheManager.getCache("catalogLanguages");
+                if (c1 != null) c1.clear();
+                var c2 = cacheManager.getCache("catalogProficiencyLevels");
+                if (c2 != null) c2.clear();
+            }
+        } catch (Exception ignored) {}
     }
 
     private static ResponseStatusException badRequest(String message) {

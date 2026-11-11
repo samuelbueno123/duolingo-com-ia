@@ -10,6 +10,7 @@ import com.duolinfo.ia.proj.exception.BusinessException;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.repository.InstitutionRepository;
 import com.duolinfo.ia.proj.repository.SchoolRepository;
+import com.duolinfo.ia.proj.repository.StudentRepository;
 import com.duolinfo.ia.proj.repository.TeacherRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class InstitutionService {
     private final InstitutionRepository institutionRepository;
     private final SchoolRepository schoolRepository;
     private final TeacherRepository teacherRepository;
+    private final StudentRepository studentRepository;
 
     @Transactional
     public Institution create(Institution institution) {
@@ -199,6 +201,12 @@ public class InstitutionService {
         if (!teacherRepository.findByInstitutionId(id).isEmpty()) {
             throw new BusinessException(
                 "Não é possível excluir a instituição porque ela possui professores."
+            );
+        }
+
+        if (!studentRepository.findByInstitutionId(id).isEmpty()) {
+            throw new BusinessException(
+                "Não é possível excluir a instituição porque ela possui estudantes cadastrados."
             );
         }
 

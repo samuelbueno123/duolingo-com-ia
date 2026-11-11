@@ -1,9 +1,15 @@
 package com.duolinfo.ia.proj.controller;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
@@ -22,20 +28,28 @@ import org.springframework.web.bind.annotation.RestController;
 import com.duolinfo.ia.proj.dto.request.AdminRoleRequestDTO;
 import com.duolinfo.ia.proj.dto.request.AdminRowUpdateRequestDTO;
 import com.duolinfo.ia.proj.dto.request.AdminUserRequestDTO;
+import com.duolinfo.ia.proj.dto.request.CatalogOptionRequestDTO;
 import com.duolinfo.ia.proj.dto.request.InstitutionAdminRoleRequestDTO;
 import com.duolinfo.ia.proj.dto.request.InstitutionRequestDecisionDTO;
 import com.duolinfo.ia.proj.dto.request.TeacherRequestDecisionDTO;
+import com.duolinfo.ia.proj.dto.response.AdminDashboardOverviewDTO;
 import com.duolinfo.ia.proj.dto.response.AdminNotificationResponseDTO;
+import com.duolinfo.ia.proj.dto.response.AdminSystemHealthDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableDataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableMetadataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminUserResponseDTO;
+import com.duolinfo.ia.proj.dto.response.AuditLogPageResponseDTO;
+import com.duolinfo.ia.proj.dto.response.CatalogOptionResponseDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionAdminDashboardDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionRequestResponseDTO;
 import com.duolinfo.ia.proj.dto.response.StudentAchievementsOverviewDTO;
+import com.duolinfo.ia.proj.dto.response.TeacherDocumentAdminDTO;
 import com.duolinfo.ia.proj.dto.response.TeacherResponseDTO;
 import com.duolinfo.ia.proj.entity.InstitutionRequest.Status;
+import com.duolinfo.ia.proj.entity.TeacherDocument;
 import com.duolinfo.ia.proj.service.AchievementService;
 import com.duolinfo.ia.proj.service.AdminService;
+import com.duolinfo.ia.proj.service.AuditLogService;
 import com.duolinfo.ia.proj.service.InstitutionRequestService;
 
 import jakarta.validation.Valid;
@@ -49,14 +63,25 @@ public class AdminController {
     private final AdminService adminService;
     private final InstitutionRequestService institutionRequestService;
     private final AchievementService achievementService;
+    private final AuditLogService auditLogService;
 
     public AdminController(
             AdminService adminService,
             InstitutionRequestService institutionRequestService,
             AchievementService achievementService) {
+        this(adminService, institutionRequestService, achievementService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AdminController(
+            AdminService adminService,
+            InstitutionRequestService institutionRequestService,
+            AchievementService achievementService,
+            AuditLogService auditLogService) {
         this.adminService = adminService;
         this.institutionRequestService = institutionRequestService;
         this.achievementService = achievementService;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping("/tables")
@@ -226,5 +251,86 @@ public class AdminController {
             Authentication authentication) {
         adminService.requireSuperAdmin(authentication.getName());
         return achievementService.revokeAchievement(studentId, achievementId);
+    }
+
+    @GetMapping("/dashboard/overview")
+    public AdminDashboardOverviewDTO getDashboardOverview(Authentication authentication) {
+        return adminService.getDashboardOverview();
+    }
+
+    @GetMapping("/system/health")
+    public AdminSystemHealthDTO getSystemHealth(Authentication authentication) {
+        return adminService.getSystemHealth();
+    }
+
+    @GetMapping("/logs")
+    public AuditLogPageResponseDTO getAuditLogs(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String severity,
+            @RequestParam(required = false) String result,
+            @RequestParam(required = false) String actorEmail,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            Authentication authentication) {
+        return auditLogService.searchLogs(category, severity, result, actorEmail, search, startDate, endDate, page, size);
+    }
+
+    @PatchMapping("/users/{id}/toggle-active")
+    public AdminUserResponseDTO toggleUserActive(@PathVariable Long id, Authentication authentication) {
+        return adminService.toggleUserActive(id, authentication.getName());
+    }
+
+    @GetMapping("/catalog")
+    public List<CatalogOptionResponseDTO> listCatalog(
+            @RequestParam(required = false) String type,
+            Authentication authentication) {
+        return adminService.listCatalogOptions(type);
+    }
+
+    @PostMapping("/catalog")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CatalogOptionResponseDTO createCatalogOption(
+            @Valid @RequestBody CatalogOptionRequestDTO request,
+            Authentication authentication) {
+        return adminService.createCatalogOption(request, authentication.getName());
+    }
+
+    @PatchMapping("/catalog/{id}/toggle")
+    public CatalogOptionResponseDTO toggleCatalogOption(
+            @PathVariable Long id,
+            Authentication authentication) {
+        return adminService.toggleCatalogOption(id, authentication.getName());
+    }
+
+    @DeleteMapping("/catalog/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteCatalogOption(
+            @PathVariable Long id,
+            Authentication authentication) {
+        adminService.deleteCatalogOption(id, authentication.getName());
+    }
+
+    @GetMapping("/documents")
+    public Page<TeacherDocumentAdminDTO> listTeacherDocuments(
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication) {
+        return adminService.listTeacherDocuments(search, page, size, authentication.getName());
+    }
+
+    @GetMapping("/documents/{id}/download")
+    public ResponseEntity<byte[]> downloadTeacherDocument(
+            @PathVariable Long id,
+            Authentication authentication) {
+        TeacherDocument doc = adminService.getTeacherDocument(id);
+        String contentType = doc.getContentType() != null ? doc.getContentType() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType(contentType))
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + doc.getFileName() + "\"")
+            .body(doc.getFileData());
     }
 }

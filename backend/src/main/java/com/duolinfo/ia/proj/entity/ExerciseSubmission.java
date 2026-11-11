@@ -15,8 +15,17 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import jakarta.persistence.Index;
+
 @Entity
-@Table(name = "exercise_submissions")
+@Table(
+    name = "exercise_submissions",
+    indexes = {
+        @Index(name = "idx_submissions_student_date", columnList = "student_id, submitted_at"),
+        @Index(name = "idx_submissions_exercise_date", columnList = "exercise_id, submitted_at"),
+        @Index(name = "idx_submissions_status", columnList = "review_status")
+    }
+)
 @Getter
 @Setter
 @NoArgsConstructor

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.dto.request.AiExerciseGenerateRequestDTO;
+import com.duolinfo.ia.proj.dto.request.CloneExerciseRequestDTO;
 import com.duolinfo.ia.proj.dto.request.ExerciseFeedbackRequestDTO;
 import com.duolinfo.ia.proj.dto.request.ExerciseQuestionRequestDTO;
 import com.duolinfo.ia.proj.dto.request.ExerciseSubmissionRequestDTO;
@@ -118,6 +119,15 @@ public class LearningExerciseController {
             @Valid @RequestBody LearningExerciseRequestDTO request,
             Principal principal) {
         return exerciseService.create(request, principal.getName());
+    }
+
+    @PostMapping("/{id}/clone")
+    @Operation(summary = "Clona uma atividade existente para outra turma do professor")
+    public LearningExerciseResponseDTO clone(
+            @PathVariable Long id,
+            @Valid @RequestBody CloneExerciseRequestDTO request,
+            Principal principal) {
+        return exerciseService.cloneExercise(id, request, principal.getName());
     }
 
     @PostMapping("/{id}/submissions")

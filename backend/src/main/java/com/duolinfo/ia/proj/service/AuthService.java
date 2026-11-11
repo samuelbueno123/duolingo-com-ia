@@ -35,6 +35,9 @@ public class AuthService {
     private final ProfilePictureStorageService profilePictureStorage;
     private final Set<String> adminEmails;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AuditLogService auditLogService;
+
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
@@ -70,6 +73,9 @@ public class AuthService {
     public LoginResult loginWithGoogle(String credential) {
         GoogleIdToken idToken = verifyGoogleCredential(credential);
         if (idToken == null) {
+            if (auditLogService != null) {
+                auditLogService.recordEvent("AUTH", "WARN", "GOOGLE_AUTH_FAILED", "anonymous", "ANONYMOUS", "User", null, "FAILURE", null, null, "Token do Google inválido");
+            }
             throw unauthorized("Token do Google inválido.");
         }
 
@@ -91,7 +97,17 @@ public class AuthService {
         String picture = stringClaim(payload, "picture");
 
         User user = findOrCreateGoogleUser(googleId, email, name, picture);
+        if (!user.isActive()) {
+            if (auditLogService != null) {
+                auditLogService.recordEvent("AUTH", "WARN", "LOGIN_BLOCKED_SUSPENDED", email, "USER", "User", String.valueOf(user.getId()), "FAILURE", null, null, "Tentativa de login via Google em conta suspensa.");
+            }
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Sua conta de acesso está desativada ou suspensa. Contate o administrador.");
+        }
+
         ensureAdminTeacherProfile(user);
+        if (auditLogService != null) {
+            auditLogService.recordEvent("AUTH", "INFO", "LOGIN_SUCCESS_GOOGLE", email, "USER", "User", String.valueOf(user.getId()), "SUCCESS", null, null, "Login com Google realizado com sucesso.");
+        }
         return new LoginResult(user, resolveProfileType(user));
     }
 
@@ -107,6 +123,10 @@ public class AuthService {
         }
 
         User user = userService.findById(userId);
+        if (!user.isActive()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Sua conta de acesso está desativada ou suspensa. Contate o administrador.");
+        }
+
         ensureAdminTeacherProfile(user);
         return new LoginResult(user, resolveProfileType(user));
     }
@@ -119,7 +139,17 @@ public class AuthService {
                 .orElseGet(() -> userRepository.findByEmail(normalizedEmail).orElse(null));
 
         if (user == null) {
+            if (auditLogService != null) {
+                auditLogService.recordEvent("AUTH", "WARN", "LOGIN_FAILURE_NOT_FOUND", normalizedEmail != null ? normalizedEmail : "unknown", "ANONYMOUS", "User", null, "FAILURE", null, null, "Usuário não encontrado.");
+            }
             throw unauthorized("Credenciais inválidas. Email ou senha incorretos.");
+        }
+
+        if (!user.isActive()) {
+            if (auditLogService != null) {
+                auditLogService.recordEvent("AUTH", "WARN", "LOGIN_BLOCKED_SUSPENDED", normalizedEmail, "USER", "User", String.valueOf(user.getId()), "FAILURE", null, null, "Tentativa de login em conta suspensa.");
+            }
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Sua conta de acesso está desativada ou suspensa. Contate o administrador.");
         }
 
         String passwordHash = user.getPasswordHash();
@@ -133,9 +163,15 @@ public class AuthService {
         }
 
         if (rawPassword != null && passwordEncoder.matches(rawPassword, passwordHash)) {
+            if (auditLogService != null) {
+                auditLogService.recordEvent("AUTH", "INFO", "LOGIN_SUCCESS", normalizedEmail, "USER", "User", String.valueOf(user.getId()), "SUCCESS", null, null, "Login com senha realizado com sucesso.");
+            }
             return user;
         }
 
+        if (auditLogService != null) {
+            auditLogService.recordEvent("AUTH", "WARN", "LOGIN_FAILURE_PASSWORD", normalizedEmail, "ANONYMOUS", "User", String.valueOf(user.getId()), "FAILURE", null, null, "Senha incorreta informada.");
+        }
         throw unauthorized("Credenciais inválidas. Email ou senha incorretos.");
     }
 

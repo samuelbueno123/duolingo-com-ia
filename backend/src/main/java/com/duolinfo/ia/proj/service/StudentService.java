@@ -1,11 +1,13 @@
 package com.duolinfo.ia.proj.service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -139,8 +141,15 @@ public class StudentService {
                     .executeUpdate();
 
                 if (student.getLanguages() != null && !student.getLanguages().isEmpty()) {
+                    Set<String> insertedNames = new HashSet<>();
                     for (StudentLanguage lang : student.getLanguages()) {
                         if (lang.getLanguageName() != null && !lang.getLanguageName().isBlank()) {
+                            String trimmed = lang.getLanguageName().trim();
+                            String lowerKey = trimmed.toLowerCase(Locale.ROOT);
+                            if (insertedNames.contains(lowerKey)) {
+                                continue;
+                            }
+                            insertedNames.add(lowerKey);
                             String level = (lang.getLevel() != null && !lang.getLevel().isBlank())
                                 ? lang.getLevel()
                                 : "Básico";
@@ -150,7 +159,7 @@ public class StudentService {
                                 "INSERT INTO student_languages (student_id, language_name, level, score) VALUES (:studentId, :langName, :level, :score)"
                             )
                             .setParameter("studentId", userId)
-                            .setParameter("langName", lang.getLanguageName().trim())
+                            .setParameter("langName", trimmed)
                             .setParameter("level", level)
                             .setParameter("score", score)
                             .executeUpdate();
@@ -167,6 +176,24 @@ public class StudentService {
             // Se for uma conta nova e com senha pura informada, criptografa a senha antes de salvar
             if (student.getPasswordHash() != null && !student.getPasswordHash().isBlank()) {
                 student.setPasswordHash(encodePasswordIfNeeded(student.getPasswordHash()));
+            }
+
+            if (student.getLanguages() != null && !student.getLanguages().isEmpty()) {
+                List<StudentLanguage> deduplicated = new ArrayList<>();
+                Set<String> seen = new HashSet<>();
+                for (StudentLanguage lang : student.getLanguages()) {
+                    if (lang.getLanguageName() != null && !lang.getLanguageName().isBlank()) {
+                        String trimmed = lang.getLanguageName().trim();
+                        String key = trimmed.toLowerCase(Locale.ROOT);
+                        if (!seen.contains(key)) {
+                            seen.add(key);
+                            lang.setLanguageName(trimmed);
+                            deduplicated.add(lang);
+                        }
+                    }
+                }
+                student.getLanguages().clear();
+                deduplicated.forEach(student::addLanguage);
             }
         }
 
@@ -255,9 +282,16 @@ public class StudentService {
                 }
             }
             current.getLanguages().clear();
+            Set<String> seenLanguageKeys = new HashSet<>();
             for (StudentLanguage language : student.getLanguages()) {
                 if (language.getLanguageName() == null || language.getLanguageName().isBlank()) continue;
-                String key = language.getLanguageName().trim().toLowerCase(Locale.ROOT);
+                String trimmedName = language.getLanguageName().trim();
+                String key = trimmedName.toLowerCase(Locale.ROOT);
+                if (seenLanguageKeys.contains(key)) {
+                    continue;
+                }
+                seenLanguageKeys.add(key);
+                language.setLanguageName(trimmedName);
                 Integer preservedScore = existingScores.get(key);
                 if (preservedScore != null && (language.getScore() == null || language.getScore() == 0)) {
                     language.setScore(preservedScore);
@@ -300,7 +334,7 @@ public class StudentService {
         final Long instId = institution.getId();
         final String query = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
 
-        List<MemberTeacherDTO> teachers = teacherRepository.findByInstitutionId(instId).stream()
+        List<MemberTeacherDTO> teachers = teacherRepository.findWithDetailsByInstitutionId(instId).stream()
             .filter(t -> !t.isSuperAdmin())
             .filter(t -> Boolean.TRUE.equals(t.getApproved()))
             .filter(t -> query.isEmpty()
@@ -321,18 +355,9 @@ public class StudentService {
             ))
             .toList();
 
-        Map<Long, Student> studentsMap = new LinkedHashMap<>();
-        for (Student s : studentRepository.findByInstitutionId(instId)) {
-            studentsMap.put(s.getId(), s);
-        }
-        for (Student s : studentRepository.findAll()) {
-            if (s.getInstitution() != null && instId.equals(s.getInstitution().getId())) {
-                studentsMap.put(s.getId(), s);
-            }
-        }
-
+        List<Student> institutionStudents = studentRepository.findWithLanguagesByInstitutionId(instId);
         List<MemberStudentDTO> students = new ArrayList<>();
-        for (Student s : studentsMap.values()) {
+        for (Student s : institutionStudents) {
             List<String> langs = s.getLanguages() == null
                 ? List.of()
                 : s.getLanguages().stream().map(StudentLanguage::getLanguageName).toList();
@@ -389,7 +414,7 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public List<Student> findAll() {
-        return studentRepository.findAll();
+        return studentRepository.findAllWithLanguages();
     }
 
     @Transactional(readOnly = true)

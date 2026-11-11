@@ -2,7 +2,10 @@ package com.duolinfo.ia.proj.entity;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -67,6 +70,7 @@ public class Teacher extends User {
         joinColumns = @JoinColumn(name = "teacher_id")
     )
     @Column(name = "language_name", nullable = false)
+    @org.hibernate.annotations.BatchSize(size = 25)
     private List<String> taughtLanguages = new ArrayList<>();
 
     /*
@@ -78,6 +82,7 @@ public class Teacher extends User {
         joinColumns = @JoinColumn(name = "teacher_id")
     )
     @Column(name = "specialization_area", nullable = false)
+    @org.hibernate.annotations.BatchSize(size = 25)
     private List<String> specializationAreas = new ArrayList<>();
 
     /*

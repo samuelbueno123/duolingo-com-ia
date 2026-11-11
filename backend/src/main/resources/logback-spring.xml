@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <conversionRule conversionWord="clr" converterClass="org.springframework.boot.logging.logback.ColorConverter" />
+    <conversionRule conversionWord="wex" converterClass="org.springframework.boot.logging.logback.WhitespaceThrowableProxyConverter" />
+    <conversionRule conversionWord="wEx" converterClass="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter" />
+
+    <!-- Padrão estruturado de console contendo Timestamp ISO-8601, Nível, Thread, Correlation ID do MDC, Logger e Mensagem -->
+    <property name="CONSOLE_LOG_PATTERN"
+              value="%clr(%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}){faint} %clr(%-5level) %clr([%15.15t]){faint} %clr([%X{correlationId:-NO_CORR_ID}]){cyan} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n%wEx"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- Níveis de Log específicos -->
+    <logger name="com.duolinfo.ia.proj" level="INFO" />
+    <logger name="org.springframework.web" level="INFO" />
+    <logger name="org.springframework.security" level="INFO" />
+    <logger name="org.hibernate.SQL" level="WARN" />
+    <logger name="org.flywaydb" level="INFO" />
+    <logger name="com.zaxxer.hikari" level="INFO" />
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+</configuration>

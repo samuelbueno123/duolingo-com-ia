@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
+import com.duolinfo.ia.proj.dto.request.CloneExerciseRequestDTO;
 import com.duolinfo.ia.proj.dto.request.ExerciseFeedbackRequestDTO;
 import com.duolinfo.ia.proj.dto.request.ExerciseQuestionRequestDTO;
 import com.duolinfo.ia.proj.dto.request.LearningExerciseRequestDTO;
@@ -69,6 +70,20 @@ public class LearningExerciseService {
     private final ClassTeacherAssignmentRepository assignmentRepository;
     private final AchievementService achievementService;
     private final SseEmitterService sseEmitterService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private StudentMistakeService studentMistakeService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private StudentStreakService studentStreakService;
+
+    public void setStudentMistakeService(StudentMistakeService studentMistakeService) {
+        this.studentMistakeService = studentMistakeService;
+    }
+
+    public void setStudentStreakService(StudentStreakService studentStreakService) {
+        this.studentStreakService = studentStreakService;
+    }
 
     public LearningExerciseService(
             ObjectMapper objectMapper,
@@ -184,6 +199,9 @@ public class LearningExerciseService {
                 "Informe o conteúdo teórico ou adicione ao menos uma questão."
             );
         }
+        if (request.dueDate() != null && request.dueDate().isBefore(LocalDate.now())) {
+            throw new BusinessException("A data de entrega não pode ser anterior à data atual.");
+        }
         SchoolClass schoolClass = schoolClassRepository.findById(request.schoolClassId())
             .orElseThrow(() -> new ResourceNotFoundException("Turma não encontrada."));
         if (!teacher.isSuperAdmin()
@@ -227,6 +245,57 @@ public class LearningExerciseService {
         LearningExercise saved = exerciseRepository.save(exercise);
         notifyStudentsNewExercise(saved);
         return toExerciseResponse(saved, true);
+    }
+
+    @Transactional
+    public LearningExerciseResponseDTO cloneExercise(
+            Long teacherId,
+            Long exerciseId,
+            CloneExerciseRequestDTO request) {
+        Teacher teacher = teacherRepository.findById(teacherId)
+            .orElseThrow(() -> new ResourceNotFoundException("Professor não encontrado."));
+        LearningExercise source = findExercise(exerciseId);
+
+        SchoolClass targetClass = schoolClassRepository.findById(request.targetSchoolClassId())
+            .orElseThrow(() -> new ResourceNotFoundException("Turma de destino não encontrada."));
+
+        boolean isAssigned = teacher.isSuperAdmin()
+            || teacher.isInstitutionAdmin()
+            || assignmentRepository.findByTeacherId(teacher.getId()).stream()
+                .anyMatch(a -> a.getEndDate() == null && Objects.equals(a.getSchoolClass().getId(), targetClass.getId()));
+        if (!isAssigned) {
+            throw new BusinessException("Você não tem permissão para adicionar exercícios a esta turma.");
+        }
+
+        LearningExercise clone = new LearningExercise();
+        String title = request.newTitle() != null && !request.newTitle().isBlank()
+            ? request.newTitle().trim()
+            : source.getTitle() + " (Cópia)";
+        clone.setTitle(title);
+        clone.setLanguageName(source.getLanguageName());
+        clone.setProficiencyLevel(source.getProficiencyLevel());
+        clone.setDescription(source.getDescription());
+        clone.setContentBody(source.getContentBody());
+        clone.setMediaUrl(source.getMediaUrl());
+        clone.setDueDate(request.newDueDate() != null ? request.newDueDate() : source.getDueDate());
+        clone.setSchoolClass(targetClass);
+        clone.setTeacher(teacher);
+        clone.setQuestionsJson(source.getQuestionsJson());
+        clone.setActive(true);
+        clone.setCreatedAt(Instant.now());
+
+        LearningExercise saved = exerciseRepository.save(clone);
+        notifyStudentsNewExercise(saved);
+        return toExerciseResponse(saved, true);
+    }
+
+    @Transactional
+    public LearningExerciseResponseDTO cloneExercise(
+            Long exerciseId,
+            CloneExerciseRequestDTO request,
+            String email) {
+        Teacher teacher = findTeacher(email);
+        return cloneExercise(teacher.getId(), exerciseId, request);
     }
 
     @Transactional
@@ -313,6 +382,19 @@ public class LearningExerciseService {
                         "INCORRECT",
                         "Resposta incorreta. Revise o enunciado e tente novamente para conquistar o XP restante."
                     ));
+                    if (studentMistakeService != null) {
+                        try {
+                            studentMistakeService.recordMistake(
+                                student.getId(),
+                                exercise.getId(),
+                                question.question(),
+                                rawAnswer,
+                                expected != null ? expected : "",
+                                null
+                            );
+                        } catch (Exception ignored) {
+                        }
+                    }
                 }
             }
         }
@@ -335,6 +417,12 @@ public class LearningExerciseService {
         if (xpDelta > 0) {
             awardLanguageXp(student, exercise.getLanguageName(), xpDelta);
             studentRepository.save(student);
+        }
+        if (studentStreakService != null) {
+            try {
+                studentStreakService.recordActivity(student.getId(), xpDelta);
+            } catch (Exception ignored) {
+            }
         }
         achievementService.evaluateAutoAchievements(student);
         notifyExerciseSubmitted(submission, xpDelta);

@@ -59,4 +59,19 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
         Long schoolClassId,
         EnrollmentStatus status
     );
+
+    /*
+     * Busca matrículas ativas de uma turma com o aluno e seus idiomas em uma única consulta,
+     * eliminando o problema de N+1 queries.
+     */
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT DISTINCT e FROM Enrollment e " +
+        "JOIN FETCH e.student s " +
+        "LEFT JOIN FETCH s.languages " +
+        "WHERE e.schoolClass.id = :schoolClassId AND e.status = :status"
+    )
+    List<Enrollment> findActiveWithStudentAndLanguagesBySchoolClassId(
+        @org.springframework.data.repository.query.Param("schoolClassId") Long schoolClassId,
+        @org.springframework.data.repository.query.Param("status") EnrollmentStatus status
+    );
 }

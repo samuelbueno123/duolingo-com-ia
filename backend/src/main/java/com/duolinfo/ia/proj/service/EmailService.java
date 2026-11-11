@@ -50,9 +50,11 @@ public class EmailService {
 
         boolean mailConfigured = smtpHost != null && !smtpHost.isBlank() && mailSender != null;
         if (!mailConfigured) {
-            log.info("[PASSWORD-RESET-EMAIL] SMTP não configurado. Link de redefinição gerado para {}: {}",
-                    toEmail, resetLink);
-            log.info("[PASSWORD-RESET-EMAIL] Token JWT (válido por {} min): {}", expirationMinutes, resetToken);
+            String masked = (resetToken != null && resetToken.length() > 8)
+                    ? resetToken.substring(0, 4) + "..." + resetToken.substring(resetToken.length() - 4)
+                    : "***";
+            log.info("[PASSWORD-RESET-EMAIL] SMTP não configurado. Token gerado para {} (máscara: {}, expiração: {} min)",
+                    toEmail, masked, expirationMinutes);
             return false;
         }
 

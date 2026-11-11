@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.duolinfo.ia.proj.entity.Enrollment;
 import com.duolinfo.ia.proj.entity.EnrollmentStatus;
+import com.duolinfo.ia.proj.entity.Institution;
 import com.duolinfo.ia.proj.entity.SchoolClass;
 import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.exception.BusinessException;
@@ -79,11 +80,25 @@ public class EnrollmentService {
             );
         }
 
-        if (schoolClass.getSchool() != null && schoolClass.getSchool().getInstitution() != null) {
-            student.setInstitution(schoolClass.getSchool().getInstitution());
-            studentRepository.save(student);
-        } else if (schoolClass.getInstitution() != null) {
-            student.setInstitution(schoolClass.getInstitution());
+        Institution classInstitution = schoolClass.getSchool() != null && schoolClass.getSchool().getInstitution() != null
+            ? schoolClass.getSchool().getInstitution()
+            : schoolClass.getInstitution();
+
+        if (classInstitution != null) {
+            if (student.getInstitution() != null && !student.getInstitution().getId().equals(classInstitution.getId())) {
+                boolean hasActiveInOtherInstitution = activeEnrollments.stream().anyMatch(e -> {
+                    Institution inst = e.getSchoolClass() != null
+                        ? (e.getSchoolClass().getSchool() != null ? e.getSchoolClass().getSchool().getInstitution() : e.getSchoolClass().getInstitution())
+                        : null;
+                    return inst != null && !inst.getId().equals(classInstitution.getId());
+                });
+                if (hasActiveInOtherInstitution) {
+                    throw new BusinessException(
+                        "O estudante já possui matrículas ativas em outra instituição (" + student.getInstitution().getName() + "). É necessária transferência institucional antes da matrícula."
+                    );
+                }
+            }
+            student.setInstitution(classInstitution);
             studentRepository.save(student);
         }
 
@@ -223,8 +238,11 @@ public class EnrollmentService {
         if (status == EnrollmentStatus.ACTIVE) {
             List<Enrollment> active = enrollmentRepository.findByStudentIdAndStatus(
                 enrollment.getStudent().getId(), EnrollmentStatus.ACTIVE);
-            if (active.stream().anyMatch(item -> !item.getId().equals(enrollmentId))) {
-                throw new BusinessException("O aluno jÃ¡ possui outra matrÃ­cula ativa.");
+            if (active.stream().anyMatch(item -> !item.getId().equals(enrollmentId)
+                    && item.getSchoolClass() != null
+                    && enrollment.getSchoolClass() != null
+                    && item.getSchoolClass().getId().equals(enrollment.getSchoolClass().getId()))) {
+                throw new BusinessException("O aluno já possui outra matrícula ativa nesta turma.");
             }
             enrollment.setCancellationDate(null);
         } else if (status == EnrollmentStatus.CANCELLED || status == EnrollmentStatus.COMPLETED || status == EnrollmentStatus.TRANSFERRED) {

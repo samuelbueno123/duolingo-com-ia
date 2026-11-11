@@ -13,7 +13,12 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "teacher_documents")
+@Table(
+    name = "teacher_documents",
+    indexes = {
+        @Index(name = "idx_teacher_documents_teacher", columnList = "teacher_id")
+    }
+)
 public class TeacherDocument {
 
     private static final long MAX_FILE_SIZE = 10L * 1024 * 1024;

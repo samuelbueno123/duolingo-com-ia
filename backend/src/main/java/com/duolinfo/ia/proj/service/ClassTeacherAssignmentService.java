@@ -40,18 +40,16 @@ public class ClassTeacherAssignmentService {
         /*
          * A turma e o professor precisam pertencer à mesma instituição.
          */
-        Long classInstitutionId =
-            schoolClass
-                .getSchool()
-                .getInstitution()
-                .getId();
+        Long classInstitutionId = null;
+        if (schoolClass.getSchool() != null && schoolClass.getSchool().getInstitution() != null) {
+            classInstitutionId = schoolClass.getSchool().getInstitution().getId();
+        } else if (schoolClass.getInstitution() != null) {
+            classInstitutionId = schoolClass.getInstitution().getId();
+        }
 
-        Long teacherInstitutionId =
-            teacher
-                .getInstitution()
-                .getId();
+        Long teacherInstitutionId = teacher.getInstitution() != null ? teacher.getInstitution().getId() : null;
 
-        if (!classInstitutionId.equals(teacherInstitutionId)) {
+        if (classInstitutionId == null || teacherInstitutionId == null || !classInstitutionId.equals(teacherInstitutionId)) {
             throw new BusinessException(
                 "O professor não pertence à mesma instituição da turma."
             );

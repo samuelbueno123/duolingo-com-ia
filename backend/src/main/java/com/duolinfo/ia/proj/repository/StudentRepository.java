@@ -14,8 +14,10 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
 
     Optional<Student> findByGoogleId(String googleId);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"languages", "institution"})
     Optional<Student> findByEmail(String email);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"languages", "institution"})
     Optional<Student> findByEmailIgnoreCase(String email);
 
     /*
@@ -49,6 +51,12 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     );
 
     List<Student> findByInstitutionId(Long institutionId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT s FROM Student s LEFT JOIN FETCH s.languages WHERE s.institution.id = :institutionId")
+    List<Student> findWithLanguagesByInstitutionId(@org.springframework.data.repository.query.Param("institutionId") Long institutionId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT s FROM Student s LEFT JOIN FETCH s.languages")
+    List<Student> findAllWithLanguages();
 
     List<Student> findByNameContainingIgnoreCaseOrderByNameAsc(String name);
 }

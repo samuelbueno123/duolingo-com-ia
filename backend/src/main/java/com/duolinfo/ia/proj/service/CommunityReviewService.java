@@ -247,13 +247,23 @@ public class CommunityReviewService {
 
     private void awardExperience(Long studentId, String language, int xpAmount) {
         try {
+            if (xpAmount <= 0 || language == null || language.isBlank()) {
+                return;
+            }
             studentRepository.findById(studentId).ifPresent(student -> {
                 StudentLanguage sl = studentLanguageRepository
-                        .findByStudentAndLanguageNameIgnoreCase(student, language)
+                        .findByStudentAndLanguageNameIgnoreCase(student, language.trim())
                         .orElse(null);
                 if (sl != null) {
                     sl.setScore((sl.getScore() != null ? sl.getScore() : 0) + xpAmount);
                     studentLanguageRepository.save(sl);
+                } else {
+                    StudentLanguage newLang = new StudentLanguage();
+                    newLang.setStudent(student);
+                    newLang.setLanguageName(language.trim());
+                    newLang.setLevel("Básico");
+                    newLang.setScore(xpAmount);
+                    studentLanguageRepository.save(newLang);
                 }
             });
         } catch (Exception e) {

@@ -21,7 +21,9 @@ import lombok.Setter;
 @Table(
     name = "learning_exercises",
     indexes = {
-        @Index(name = "idx_professores_exercicios", columnList = "teacher_id, school_class_id, language_name")
+        @Index(name = "idx_professores_exercicios", columnList = "teacher_id, school_class_id, language_name"),
+        @Index(name = "idx_exercises_class_active", columnList = "school_class_id, active, created_at"),
+        @Index(name = "idx_exercises_teacher_created", columnList = "teacher_id, created_at")
     }
 )
 @Getter

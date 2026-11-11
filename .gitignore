@@ -33,9 +33,10 @@ build/
 .vscode/
 
 ### Secrets & Environment ###
-.env
-.env.*
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.prod.example
 *.rar
 *credenciais*
 client_secret*.json

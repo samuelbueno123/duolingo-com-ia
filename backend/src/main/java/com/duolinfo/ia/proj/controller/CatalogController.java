@@ -24,6 +24,7 @@ public class CatalogController {
 
     @GetMapping("/languages")
     @Operation(summary = "Lista idiomas ativos para cadastro")
+    @org.springframework.cache.annotation.Cacheable("catalogLanguages")
     public List<String> findLanguages() {
         return catalogOptionRepository
             .findByCatalogTypeAndActiveTrueOrderByValueAsc("language")
@@ -34,6 +35,7 @@ public class CatalogController {
 
     @GetMapping("/proficiency-levels")
     @Operation(summary = "Lista níveis de proficiência para cadastro")
+    @org.springframework.cache.annotation.Cacheable("catalogProficiencyLevels")
     public List<String> findProficiencyLevels() {
         return List.of("Básico", "Intermediário", "Avançado");
     }

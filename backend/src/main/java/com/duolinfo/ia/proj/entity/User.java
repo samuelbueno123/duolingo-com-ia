@@ -12,18 +12,30 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import jakarta.persistence.Index;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
 @Entity
-@Table(name = "users")
+@Table(
+    name = "users",
+    indexes = {
+        @Index(name = "idx_users_name", columnList = "name"),
+        @Index(name = "idx_users_is_admin", columnList = "is_admin")
+    }
+)
 @Inheritance(strategy = jakarta.persistence.InheritanceType.JOINED)
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @jakarta.persistence.Version
+    @Column(name = "version")
+    private Long version;
 
     @Column(name = "google_id", unique = true)
     private String googleId;
@@ -45,6 +57,10 @@ public class User {
 
     @Column(name = "is_admin", nullable = false, columnDefinition = "boolean default false")
     private boolean admin;
+
+    @Column(name = "active", nullable = false, columnDefinition = "boolean default true")
+    @Builder.Default
+    private boolean active = true;
 
     @Column(name = "gender", length = 20)
     private String gender;

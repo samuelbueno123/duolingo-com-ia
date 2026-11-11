@@ -19,13 +19,22 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import jakarta.persistence.Index;
+
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "class_teacher_assignments")
+@Table(
+    name = "class_teacher_assignments",
+    indexes = {
+        @Index(name = "idx_cta_class", columnList = "class_id"),
+        @Index(name = "idx_cta_teacher", columnList = "teacher_id"),
+        @Index(name = "idx_cta_class_end", columnList = "class_id, endDate")
+    }
+)
 public class ClassTeacherAssignment {
 
     @Id

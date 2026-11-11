@@ -74,6 +74,13 @@ public class SecurityConfig {
                     "/api/institutions/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/media/profile-pictures/**")
                     .permitAll()
+                .requestMatchers(HttpMethod.GET,
+                    "/actuator/health",
+                    "/actuator/health/**",
+                    "/actuator/info")
+                    .permitAll()
+                .requestMatchers("/actuator/**")
+                    .hasRole("ADMIN")
 
                 .requestMatchers(
                     "/api/students/me",
@@ -169,11 +176,11 @@ public class SecurityConfig {
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint((request, response, exception) ->
-                    writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
-                        "Token ausente ou inválido."))
+                    writeError(request, response, HttpServletResponse.SC_UNAUTHORIZED,
+                        "Unauthorized", "Token ausente ou inválido."))
                 .accessDeniedHandler((request, response, exception) ->
-                    writeError(response, HttpServletResponse.SC_FORBIDDEN,
-                        "Acesso negado para o seu perfil.")))
+                    writeError(request, response, HttpServletResponse.SC_FORBIDDEN,
+                        "Forbidden", "Acesso negado para o seu perfil.")))
             .headers(headers -> headers.frameOptions(frameOptions ->
                 frameOptions.sameOrigin()));
 
@@ -181,14 +188,34 @@ public class SecurityConfig {
     }
 
     private static void writeError(
+            jakarta.servlet.http.HttpServletRequest request,
             HttpServletResponse response,
             int status,
+            String error,
             String message) throws IOException {
 
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(
-            "{\"success\":false,\"message\":\"" + message + "\"}");
+
+        String correlationId = response.getHeader(CorrelationIdFilter.CORRELATION_ID_HEADER);
+        if (correlationId == null || correlationId.isBlank()) {
+            correlationId = (String) request.getAttribute(CorrelationIdFilter.REQUEST_ATTR);
+        }
+        if (correlationId == null || correlationId.isBlank()) {
+            correlationId = org.slf4j.MDC.get(CorrelationIdFilter.MDC_KEY);
+        }
+        if (correlationId == null || correlationId.isBlank()) {
+            correlationId = "N/A";
+        }
+
+        String path = request.getRequestURI();
+        String timestamp = java.time.LocalDateTime.now().toString();
+
+        String json = String.format(
+            "{\"timestamp\":\"%s\",\"status\":%d,\"error\":\"%s\",\"message\":\"%s\",\"path\":\"%s\",\"correlationId\":\"%s\",\"success\":false}",
+            timestamp, status, error, message, path, correlationId
+        );
+        response.getWriter().write(json);
     }
 }

@@ -84,10 +84,10 @@ public class SecurityConfig {
 
                 .requestMatchers(
                     "/api/students/me",
-                    "/api/students/me/**").hasAnyRole("STUDENT", "ADMIN")
+                    "/api/students/me/**").authenticated()
                 .requestMatchers(
                     "/api/teachers/me",
-                    "/api/teachers/me/**").hasAnyRole("TEACHER", "ADMIN")
+                    "/api/teachers/me/**").authenticated()
                 .requestMatchers("/api/users/me", "/api/users/me/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/users/*").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/users/*").authenticated()
@@ -148,15 +148,15 @@ public class SecurityConfig {
 
                 // Language learning modules
                 .requestMatchers("/api/srs/**")
-                    .hasAnyRole("STUDENT", "ADMIN")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers("/api/ai/**")
-                    .hasAnyRole("STUDENT", "ADMIN")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers("/api/pronunciation/**")
-                    .hasAnyRole("STUDENT", "ADMIN")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers("/api/community/**")
-                    .hasAnyRole("STUDENT", "ADMIN")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers("/api/learning-path/**")
-                    .hasAnyRole("STUDENT", "ADMIN")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
 
                 .requestMatchers("/api/auth/me", "/api/auth/me/**", "/api/auth/logout").authenticated()
                 .requestMatchers("/api/home/**").authenticated()

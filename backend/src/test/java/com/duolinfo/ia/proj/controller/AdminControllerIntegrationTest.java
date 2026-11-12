@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.duolinfo.ia.proj.dto.response.AdminNotificationResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableMetadataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminUserResponseDTO;
+import com.duolinfo.ia.proj.dto.response.InstitutionAdminDashboardDTO;
 import com.duolinfo.ia.proj.service.AchievementService;
 import com.duolinfo.ia.proj.service.AdminService;
 import com.duolinfo.ia.proj.service.InstitutionRequestService;
@@ -169,5 +170,29 @@ class AdminControllerIntegrationTest {
         mockMvc.perform(patch("/api/admin/notifications/5/read").principal(principal))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.read", is(true)));
+    }
+
+    @Test
+    void getInstitutionDashboard_supportsBothAliasesAndReturnsDto() throws Exception {
+        InstitutionAdminDashboardDTO dto = new InstitutionAdminDashboardDTO(
+            null, 0, 0, 0, 0, 0,
+            List.of(), List.of(), List.of(), List.of(), List.of()
+        );
+
+        UsernamePasswordAuthenticationToken principal = new UsernamePasswordAuthenticationToken(
+            "admin@duolingo.com",
+            null,
+            List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+        );
+
+        when(adminService.getInstitutionDashboard(null, "admin@duolingo.com")).thenReturn(dto);
+
+        mockMvc.perform(get("/api/admin/institution-dashboard").principal(principal))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalTeachers", is(0)));
+
+        mockMvc.perform(get("/api/admin/dashboard/institution").principal(principal))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalTeachers", is(0)));
     }
 }

@@ -462,12 +462,26 @@ public class AdminService {
 
         Institution institution;
         if (targetInstId != null) {
-            institution = institutionRepository.findById(targetInstId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Instituição não encontrada."));
+            institution = institutionRepository.findById(targetInstId).orElse(null);
         } else {
             institution = institutionRepository.findByCode(InstitutionService.DEFAULT_INSTITUTION_CODE)
-                .orElseGet(() -> institutionRepository.findAll().stream().findFirst()
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nenhuma instituição cadastrada.")));
+                .orElseGet(() -> institutionRepository.findAll().stream().findFirst().orElse(null));
+        }
+
+        if (institution == null) {
+            return new InstitutionAdminDashboardDTO(
+                null,
+                0,
+                0,
+                0,
+                0,
+                0,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of()
+            );
         }
 
         Long instId = institution.getId();

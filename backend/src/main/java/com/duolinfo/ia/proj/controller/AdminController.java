@@ -166,7 +166,7 @@ public class AdminController {
         return adminService.setInstitutionAdminRole(id, request, authentication.getName());
     }
 
-    @GetMapping("/institution-dashboard")
+    @GetMapping({"/institution-dashboard", "/dashboard/institution"})
     public InstitutionAdminDashboardDTO getInstitutionDashboard(
             @RequestParam(required = false) Long institutionId,
             Authentication authentication) {

@@ -78,9 +78,9 @@ public class ComprehensiveDataSeeder implements ApplicationRunner {
 
         Long institutionId = findOrCreateInstitution();
         Long schoolId = findOrCreateSchool(institutionId);
-        Long class1Id = findOrCreateClass("Turma de Inglês Básico A1", "2026", "NOTURNO", "Iniciante", schoolId, institutionId);
-        Long class2Id = findOrCreateClass("Turma de Espanhol Intermediário B1", "2026", "VESPERTINO", "Intermediário", schoolId, institutionId);
-        findOrCreateClass("Turma de Francês Conversação A2", "2026", "MATUTINO", "Iniciante-Médio", schoolId, institutionId);
+        Long class1Id = findOrCreateClass("Turma de Inglês Básico A1", "2026", "NOTURNO", "Iniciante", "Inglês", schoolId, institutionId);
+        Long class2Id = findOrCreateClass("Turma de Espanhol Intermediário B1", "2026", "VESPERTINO", "Intermediário", "Espanhol", schoolId, institutionId);
+        findOrCreateClass("Turma de Francês Conversação A2", "2026", "MATUTINO", "Iniciante-Médio", "Francês", schoolId, institutionId);
 
         String defaultHash = passwordEncoder.encode("duadmin");
 
@@ -219,7 +219,7 @@ public class ComprehensiveDataSeeder implements ApplicationRunner {
             """, Long.class, institutionId);
     }
 
-    private Long findOrCreateClass(String name, String year, String shift, String gradeLevel, Long schoolId, Long institutionId) {
+    private Long findOrCreateClass(String name, String year, String shift, String gradeLevel, String languageName, Long schoolId, Long institutionId) {
         var existing = jdbcTemplate.queryForList(
             "SELECT id FROM classes WHERE name = ? AND institution_id = ? LIMIT 1",
             Long.class, name, institutionId
@@ -228,10 +228,10 @@ public class ComprehensiveDataSeeder implements ApplicationRunner {
             return existing.get(0);
         }
         return jdbcTemplate.queryForObject("""
-            INSERT INTO classes (name, school_year, shift, grade_level, school_id, institution_id, active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT INTO classes (name, school_year, shift, grade_level, language_name, school_id, institution_id, active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             RETURNING id
-            """, Long.class, name, year, shift, gradeLevel, schoolId, institutionId);
+            """, Long.class, name, year, shift, gradeLevel, languageName, schoolId, institutionId);
     }
 
     private Long findOrCreateUser(String name, String email, String passwordHash, String gender, int dailyGoalMinutes) {

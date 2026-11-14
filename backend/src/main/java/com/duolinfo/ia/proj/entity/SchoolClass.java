@@ -88,6 +88,14 @@ public class SchoolClass {
     private String gradeLevel;
 
     /**
+     * Um dos 6 idiomas oficiais ensinados na turma
+     * (Alemão, Espanhol, Francês, Inglês, Italiano ou Japonês).
+     */
+    @Builder.Default
+    @Column(name = "language_name", nullable = false, length = 64)
+    private String languageName = "Inglês";
+
+    /**
      * Escola responsável pela turma.
      */
     @ToString.Exclude

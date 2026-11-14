@@ -35,6 +35,7 @@ import com.duolinfo.ia.proj.mapper.DtoMapper;
 import com.duolinfo.ia.proj.mapper.RequestMapper;
 import com.duolinfo.ia.proj.service.AccessControlService;
 import com.duolinfo.ia.proj.service.StudentService;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -165,8 +166,10 @@ public class StudentController {
     }
 
     @GetMapping("/me/available-classes")
-    @Operation(summary = "Lista turmas ativas disponíveis para o estudante se matricular")
-    public List<SchoolClassResponseDTO> listAvailableClasses(Authentication authentication) {
+    @Operation(summary = "Lista turmas ativas disponíveis para o estudante se matricular (compatíveis por padrão)")
+    public List<SchoolClassResponseDTO> listAvailableClasses(
+            @RequestParam(defaultValue = "false") boolean includeIneligible,
+            Authentication authentication) {
         Student student = requireStudent(studentService.findByEmail(authentication.getName()));
         if (schoolClassService == null) {
             return List.of();
@@ -179,6 +182,16 @@ public class StudentController {
                 Long classInstId = sc.getInstitution() != null ? sc.getInstitution().getId() :
                     (sc.getSchool() != null && sc.getSchool().getInstitution() != null ? sc.getSchool().getInstitution().getId() : null);
                 return classInstId == null || Objects.equals(classInstId, instId);
+            })
+            .filter(sc -> {
+                if (includeIneligible) return true;
+                String classLang = SupportedLanguages.normalizeOrDefault(
+                    sc.getLanguageName(),
+                    SupportedLanguages.inferFromClassNameOrDefault(sc.getName())
+                );
+                return student.getLanguages() != null && student.getLanguages().stream()
+                    .map(com.duolinfo.ia.proj.entity.StudentLanguage::getLanguageName)
+                    .anyMatch(lang -> SupportedLanguages.matches(lang, classLang));
             })
             .map(DtoMapper::toSchoolClassResponse)
             .toList();

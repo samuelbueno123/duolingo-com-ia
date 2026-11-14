@@ -177,20 +177,35 @@ class BackendAuditRegressionTests {
     }
 
     @Test
-    @DisplayName("Catalogo de idiomas aceita catalogType 'LANGUAGE' case-insensitive")
+    @DisplayName("Catalogo de idiomas aceita catalogType 'LANGUAGE' case-insensitive e filtra estritamente os 6 idiomas base")
     void catalogLanguagesIsCaseInsensitive() throws Exception {
-        String label = "ItalianoAudit" + uniq();
-        catalogOptionRepository.saveAndFlush(new CatalogOption("LANGUAGE", label));
-        if (cacheManager != null) {
-            Cache cache = cacheManager.getCache("catalogLanguages");
-            if (cache != null) {
-                cache.clear();
+        CatalogOption invalidOpt = catalogOptionRepository.saveAndFlush(new CatalogOption("LANGUAGE", "RussoInvalido" + uniq()));
+        CatalogOption aliasOpt = catalogOptionRepository.saveAndFlush(new CatalogOption("LANGUAGE", "alemao"));
+        try {
+            if (cacheManager != null) {
+                Cache cache = cacheManager.getCache("catalogLanguages");
+                if (cache != null) {
+                    cache.clear();
+                }
+            }
+
+            mockMvc.perform(get("/api/catalog/languages"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(6))
+                .andExpect(jsonPath("$", hasItem("Alemão")))
+                .andExpect(jsonPath("$", hasItem("Japonês")))
+                .andExpect(jsonPath("$", not(hasItem(invalidOpt.getValue()))));
+        } finally {
+            catalogOptionRepository.delete(invalidOpt);
+            catalogOptionRepository.delete(aliasOpt);
+            catalogOptionRepository.flush();
+            if (cacheManager != null) {
+                Cache cache = cacheManager.getCache("catalogLanguages");
+                if (cache != null) {
+                    cache.clear();
+                }
             }
         }
-
-        mockMvc.perform(get("/api/catalog/languages"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$", hasItem(label)));
     }
 
     @Test
@@ -465,5 +480,80 @@ class BackendAuditRegressionTests {
         assertEquals("Espanhol", dto.languageName());
         assertEquals("Intermediário", dto.level());
         assertEquals(120, dto.score());
+    }
+
+    @Test
+    @DisplayName("Estudante so ve/ingressa em turmas dos idiomas escolhidos e plataforma bloqueia idiomas fora dos 6 oficiais")
+    void strictSixLanguagesAndStudentClassLanguageMatchingEnforced() throws Exception {
+        String sfx = uniq();
+        Institution inst = createInstitution("LC_" + sfx);
+        School school = schoolRepository.saveAndFlush(School.builder().name("Esc LC " + sfx).institution(inst).build());
+
+        SchoolClass spanishClass = schoolClassRepository.saveAndFlush(SchoolClass.builder()
+            .name("Turma Espanhol " + sfx)
+            .languageName("Espanhol")
+            .school(school)
+            .institution(inst)
+            .active(true)
+            .build());
+
+        SchoolClass japaneseClass = schoolClassRepository.saveAndFlush(SchoolClass.builder()
+            .name("Turma Japones " + sfx)
+            .languageName("Japonês")
+            .school(school)
+            .institution(inst)
+            .active(true)
+            .build());
+
+        Student student = createStudent("lc_" + sfx, inst, true);
+        studentLanguageRepository.saveAndFlush(StudentLanguage.builder()
+            .student(student)
+            .languageName("Espanhol")
+            .level("Básico")
+            .score(0)
+            .build());
+
+        String studentToken = jwtService.generateToken(student, "STUDENT");
+
+        // Por padrão /available-classes mostra apenas turmas compatíveis com os idiomas do aluno
+        mockMvc.perform(get("/api/students/me/available-classes")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].name", hasItem(spanishClass.getName())))
+            .andExpect(jsonPath("$[*].name", not(hasItem(japaneseClass.getName()))));
+
+        // Com includeIneligible=true mostra ambas (para o app exibir aviso/cadeado visual)
+        mockMvc.perform(get("/api/students/me/available-classes")
+                .param("includeIneligible", "true")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].name", hasItem(spanishClass.getName())))
+            .andExpect(jsonPath("$[*].name", hasItem(japaneseClass.getName())));
+
+        // Tentar ingressar em turma de Japonês sem ter Japonês no perfil é bloqueado (409 BusinessException)
+        mockMvc.perform(post("/api/students/me/enrollments")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("schoolClassId", japaneseClass.getId()))))
+            .andExpect(status().isConflict());
+
+        // Ingressar em turma de Espanhol compatível funciona normalmente (201)
+        mockMvc.perform(post("/api/students/me/enrollments")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("schoolClassId", spanishClass.getId()))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.schoolClassLanguage").value("Espanhol"));
+
+        // Tentar cadastrar estudante com idioma inexistente (ex: Esperanto) falha com erro de negócio (409)
+        mockMvc.perform(post("/api/students")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "name", "Aluno Invalido",
+                    "email", "inv_" + sfx + "@audit.test",
+                    "password", "SenhaForte@123",
+                    "languages", List.of(Map.of("languageName", "Esperanto", "level", "Básico"))
+                ))))
+            .andExpect(status().isConflict());
     }
 }

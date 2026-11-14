@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import com.duolinfo.ia.proj.dto.ai.ExplainMistakeRequestDTO;
 import com.duolinfo.ia.proj.dto.ai.ExplainMistakeResponseDTO;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -41,7 +42,9 @@ public class AiExplanationService {
     }
 
     public ExplainMistakeResponseDTO explainMistake(ExplainMistakeRequestDTO request) {
-        String lang = request.language() != null && !request.language().isBlank() ? request.language().trim() : "o idioma estudado";
+        String lang = request.language() != null && !request.language().isBlank()
+            ? SupportedLanguages.normalizeOrThrow(request.language())
+            : "o idioma estudado";
 
         if (aiApiKey != null && !aiApiKey.isBlank() && !aiApiKey.startsWith("AQ.placeholder")) {
             try {

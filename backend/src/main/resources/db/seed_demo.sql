@@ -11,12 +11,12 @@ VALUES (1, 'Departamento de Línguas Estrangeiras e Letras', '33001234', 1, CURR
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, updated_at = CURRENT_TIMESTAMP;
 
 -- 3. Ensure Classes
-INSERT INTO classes (id, name, school_year, shift, grade_level, school_id, institution_id, active, created_at, updated_at)
+INSERT INTO classes (id, name, school_year, shift, grade_level, language_name, school_id, institution_id, active, created_at, updated_at)
 VALUES 
-    (1, 'Turma de Inglês Básico A1', '2026', 'NOTURNO', 'Iniciante', 1, 1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    (2, 'Turma de Espanhol Intermediário B1', '2026', 'VESPERTINO', 'Intermediário', 1, 1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    (3, 'Turma de Francês Conversação A2', '2026', 'MATUTINO', 'Iniciante-Médio', 1, 1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-ON CONFLICT (id) DO UPDATE SET active = true, updated_at = CURRENT_TIMESTAMP;
+    (1, 'Turma de Inglês Básico A1', '2026', 'NOTURNO', 'Iniciante', 'Inglês', 1, 1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (2, 'Turma de Espanhol Intermediário B1', '2026', 'VESPERTINO', 'Intermediário', 'Espanhol', 1, 1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (3, 'Turma de Francês Conversação A2', '2026', 'MATUTINO', 'Iniciante-Médio', 'Francês', 1, 1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT (id) DO UPDATE SET language_name = EXCLUDED.language_name, active = true, updated_at = CURRENT_TIMESTAMP;
 
 -- 4. Ensure Users (Password hash for 'duadmin')
 -- Bcrypt hash for 'duadmin': $2a$10$o8.jQJbU1e82EszV27H30O2LdYF3q6R8J4u4aFhP27j1VlhgNfehK

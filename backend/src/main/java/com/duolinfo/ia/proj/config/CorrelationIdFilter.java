@@ -7,10 +7,13 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.duolinfo.ia.proj.service.SystemTelemetryService;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -35,6 +38,9 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 
     private static final Pattern VALID_ID_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]{8,64}$");
 
+    @Autowired(required = false)
+    private SystemTelemetryService telemetryService;
+
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -56,6 +62,9 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 
         // Não loga ruído de preflight OPTIONS ou assets estáticos
         boolean isDiagnosticPath = uri.startsWith("/api/") || uri.startsWith("/actuator/");
+        if (telemetryService != null && isDiagnosticPath && !"OPTIONS".equalsIgnoreCase(method)) {
+            telemetryService.onRequestStart();
+        }
         if (isDiagnosticPath && !"OPTIONS".equalsIgnoreCase(method)) {
             LOGGER.info("HTTP Request: method={} uri={} remoteIp={} correlationId={}",
                 method, uri, remoteIp, correlationId);
@@ -66,6 +75,10 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         } finally {
             long durationMs = System.currentTimeMillis() - startTime;
             int status = response.getStatus();
+
+            if (telemetryService != null && isDiagnosticPath && !"OPTIONS".equalsIgnoreCase(method)) {
+                telemetryService.onRequestComplete(status, durationMs);
+            }
 
             if (isDiagnosticPath && !"OPTIONS".equalsIgnoreCase(method)) {
                 if (status >= 500) {

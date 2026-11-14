@@ -21,6 +21,7 @@ import com.duolinfo.ia.proj.entity.StudentLanguage;
 import com.duolinfo.ia.proj.entity.Teacher;
 import com.duolinfo.ia.proj.entity.TeacherDocument;
 import com.duolinfo.ia.proj.entity.User;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 /** Converts validated request DTOs into domain entities. */
 public final class RequestMapper {
@@ -228,6 +229,10 @@ public final class RequestMapper {
         schoolClass.setSchoolYear(request.schoolYear());
         schoolClass.setShift(request.shift());
         schoolClass.setGradeLevel(request.gradeLevel());
+        String inferredDefault = SupportedLanguages.inferFromClassNameOrDefault(request.name());
+        schoolClass.setLanguageName(
+            SupportedLanguages.normalizeOrDefault(request.languageName(), inferredDefault)
+        );
         if (request.active() != null) {
             schoolClass.setActive(request.active());
         }

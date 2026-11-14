@@ -31,6 +31,7 @@ import com.duolinfo.ia.proj.repository.StudentLanguageRepository;
 import com.duolinfo.ia.proj.repository.StudentLearningPathRepository;
 import com.duolinfo.ia.proj.repository.StudentModuleProgressRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 @Service
 public class LearningPathService {
@@ -242,7 +243,7 @@ public class LearningPathService {
 
     @Transactional
     public DiagnosticResultDTO submitDiagnostic(Long studentId, DiagnosticAnswerDTO dto) {
-        String lang = dto.language() != null && !dto.language().isBlank() ? dto.language().trim() : "Inglês";
+        String lang = SupportedLanguages.normalizeOrDefault(dto.language(), SupportedLanguages.DEFAULT);
         Map<Integer, Integer> answers = dto.answers();
 
         int correctCount = 0;
@@ -320,7 +321,7 @@ public class LearningPathService {
 
     @Transactional
     public LearningPathDTO getStudentLearningPath(Long studentId, String language) {
-        String lang = (language != null && !language.isBlank()) ? language.trim() : "Inglês";
+        String lang = SupportedLanguages.normalizeOrDefault(language, SupportedLanguages.DEFAULT);
 
         StudentLearningPath path = pathRepository.findByStudentIdAndLanguageIgnoreCase(studentId, lang)
                 .orElseGet(() -> {

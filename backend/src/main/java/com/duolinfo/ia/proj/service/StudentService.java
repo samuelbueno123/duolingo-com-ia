@@ -34,6 +34,7 @@ import com.duolinfo.ia.proj.repository.InstitutionRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
 import com.duolinfo.ia.proj.repository.TeacherRepository;
 import com.duolinfo.ia.proj.repository.UserRepository;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -147,8 +148,8 @@ public class StudentService {
                     Set<String> insertedNames = new HashSet<>();
                     for (StudentLanguage lang : student.getLanguages()) {
                         if (lang.getLanguageName() != null && !lang.getLanguageName().isBlank()) {
-                            String trimmed = lang.getLanguageName().trim();
-                            String lowerKey = trimmed.toLowerCase(Locale.ROOT);
+                            String canonical = SupportedLanguages.normalizeOrThrow(lang.getLanguageName());
+                            String lowerKey = SupportedLanguages.stripAccentsLower(canonical);
                             if (insertedNames.contains(lowerKey)) {
                                 continue;
                             }
@@ -162,7 +163,7 @@ public class StudentService {
                                 "INSERT INTO student_languages (student_id, language_name, level, score) VALUES (:studentId, :langName, :level, :score)"
                             )
                             .setParameter("studentId", userId)
-                            .setParameter("langName", trimmed)
+                            .setParameter("langName", canonical)
                             .setParameter("level", level)
                             .setParameter("score", score)
                             .executeUpdate();
@@ -189,11 +190,11 @@ public class StudentService {
                 Set<String> seen = new HashSet<>();
                 for (StudentLanguage lang : student.getLanguages()) {
                     if (lang.getLanguageName() != null && !lang.getLanguageName().isBlank()) {
-                        String trimmed = lang.getLanguageName().trim();
-                        String key = trimmed.toLowerCase(Locale.ROOT);
+                        String canonical = SupportedLanguages.normalizeOrThrow(lang.getLanguageName());
+                        String key = SupportedLanguages.stripAccentsLower(canonical);
                         if (!seen.contains(key)) {
                             seen.add(key);
-                            lang.setLanguageName(trimmed);
+                            lang.setLanguageName(canonical);
                             deduplicated.add(lang);
                         }
                     }
@@ -280,8 +281,12 @@ public class StudentService {
             if (current.getLanguages() != null) {
                 for (StudentLanguage existingLang : current.getLanguages()) {
                     if (existingLang.getLanguageName() != null) {
+                        String key = SupportedLanguages.stripAccentsLower(
+                            SupportedLanguages.normalize(existingLang.getLanguageName())
+                                .orElse(existingLang.getLanguageName())
+                        );
                         existingScores.put(
-                            existingLang.getLanguageName().trim().toLowerCase(Locale.ROOT),
+                            key,
                             existingLang.getScore() != null ? existingLang.getScore() : 0
                         );
                     }
@@ -291,13 +296,13 @@ public class StudentService {
             Set<String> seenLanguageKeys = new HashSet<>();
             for (StudentLanguage language : student.getLanguages()) {
                 if (language.getLanguageName() == null || language.getLanguageName().isBlank()) continue;
-                String trimmedName = language.getLanguageName().trim();
-                String key = trimmedName.toLowerCase(Locale.ROOT);
+                String canonical = SupportedLanguages.normalizeOrThrow(language.getLanguageName());
+                String key = SupportedLanguages.stripAccentsLower(canonical);
                 if (seenLanguageKeys.contains(key)) {
                     continue;
                 }
                 seenLanguageKeys.add(key);
-                language.setLanguageName(trimmedName);
+                language.setLanguageName(canonical);
                 Integer preservedScore = existingScores.get(key);
                 if (preservedScore != null && (language.getScore() == null || language.getScore() == 0)) {
                     language.setScore(preservedScore);

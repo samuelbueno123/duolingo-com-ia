@@ -43,6 +43,7 @@ import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.repository.EnrollmentRepository;
 import com.duolinfo.ia.proj.repository.ClassTeacherAssignmentRepository;
 import com.duolinfo.ia.proj.repository.ExerciseSubmissionRepository;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 import com.duolinfo.ia.proj.repository.LearningExerciseRepository;
 import com.duolinfo.ia.proj.repository.SchoolClassRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
@@ -228,11 +229,21 @@ public class LearningExerciseService {
                 "Você só pode publicar atividades em turmas atribuídas ao seu perfil."
             );
         }
+        String classLang = SupportedLanguages.normalizeOrDefault(
+            schoolClass.getLanguageName(),
+            SupportedLanguages.inferFromClassNameOrDefault(schoolClass.getName())
+        );
+        String exerciseLang = SupportedLanguages.normalizeOrDefault(request.languageName(), classLang);
+        if (!SupportedLanguages.matches(exerciseLang, classLang)) {
+            throw new BusinessException(
+                "O idioma do exercício (" + exerciseLang + ") deve coincidir com o idioma da turma (" + classLang + ")."
+            );
+        }
         LearningExercise exercise = new LearningExercise();
         exercise.setTitle(request.title().trim());
         exercise.setCategory(clean(request.category()));
         exercise.setTheme(clean(request.theme()));
-        exercise.setLanguageName(request.languageName().trim());
+        exercise.setLanguageName(exerciseLang);
         exercise.setProficiencyLevel(request.proficiencyLevel().trim());
         exercise.setDescription(clean(request.description()));
         exercise.setContentBody(clean(request.contentBody()));
@@ -267,12 +278,23 @@ public class LearningExerciseService {
             throw new BusinessException("Você não tem permissão para adicionar exercícios a esta turma.");
         }
 
+        String targetClassLang = SupportedLanguages.normalizeOrDefault(
+            targetClass.getLanguageName(),
+            SupportedLanguages.inferFromClassNameOrDefault(targetClass.getName())
+        );
+        String sourceLang = SupportedLanguages.normalizeOrDefault(source.getLanguageName(), targetClassLang);
+        if (!SupportedLanguages.matches(sourceLang, targetClassLang)) {
+            throw new BusinessException(
+                "Não é possível clonar um exercício de " + sourceLang + " para uma turma de " + targetClassLang + "."
+            );
+        }
+
         LearningExercise clone = new LearningExercise();
         String title = request.newTitle() != null && !request.newTitle().isBlank()
             ? request.newTitle().trim()
             : source.getTitle() + " (Cópia)";
         clone.setTitle(title);
-        clone.setLanguageName(source.getLanguageName());
+        clone.setLanguageName(sourceLang);
         clone.setProficiencyLevel(source.getProficiencyLevel());
         clone.setDescription(source.getDescription());
         clone.setContentBody(source.getContentBody());

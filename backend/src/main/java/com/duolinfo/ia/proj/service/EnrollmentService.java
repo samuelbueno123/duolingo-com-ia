@@ -11,11 +11,13 @@ import com.duolinfo.ia.proj.entity.EnrollmentStatus;
 import com.duolinfo.ia.proj.entity.Institution;
 import com.duolinfo.ia.proj.entity.SchoolClass;
 import com.duolinfo.ia.proj.entity.Student;
+import com.duolinfo.ia.proj.entity.StudentLanguage;
 import com.duolinfo.ia.proj.exception.BusinessException;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
 import com.duolinfo.ia.proj.repository.EnrollmentRepository;
 import com.duolinfo.ia.proj.repository.SchoolClassRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 import lombok.RequiredArgsConstructor;
 
@@ -79,6 +81,8 @@ public class EnrollmentService {
                 "O aluno já está matriculado ativamente nesta turma."
             );
         }
+
+        validateStudentMatchesClassLanguage(student, schoolClass);
 
         Institution classInstitution = schoolClass.getSchool() != null && schoolClass.getSchool().getInstitution() != null
             ? schoolClass.getSchool().getInstitution()
@@ -236,6 +240,7 @@ public class EnrollmentService {
     public Enrollment updateStatus(Long enrollmentId, EnrollmentStatus status, String notes) {
         Enrollment enrollment = findById(enrollmentId);
         if (status == EnrollmentStatus.ACTIVE) {
+            validateStudentMatchesClassLanguage(enrollment.getStudent(), enrollment.getSchoolClass());
             List<Enrollment> active = enrollmentRepository.findByStudentIdAndStatus(
                 enrollment.getStudent().getId(), EnrollmentStatus.ACTIVE);
             if (active.stream().anyMatch(item -> !item.getId().equals(enrollmentId)
@@ -272,6 +277,9 @@ public class EnrollmentService {
                 "A nova turma está inativa."
             );
         }
+
+        Student student = findStudent(studentId);
+        validateStudentMatchesClassLanguage(student, newClass);
 
         List<Enrollment> activeEnrollments =
             enrollmentRepository.findByStudentIdAndStatus(
@@ -318,9 +326,8 @@ public class EnrollmentService {
         }
 
         /*
-         * Cria nova matrícula.
+         * Prepara nova matrícula para o estudante já validado.
          */
-        Student student = findStudent(studentId);
 
         Institution targetInstitution = newClass.getSchool() != null && newClass.getSchool().getInstitution() != null
             ? newClass.getSchool().getInstitution()
@@ -403,6 +410,26 @@ public class EnrollmentService {
             sseEmitterService.sendToRole("TEACHER", "ENROLLMENT_UPDATED", data);
             sseEmitterService.sendToRole("ADMIN", "ENROLLMENT_UPDATED", data);
         } catch (Exception ignored) {
+        }
+    }
+
+    private void validateStudentMatchesClassLanguage(Student student, SchoolClass schoolClass) {
+        if (student == null || schoolClass == null) {
+            return;
+        }
+        String classLanguage = SupportedLanguages.normalizeOrDefault(
+            schoolClass.getLanguageName(),
+            SupportedLanguages.inferFromClassNameOrDefault(schoolClass.getName())
+        );
+        List<StudentLanguage> studentLangs = student.getLanguages();
+        boolean matches = studentLangs != null && studentLangs.stream()
+            .map(StudentLanguage::getLanguageName)
+            .anyMatch(lang -> SupportedLanguages.matches(lang, classLanguage));
+        if (!matches) {
+            throw new BusinessException(
+                "O estudante só pode ingressar em turmas cujo idioma esteja cadastrado em seu perfil. "
+                    + "Idioma exigido pela turma: " + classLanguage + "."
+            );
         }
     }
 

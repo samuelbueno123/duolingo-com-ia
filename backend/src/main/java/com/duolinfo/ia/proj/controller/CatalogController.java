@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.duolinfo.ia.proj.repository.CatalogOptionRepository;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,11 +27,14 @@ public class CatalogController {
     @Operation(summary = "Lista idiomas ativos para cadastro")
     @org.springframework.cache.annotation.Cacheable("catalogLanguages")
     public List<String> findLanguages() {
-        return catalogOptionRepository
+        List<String> activeCanonical = catalogOptionRepository
             .findByCatalogTypeIgnoreCaseAndActiveTrueOrderByValueAsc("language")
             .stream()
-            .map(option -> option.getValue())
+            .map(option -> SupportedLanguages.normalize(option.getValue()).orElse(null))
+            .filter(java.util.Objects::nonNull)
+            .distinct()
             .toList();
+        return activeCanonical.isEmpty() ? SupportedLanguages.ALL : activeCanonical;
     }
 
     @GetMapping("/proficiency-levels")

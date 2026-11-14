@@ -31,6 +31,7 @@ import com.duolinfo.ia.proj.repository.InstitutionRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
 import com.duolinfo.ia.proj.repository.TeacherRepository;
 import com.duolinfo.ia.proj.repository.UserRepository;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -176,7 +177,7 @@ public class TeacherService {
                 .executeUpdate();
 
                 if (teacher.getTaughtLanguages() != null && !teacher.getTaughtLanguages().isEmpty()) {
-                    for (String lang : deduplicateAndTrim(teacher.getTaughtLanguages())) {
+                    for (String lang : SupportedLanguages.normalizeListOrThrow(teacher.getTaughtLanguages())) {
                         entityManager.createNativeQuery(
                             "INSERT INTO teacher_taught_languages (teacher_id, language_name) VALUES (:teacherId, :lang)"
                         )
@@ -231,7 +232,7 @@ public class TeacherService {
             }
         }
 
-        teacher.setTaughtLanguages(deduplicateAndTrim(teacher.getTaughtLanguages()));
+        teacher.setTaughtLanguages(SupportedLanguages.normalizeListOrThrow(teacher.getTaughtLanguages()));
         teacher.setSpecializationAreas(deduplicateAndTrim(teacher.getSpecializationAreas()));
         teacher.setInstitution(institution);
         Teacher saved = teacherRepository.save(teacher);
@@ -352,7 +353,7 @@ public class TeacherService {
             current.setEmail(email);
         }
         current.setTaughtLanguages(
-            deduplicateAndTrim(data.getTaughtLanguages())
+            SupportedLanguages.normalizeListOrThrow(data.getTaughtLanguages())
         );
         current.setSpecializationAreas(
             deduplicateAndTrim(data.getSpecializationAreas())

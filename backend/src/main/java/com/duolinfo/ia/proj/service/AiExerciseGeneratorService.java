@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.duolinfo.ia.proj.dto.request.AiExerciseGenerateRequestDTO;
 import com.duolinfo.ia.proj.dto.request.ExerciseQuestionRequestDTO;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
@@ -71,9 +72,7 @@ public class AiExerciseGeneratorService {
         int count = request.questionCount() > 0
                 ? Math.max(1, Math.min(10, request.questionCount()))
                 : 3;
-        String language = request.languageName() != null && !request.languageName().isBlank()
-                ? request.languageName().trim()
-                : "Inglês";
+        String language = SupportedLanguages.normalizeOrDefault(request.languageName(), SupportedLanguages.DEFAULT);
         String level = request.proficiencyLevel() != null && !request.proficiencyLevel().isBlank()
                 ? request.proficiencyLevel().trim()
                 : "Fácil";

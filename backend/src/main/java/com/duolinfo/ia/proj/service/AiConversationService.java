@@ -33,6 +33,7 @@ import com.duolinfo.ia.proj.repository.AiConversationMessageRepository;
 import com.duolinfo.ia.proj.repository.AiConversationSessionRepository;
 import com.duolinfo.ia.proj.repository.StudentLanguageRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -160,9 +161,7 @@ public class AiConversationService {
                 .findFirst()
                 .orElse(PRESET_SCENARIOS.get(0));
 
-        String lang = request.targetLanguage() != null && !request.targetLanguage().isBlank()
-                ? request.targetLanguage()
-                : "Inglês";
+        String lang = SupportedLanguages.normalizeOrDefault(request.targetLanguage(), SupportedLanguages.DEFAULT);
         String level = request.cefrLevel() != null && !request.cefrLevel().isBlank()
                 ? request.cefrLevel()
                 : scenario.cefrLevel();

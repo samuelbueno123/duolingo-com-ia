@@ -9,6 +9,7 @@ public record ClassDashboardResponseDTO(
     String schoolYear,
     String shift,
     String gradeLevel,
+    String languageName,
     Long schoolId,
     String schoolName,
     Long institutionId,

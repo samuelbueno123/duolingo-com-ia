@@ -21,6 +21,8 @@ public record SchoolClassResponseDTO(
 
     Boolean active,
 
+    String languageName,
+
     LocalDateTime createdAt,
 
     LocalDateTime updatedAt

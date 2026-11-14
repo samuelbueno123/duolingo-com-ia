@@ -27,6 +27,7 @@ import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.entity.Teacher;
 import com.duolinfo.ia.proj.exception.BusinessException;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 import com.duolinfo.ia.proj.repository.ClassTeacherAssignmentRepository;
 import com.duolinfo.ia.proj.repository.EnrollmentRepository;
 import com.duolinfo.ia.proj.repository.ExerciseSubmissionRepository;
@@ -77,6 +78,12 @@ public class SchoolClassService {
             schoolClass.getShift()
         );
 
+        schoolClass.setLanguageName(
+            SupportedLanguages.normalizeOrDefault(
+                schoolClass.getLanguageName(),
+                SupportedLanguages.inferFromClassNameOrDefault(schoolClass.getName())
+            )
+        );
         schoolClass.setSchool(school);
         schoolClass.setInstitution(school.getInstitution());
 
@@ -238,12 +245,16 @@ public class SchoolClassService {
             ? schoolClass.getInstitution()
             : (schoolClass.getSchool() != null ? schoolClass.getSchool().getInstitution() : null);
 
+        String classLang = SupportedLanguages.normalize(schoolClass.getLanguageName())
+            .orElse(SupportedLanguages.inferFromClassNameOrDefault(schoolClass.getName()));
+
         return new ClassDashboardResponseDTO(
             schoolClass.getId(),
             schoolClass.getName(),
             schoolClass.getSchoolYear(),
             schoolClass.getShift(),
             schoolClass.getGradeLevel(),
+            classLang,
             schoolClass.getSchool() != null ? schoolClass.getSchool().getId() : null,
             schoolClass.getSchool() != null ? schoolClass.getSchool().getName() : null,
             inst != null ? inst.getId() : null,
@@ -385,6 +396,11 @@ public class SchoolClassService {
         current.setSchoolYear(data.getSchoolYear());
         current.setShift(data.getShift());
         current.setGradeLevel(data.getGradeLevel());
+        if (data.getLanguageName() != null && !data.getLanguageName().isBlank()) {
+            current.setLanguageName(SupportedLanguages.normalizeOrThrow(data.getLanguageName()));
+        } else if (current.getLanguageName() == null || current.getLanguageName().isBlank()) {
+            current.setLanguageName(SupportedLanguages.inferFromClassNameOrDefault(data.getName()));
+        }
 
         if (data.getActive() != null) {
             current.setActive(data.getActive());

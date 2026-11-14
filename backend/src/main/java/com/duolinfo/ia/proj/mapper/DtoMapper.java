@@ -19,6 +19,7 @@ import com.duolinfo.ia.proj.entity.SchoolClass;
 import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.entity.Teacher;
 import com.duolinfo.ia.proj.entity.User;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 public final class DtoMapper {
 
@@ -266,6 +267,9 @@ public final class DtoMapper {
             schoolId = schoolClass.getSchool().getId();
         }
 
+        String languageName = SupportedLanguages.normalize(schoolClass.getLanguageName())
+            .orElse(SupportedLanguages.inferFromClassNameOrDefault(schoolClass.getName()));
+
         return new SchoolClassResponseDTO(
             schoolClass.getId(),
             schoolClass.getName(),
@@ -274,6 +278,7 @@ public final class DtoMapper {
             schoolClass.getGradeLevel(),
             schoolId,
             schoolClass.getActive(),
+            languageName,
             schoolClass.getCreatedAt(),
             schoolClass.getUpdatedAt()
         );
@@ -296,10 +301,13 @@ public final class DtoMapper {
 
         Long classId = null;
         String className = null;
+        String classLanguage = null;
 
         if (enrollment.getSchoolClass() != null) {
             classId = enrollment.getSchoolClass().getId();
             className = enrollment.getSchoolClass().getName();
+            classLanguage = SupportedLanguages.normalize(enrollment.getSchoolClass().getLanguageName())
+                .orElse(SupportedLanguages.inferFromClassNameOrDefault(className));
         }
 
         return new EnrollmentResponseDTO(
@@ -308,6 +316,7 @@ public final class DtoMapper {
             studentName,
             classId,
             className,
+            classLanguage,
             enrollment.getEnrollmentDate(),
             enrollment.getCancellationDate(),
             enrollment.getStatus(),

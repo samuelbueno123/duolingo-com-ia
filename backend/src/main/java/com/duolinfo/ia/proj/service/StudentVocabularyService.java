@@ -14,6 +14,7 @@ import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.entity.StudentVocabulary;
 import com.duolinfo.ia.proj.repository.StudentRepository;
 import com.duolinfo.ia.proj.repository.StudentVocabularyRepository;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 import lombok.RequiredArgsConstructor;
 
@@ -29,7 +30,7 @@ public class StudentVocabularyService {
         Student student = studentRepository.findById(studentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Estudante não encontrado."));
 
-        String lang = dto.language().trim();
+        String lang = SupportedLanguages.normalizeOrThrow(dto.language());
         String term = dto.term().trim();
 
         StudentVocabulary vocab = vocabularyRepository.findByStudent_IdAndLanguageIgnoreCaseOrderByCreatedAtDesc(studentId, lang)
@@ -58,7 +59,8 @@ public class StudentVocabularyService {
     public List<VocabularyResponseDTO> getVocabulary(Long studentId, String language, String search, String masteryLevel) {
         List<StudentVocabulary> list;
         if (language != null && !language.isBlank()) {
-            list = vocabularyRepository.findByStudent_IdAndLanguageIgnoreCaseOrderByCreatedAtDesc(studentId, language.trim());
+            String canonicalLang = SupportedLanguages.normalizeOrThrow(language);
+            list = vocabularyRepository.findByStudent_IdAndLanguageIgnoreCaseOrderByCreatedAtDesc(studentId, canonicalLang);
         } else {
             list = vocabularyRepository.findByStudent_IdOrderByCreatedAtDesc(studentId);
         }

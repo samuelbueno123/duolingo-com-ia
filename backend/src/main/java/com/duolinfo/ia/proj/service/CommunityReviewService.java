@@ -27,6 +27,7 @@ import com.duolinfo.ia.proj.repository.CommunityReviewRepository;
 import com.duolinfo.ia.proj.repository.CommunitySubmissionRepository;
 import com.duolinfo.ia.proj.repository.StudentLanguageRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 @Service
 public class CommunityReviewService {
@@ -117,10 +118,11 @@ public class CommunityReviewService {
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Estudante não encontrado."));
 
+        String canonicalLanguage = SupportedLanguages.normalizeOrThrow(dto.language());
         CommunitySubmission submission = CommunitySubmission.builder()
                 .authorStudentId(studentId)
                 .authorName(student.getName())
-                .language(dto.language().trim())
+                .language(canonicalLanguage)
                 .promptTitle(dto.promptTitle().trim())
                 .content(dto.content().trim())
                 .audioUrl(dto.audioUrl())
@@ -137,8 +139,11 @@ public class CommunityReviewService {
 
     @Transactional(readOnly = true)
     public List<CommunitySubmissionResponseDTO> getCommunityFeed(Long studentId, String language) {
-        List<CommunitySubmission> list = (language != null && !language.isBlank())
-                ? submissionRepository.findByLanguageIgnoreCaseAndIsPublicTrueOrderByCreatedAtDesc(language.trim())
+        String normalizedLang = (language != null && !language.isBlank())
+                ? SupportedLanguages.normalizeOrThrow(language)
+                : null;
+        List<CommunitySubmission> list = (normalizedLang != null)
+                ? submissionRepository.findByLanguageIgnoreCaseAndIsPublicTrueOrderByCreatedAtDesc(normalizedLang)
                 : submissionRepository.findByIsPublicTrueOrderByCreatedAtDesc();
 
         return list.stream()

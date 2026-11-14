@@ -70,11 +70,17 @@ class FlywaySchemaValidationTest {
     @DisplayName("Valida que todas as migrations Flyway V1-V4 aplicam e batem 100% com o schema JPA (ddl-auto=validate)")
     void flywayMigrationsMatchJpaEntitiesSchema() throws Exception {
         Set<String> userColumns = new HashSet<>();
+        Set<String> classColumns = new HashSet<>();
         Set<String> flywayVersions = new HashSet<>();
         try (Connection conn = dataSource.getConnection()) {
             try (ResultSet rs = conn.getMetaData().getColumns(null, null, "users", null)) {
                 while (rs.next()) {
                     userColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                }
+            }
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "classes", null)) {
+                while (rs.next()) {
+                    classColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
                 }
             }
             try (var st = conn.createStatement();
@@ -84,7 +90,8 @@ class FlywaySchemaValidationTest {
                 }
             }
         }
-        assertTrue(flywayVersions.containsAll(Set.of("1", "2", "3", "4")));
+        assertTrue(flywayVersions.containsAll(Set.of("1", "2", "3", "4", "5")));
+        assertTrue(classColumns.contains("language_name"));
         assertTrue(userColumns.contains("ui_language"));
         assertTrue(userColumns.contains("theme_mode"));
         assertTrue(userColumns.contains("daily_goal_minutes"));

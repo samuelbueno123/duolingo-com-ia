@@ -19,6 +19,7 @@ import com.duolinfo.ia.proj.repository.CatalogOptionRepository;
 import com.duolinfo.ia.proj.repository.InstitutionRepository;
 import com.duolinfo.ia.proj.repository.UserRepository;
 import com.duolinfo.ia.proj.service.InstitutionService;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 @Configuration
 public class CatalogDataInitializer {
@@ -42,18 +43,46 @@ public class CatalogDataInitializer {
                 configuredAdminPassword
             );
             migrateLegacyPlaintextPasswords(userRepository, passwordEncoder);
-            addMissing(repository, "language", List.of(
-                "Alemão",
-                "Espanhol",
-                "Francês",
-                "Inglês",
-                "Italiano",
-                "Japonês"
-            ));
+            syncLanguages(repository);
             syncProficiencyLevels(repository);
             seedDefaultAchievements(achievementRepository);
             ensureIndexesAndBackfill(jdbcTemplate, defaultInst.getId());
         };
+    }
+
+    private static void syncLanguages(CatalogOptionRepository repository) {
+        List<CatalogOption> existing = repository.findByCatalogTypeIgnoreCase("language");
+        for (CatalogOption opt : existing) {
+            var normalized = SupportedLanguages.normalize(opt.getValue());
+            if (normalized.isEmpty()) {
+                repository.delete(opt);
+            } else {
+                String canonical = normalized.get();
+                boolean duplicateExists = !canonical.equals(opt.getValue())
+                    && repository.existsByCatalogTypeAndValue("language", canonical);
+                if (duplicateExists) {
+                    repository.delete(opt);
+                } else {
+                    boolean changed = false;
+                    if (!canonical.equals(opt.getValue())) {
+                        opt.setValue(canonical);
+                        changed = true;
+                    }
+                    if (!"language".equals(opt.getCatalogType())) {
+                        opt.setCatalogType("language");
+                        changed = true;
+                    }
+                    if (!opt.isActive()) {
+                        opt.setActive(true);
+                        changed = true;
+                    }
+                    if (changed) {
+                        repository.save(opt);
+                    }
+                }
+            }
+        }
+        addMissing(repository, "language", SupportedLanguages.ALL);
     }
 
     private static void syncProficiencyLevels(CatalogOptionRepository repository) {
@@ -163,6 +192,10 @@ public class CatalogDataInitializer {
             jdbcTemplate.execute(
                 "UPDATE classes c SET institution_id = s.institution_id "
                 + "FROM schools s WHERE c.school_id = s.id AND c.institution_id IS NULL");
+            jdbcTemplate.execute(
+                "UPDATE classes SET language_name = 'Inglês' WHERE language_name IS NULL OR TRIM(language_name) = ''");
+            jdbcTemplate.execute(
+                "CREATE INDEX IF NOT EXISTS idx_classes_language_name ON classes (language_name)");
             if (defaultInstitutionId != null) {
                 jdbcTemplate.update(
                     "UPDATE students SET institution_id = ? WHERE institution_id IS NULL",

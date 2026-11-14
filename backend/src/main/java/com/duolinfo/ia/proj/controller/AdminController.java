@@ -35,6 +35,7 @@ import com.duolinfo.ia.proj.dto.request.TeacherRequestDecisionDTO;
 import com.duolinfo.ia.proj.dto.response.AdminDashboardOverviewDTO;
 import com.duolinfo.ia.proj.dto.response.AdminNotificationResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminSystemHealthDTO;
+import com.duolinfo.ia.proj.dto.response.AdminSystemPerformanceDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableDataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableMetadataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminUserResponseDTO;
@@ -263,6 +264,12 @@ public class AdminController {
     public AdminSystemHealthDTO getSystemHealth(Authentication authentication) {
         adminService.requireSuperAdmin(authentication.getName());
         return adminService.getSystemHealth();
+    }
+
+    @GetMapping("/system/performance")
+    public AdminSystemPerformanceDTO getSystemPerformance(Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
+        return adminService.getSystemPerformance();
     }
 
     @GetMapping("/logs")

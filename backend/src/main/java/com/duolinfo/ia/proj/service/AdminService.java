@@ -38,6 +38,7 @@ import com.duolinfo.ia.proj.dto.request.CatalogOptionRequestDTO;
 import com.duolinfo.ia.proj.dto.request.InstitutionAdminRoleRequestDTO;
 import com.duolinfo.ia.proj.dto.response.AdminDashboardOverviewDTO;
 import com.duolinfo.ia.proj.dto.response.AdminSystemHealthDTO;
+import com.duolinfo.ia.proj.dto.response.AdminSystemPerformanceDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableColumnResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableDataResponseDTO;
 import com.duolinfo.ia.proj.dto.response.AdminTableMetadataResponseDTO;
@@ -69,6 +70,7 @@ import com.duolinfo.ia.proj.repository.StudentRepository;
 import com.duolinfo.ia.proj.repository.TeacherDocumentRepository;
 import com.duolinfo.ia.proj.repository.TeacherRepository;
 import com.duolinfo.ia.proj.repository.UserRepository;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -118,6 +120,9 @@ public class AdminService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.duolinfo.ia.proj.config.UserAuthCache userAuthCache;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SystemTelemetryService telemetryService;
 
     public AdminService(
             DataSource dataSource,
@@ -973,6 +978,80 @@ public class AdminService {
     }
 
     @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public AdminSystemPerformanceDTO getSystemPerformance() {
+        long now = System.currentTimeMillis();
+        long uptimeSec = java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime() / 1000L;
+
+        Map<String, Object> httpMetrics;
+        Map<String, Object> jvmMetrics;
+        Map<String, Object> databasePool;
+        Map<String, Object> realtimeMetrics;
+        List<Map<String, Object>> history;
+        List<Map<String, Object>> languageBreakdown;
+
+        if (telemetryService != null) {
+            Map<String, Object> snap = telemetryService.captureSnapshot(true);
+            httpMetrics = (Map<String, Object>) snap.getOrDefault("http", Map.of());
+            jvmMetrics = (Map<String, Object>) snap.getOrDefault("jvm", Map.of());
+            databasePool = (Map<String, Object>) snap.getOrDefault("pool", Map.of());
+            realtimeMetrics = telemetryService.readRealtimeMetrics();
+            history = telemetryService.getHistorySnapshot();
+            languageBreakdown = telemetryService.buildCanonicalLanguageBreakdown();
+        } else {
+            SystemTelemetryService fallback = new SystemTelemetryService();
+            Map<String, Object> snap = fallback.captureSnapshot(true);
+            httpMetrics = (Map<String, Object>) snap.getOrDefault("http", Map.of());
+            jvmMetrics = (Map<String, Object>) snap.getOrDefault("jvm", Map.of());
+            databasePool = (Map<String, Object>) snap.getOrDefault("pool", Map.of());
+            realtimeMetrics = fallback.readRealtimeMetrics();
+            history = fallback.getHistorySnapshot();
+            languageBreakdown = List.of();
+        }
+
+        double heapPct = ((Number) jvmMetrics.getOrDefault("heapUsedPercent", 0.0)).doubleValue();
+        String dbStatus = String.valueOf(databasePool.getOrDefault("status", "UNKNOWN"));
+        String overallStatus = "UP";
+        if ("DOWN".equalsIgnoreCase(dbStatus)) {
+            overallStatus = "DOWN";
+        } else if (heapPct > 90.0) {
+            overallStatus = "DEGRADED";
+        }
+
+        Map<String, Long> profileDistribution = buildProfileDistribution();
+        Map<String, Long> auditSummary = auditLogService.getSeverityCounts();
+
+        return new AdminSystemPerformanceDTO(
+            overallStatus,
+            now,
+            uptimeSec,
+            httpMetrics,
+            jvmMetrics,
+            databasePool,
+            realtimeMetrics,
+            history,
+            languageBreakdown,
+            profileDistribution,
+            auditSummary
+        );
+    }
+
+    private Map<String, Long> buildProfileDistribution() {
+        long totalUsers = userRepository.count();
+        long totalStudents = studentRepository.count();
+        long totalTeachers = teacherRepository.count();
+        long adminCount = userRepository.countByAdminTrue();
+        long userOnlyCount = Math.max(0, totalUsers - totalStudents - totalTeachers);
+
+        Map<String, Long> profileDistribution = new LinkedHashMap<>();
+        profileDistribution.put("STUDENT", totalStudents);
+        profileDistribution.put("TEACHER", totalTeachers);
+        profileDistribution.put("ADMIN", adminCount);
+        profileDistribution.put("USER", userOnlyCount);
+        return profileDistribution;
+    }
+
+    @Transactional(readOnly = true)
     public AdminDashboardOverviewDTO getDashboardOverview() {
         long totalUsers = userRepository.count();
         long totalStudents = studentRepository.count();
@@ -988,14 +1067,7 @@ public class AdminService {
             totalLanguages = catalogOptionRepository.findByCatalogTypeIgnoreCase("language").size();
         }
 
-        long adminCount = userRepository.countByAdminTrue();
-        long userOnlyCount = Math.max(0, totalUsers - totalStudents - totalTeachers);
-
-        Map<String, Long> profileDistribution = new LinkedHashMap<>();
-        profileDistribution.put("STUDENT", totalStudents);
-        profileDistribution.put("TEACHER", totalTeachers);
-        profileDistribution.put("ADMIN", adminCount);
-        profileDistribution.put("USER", userOnlyCount);
+        Map<String, Long> profileDistribution = buildProfileDistribution();
 
         long activeUsers = userRepository.countByActiveTrue();
         long suspendedUsers = Math.max(0, totalUsers - activeUsers);
@@ -1097,6 +1169,7 @@ public class AdminService {
             options = catalogOptionRepository.findByOrderByCatalogTypeAscValueAsc();
         }
         return options.stream()
+            .filter(o -> !"LANGUAGE".equalsIgnoreCase(o.getCatalogType()) || SupportedLanguages.isSupported(o.getValue()))
             .map(o -> new CatalogOptionResponseDTO(o.getId(), o.getCatalogType(), o.getValue(), o.isActive()))
             .toList();
     }
@@ -1106,6 +1179,12 @@ public class AdminService {
         requireSuperAdmin(adminEmail);
         String type = request.catalogType().trim().toUpperCase();
         String val = request.value().trim();
+        if ("LANGUAGE".equals(type)) {
+            val = SupportedLanguages.normalize(val).orElseThrow(() -> badRequest(
+                "Apenas os 6 idiomas oficiais são permitidos na plataforma ("
+                    + String.join(", ", SupportedLanguages.ALL) + ")."
+            ));
+        }
         if (catalogOptionRepository.existsByCatalogTypeIgnoreCaseAndValueIgnoreCase(type, val)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta opção já está cadastrada no catálogo.");
         }
@@ -1137,6 +1216,9 @@ public class AdminService {
         requireSuperAdmin(adminEmail);
         CatalogOption opt = catalogOptionRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Opção de catálogo não encontrada."));
+        if ("LANGUAGE".equalsIgnoreCase(opt.getCatalogType()) && SupportedLanguages.isSupported(opt.getValue())) {
+            throw badRequest("Os 6 idiomas oficiais da plataforma são estruturais e não podem ser desativados.");
+        }
         opt.setActive(!opt.isActive());
         CatalogOption saved = catalogOptionRepository.save(opt);
 
@@ -1164,6 +1246,9 @@ public class AdminService {
         requireSuperAdmin(adminEmail);
         CatalogOption opt = catalogOptionRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Opção de catálogo não encontrada."));
+        if ("LANGUAGE".equalsIgnoreCase(opt.getCatalogType()) && SupportedLanguages.isSupported(opt.getValue())) {
+            throw badRequest("Os 6 idiomas oficiais da plataforma são estruturais e não podem ser removidos.");
+        }
         catalogOptionRepository.delete(opt);
 
         evictCatalogCache();

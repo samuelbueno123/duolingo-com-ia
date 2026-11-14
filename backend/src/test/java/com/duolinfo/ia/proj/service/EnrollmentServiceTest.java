@@ -23,6 +23,7 @@ import com.duolinfo.ia.proj.entity.Institution;
 import com.duolinfo.ia.proj.entity.School;
 import com.duolinfo.ia.proj.entity.SchoolClass;
 import com.duolinfo.ia.proj.entity.Student;
+import com.duolinfo.ia.proj.entity.StudentLanguage;
 import com.duolinfo.ia.proj.exception.BusinessException;
 import com.duolinfo.ia.proj.repository.EnrollmentRepository;
 import com.duolinfo.ia.proj.repository.SchoolClassRepository;
@@ -49,10 +50,20 @@ class EnrollmentServiceTest {
         );
     }
 
+    private static Student studentWithLanguage(Long id, String languageName) {
+        Student student = new Student();
+        student.setId(id);
+        StudentLanguage sl = new StudentLanguage();
+        sl.setLanguageName(languageName);
+        sl.setLevel("Básico");
+        sl.setScore(0);
+        student.addLanguage(sl);
+        return student;
+    }
+
     @Test
     void enrollStudent_successfulWhenNoActiveInSameClass() {
-        Student student = new Student();
-        student.setId(1L);
+        Student student = studentWithLanguage(1L, "Inglês");
 
         Institution inst = new Institution();
         inst.setId(10L);
@@ -113,8 +124,7 @@ class EnrollmentServiceTest {
         School school = new School();
         school.setInstitution(inst);
 
-        Student student = new Student();
-        student.setId(1L);
+        Student student = studentWithLanguage(1L, "Inglês");
         student.setInstitution(inst);
 
         SchoolClass classA = new SchoolClass();
@@ -161,8 +171,7 @@ class EnrollmentServiceTest {
         School schoolB = new School();
         schoolB.setInstitution(instB);
 
-        Student student = new Student();
-        student.setId(1L);
+        Student student = studentWithLanguage(1L, "Inglês");
         student.setInstitution(instA);
 
         SchoolClass classA = new SchoolClass();
@@ -196,8 +205,7 @@ class EnrollmentServiceTest {
 
     @Test
     void updateStatus_allowsActivatingClassWhenEnrolledInAnotherClass() {
-        Student student = new Student();
-        student.setId(1L);
+        Student student = studentWithLanguage(1L, "Inglês");
 
         SchoolClass classA = new SchoolClass();
         classA.setId(100L);
@@ -231,8 +239,7 @@ class EnrollmentServiceTest {
 
     @Test
     void updateStatus_rejectsActivatingWhenDuplicateActiveInSameClass() {
-        Student student = new Student();
-        student.setId(1L);
+        Student student = studentWithLanguage(1L, "Inglês");
 
         SchoolClass classA = new SchoolClass();
         classA.setId(100L);
@@ -281,5 +288,58 @@ class EnrollmentServiceTest {
         Enrollment completed = enrollmentService.complete(10L, LocalDate.of(2026, 12, 1), "Concluído com sucesso");
         assertEquals(EnrollmentStatus.COMPLETED, completed.getStatus());
         assertEquals(LocalDate.of(2026, 12, 1), completed.getCancellationDate());
+    }
+
+    @Test
+    void enrollStudent_rejectsWhenStudentDoesNotHaveClassLanguage() {
+        Student student = studentWithLanguage(1L, "Espanhol");
+
+        SchoolClass frenchClass = new SchoolClass();
+        frenchClass.setId(100L);
+        frenchClass.setName("Turma Francês A1");
+        frenchClass.setLanguageName("Francês");
+        frenchClass.setActive(true);
+
+        when(studentRepository.findById(1L)).thenReturn(Optional.of(student));
+        when(schoolClassRepository.findById(100L)).thenReturn(Optional.of(frenchClass));
+        when(enrollmentRepository.findByStudentIdAndStatus(1L, EnrollmentStatus.ACTIVE)).thenReturn(List.of());
+
+        BusinessException ex = assertThrows(
+            BusinessException.class,
+            () -> enrollmentService.enrollStudent(1L, 100L, LocalDate.now(), null)
+        );
+        assertTrue(ex.getMessage().contains("Francês"));
+    }
+
+    @Test
+    void transfer_rejectsWithoutClosingCurrentEnrollmentWhenTargetLanguageMismatch() {
+        Student student = studentWithLanguage(1L, "Inglês");
+
+        SchoolClass currentClass = new SchoolClass();
+        currentClass.setId(100L);
+        currentClass.setLanguageName("Inglês");
+        currentClass.setActive(true);
+
+        SchoolClass targetJapaneseClass = new SchoolClass();
+        targetJapaneseClass.setId(200L);
+        targetJapaneseClass.setLanguageName("Japonês");
+        targetJapaneseClass.setActive(true);
+
+        Enrollment activeEnrollment = Enrollment.builder()
+            .id(77L)
+            .student(student)
+            .schoolClass(currentClass)
+            .status(EnrollmentStatus.ACTIVE)
+            .build();
+
+        when(schoolClassRepository.findById(200L)).thenReturn(Optional.of(targetJapaneseClass));
+        when(studentRepository.findById(1L)).thenReturn(Optional.of(student));
+
+        BusinessException ex = assertThrows(
+            BusinessException.class,
+            () -> enrollmentService.transfer(1L, 200L, LocalDate.now(), "Troca")
+        );
+        assertTrue(ex.getMessage().contains("Japonês"));
+        assertEquals(EnrollmentStatus.ACTIVE, activeEnrollment.getStatus());
     }
 }

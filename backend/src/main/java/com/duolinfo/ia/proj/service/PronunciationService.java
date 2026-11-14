@@ -28,6 +28,7 @@ import com.duolinfo.ia.proj.repository.PronunciationAttemptRepository;
 import com.duolinfo.ia.proj.repository.PronunciationChallengeRepository;
 import com.duolinfo.ia.proj.repository.StudentLanguageRepository;
 import com.duolinfo.ia.proj.repository.StudentRepository;
+import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -152,7 +153,7 @@ public class PronunciationService {
     }
 
     public List<PronunciationChallengeDTO> getChallenges(String language, String cefrLevel) {
-        String lang = (language != null && !language.isBlank()) ? language.trim() : "Inglês";
+        String lang = SupportedLanguages.normalizeOrDefault(language, SupportedLanguages.DEFAULT);
         List<PronunciationChallenge> challenges;
 
         if (cefrLevel != null && !cefrLevel.isBlank()) {

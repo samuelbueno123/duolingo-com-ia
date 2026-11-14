@@ -130,9 +130,10 @@ public class AdminComprehensiveManagementIntegrationTest {
 
     @Test
     @WithMockUser(username = "admin@duolingo.com", roles = {"ADMIN"})
-    @DisplayName("Admin: Gerenciamento completo de idiomas e catálogo (/api/admin/catalog)")
+    @DisplayName("Admin: Gerenciamento de catálogo impõe os 6 idiomas oficiais e gerencia proficiências (/api/admin/catalog)")
     void testCatalogManagementFlow() throws Exception {
-        String payload = """
+        // Rejeita idiomas fora dos 6 oficiais da plataforma
+        String unsupportedPayload = """
             {
                 "catalogType": "LANGUAGE",
                 "value": "Esperanto",
@@ -140,19 +141,43 @@ public class AdminComprehensiveManagementIntegrationTest {
             }
         """;
 
-        // Criação
-        var result = mockMvc.perform(post("/api/admin/catalog")
+        mockMvc.perform(post("/api/admin/catalog")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(payload))
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.value", is("Esperanto")))
-            .andExpect(jsonPath("$.catalogType", is("LANGUAGE")))
-            .andExpect(jsonPath("$.active", is(true)))
-            .andReturn();
+                .content(unsupportedPayload))
+            .andExpect(status().isBadRequest());
 
-        String content = result.getResponse().getContentAsString();
-        Long optionId = catalogOptionRepository.findByCatalogType("LANGUAGE").stream()
-            .filter(o -> o.getValue().equals("Esperanto"))
+        // Protege os 6 idiomas estruturais contra desativação ou remoção
+        Long coreEnglishId = catalogOptionRepository.findByCatalogTypeIgnoreCase("language").stream()
+            .filter(o -> "Inglês".equalsIgnoreCase(o.getValue()))
+            .map(CatalogOption::getId)
+            .findFirst()
+            .orElseThrow();
+
+        mockMvc.perform(patch("/api/admin/catalog/" + coreEnglishId + "/toggle"))
+            .andExpect(status().isBadRequest());
+
+        mockMvc.perform(delete("/api/admin/catalog/" + coreEnglishId))
+            .andExpect(status().isBadRequest());
+
+        // Criação válida de proficiência no catálogo
+        String levelPayload = """
+            {
+                "catalogType": "PROFICIENCY_LEVEL",
+                "value": "C2 Maestria Audit",
+                "active": true
+            }
+        """;
+
+        mockMvc.perform(post("/api/admin/catalog")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(levelPayload))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.value", is("C2 Maestria Audit")))
+            .andExpect(jsonPath("$.catalogType", is("PROFICIENCY_LEVEL")))
+            .andExpect(jsonPath("$.active", is(true)));
+
+        Long optionId = catalogOptionRepository.findByCatalogTypeIgnoreCase("PROFICIENCY_LEVEL").stream()
+            .filter(o -> o.getValue().equals("C2 Maestria Audit"))
             .map(CatalogOption::getId)
             .findFirst()
             .orElseThrow();
@@ -162,16 +187,31 @@ public class AdminComprehensiveManagementIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.active", is(false)));
 
-        // Listagem
+        // Listagem estrita dos 6 idiomas oficiais
         mockMvc.perform(get("/api/admin/catalog").param("type", "LANGUAGE"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$", notNullValue()));
+            .andExpect(jsonPath("$", hasSize(6)));
 
         // Exclusão
         mockMvc.perform(delete("/api/admin/catalog/" + optionId))
             .andExpect(status().isNoContent());
 
         assertFalse(catalogOptionRepository.existsById(optionId));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@duolingo.com", roles = {"ADMIN"})
+    @DisplayName("Admin: Endpoint de telemetria e performance em tempo real (/api/admin/system/performance)")
+    void testSystemPerformanceEndpoint() throws Exception {
+        mockMvc.perform(get("/api/admin/system/performance"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.overallStatus", notNullValue()))
+            .andExpect(jsonPath("$.httpMetrics.totalRequests", notNullValue()))
+            .andExpect(jsonPath("$.jvmMetrics.heapUsedPercent", notNullValue()))
+            .andExpect(jsonPath("$.databasePool.status", is("UP")))
+            .andExpect(jsonPath("$.languageBreakdown", hasSize(6)))
+            .andExpect(jsonPath("$.profileDistribution", notNullValue()))
+            .andExpect(jsonPath("$.auditSeverityDistribution", notNullValue()));
     }
 
     @Test
@@ -191,6 +231,9 @@ public class AdminComprehensiveManagementIntegrationTest {
             .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/api/admin/system/health"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/admin/system/performance"))
             .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/api/admin/logs"))

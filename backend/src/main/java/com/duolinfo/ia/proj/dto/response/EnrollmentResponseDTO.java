@@ -19,6 +19,8 @@ public record EnrollmentResponseDTO(
 
     String schoolClassName,
 
+    String schoolClassLanguage,
+
     LocalDate enrollmentDate,
 
     LocalDate cancellationDate,

@@ -35,6 +35,21 @@ public record SchoolClassRequestDTO(
     Long schoolId,
 
     @Schema(example = "true")
-    Boolean active
+    Boolean active,
+
+    @Schema(
+        description = "Idioma da turma (um dos 6 idiomas oficiais da plataforma)",
+        example = "Inglês"
+    )
+    String languageName
 ) {
+    public SchoolClassRequestDTO(
+            String name,
+            String schoolYear,
+            String shift,
+            String gradeLevel,
+            Long schoolId,
+            Boolean active) {
+        this(name, schoolYear, shift, gradeLevel, schoolId, active, null);
+    }
 }

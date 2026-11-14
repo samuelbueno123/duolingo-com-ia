@@ -45,6 +45,9 @@ public class PasswordResetService {
     @Value("${spring.mail.host:}")
     private String smtpHost;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.duolinfo.ia.proj.config.UserAuthCache userAuthCache;
+
     public PasswordResetService(
             UserRepository userRepository,
             PasswordResetTokenRepository tokenRepository,
@@ -85,7 +88,7 @@ public class PasswordResetService {
 
         boolean emailSent = false;
         Optional<User> userOpt = userRepository.findByEmailIgnoreCase(normalizedEmail);
-        if (userOpt.isPresent()) {
+        if (userOpt.isPresent() && userOpt.get().isActive()) {
             User user = userOpt.get();
             List<PasswordResetToken> activeTokens =
                     tokenRepository.findByUser_EmailIgnoreCaseAndUsedAtIsNullOrderByCreatedAtDesc(normalizedEmail);
@@ -170,8 +173,15 @@ public class PasswordResetService {
         }
 
         User user = resetToken.getUser();
+        if (!user.isActive()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Conta desativada.");
+        }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        if (userAuthCache != null) {
+            userAuthCache.evict(user.getId());
+            userAuthCache.evictByEmail(user.getEmail());
+        }
 
         return Map.of(
                 "message", "Senha redefinida com sucesso. Você já pode entrar com sua nova senha."

@@ -438,6 +438,7 @@ public class LearningPathService {
         LearningPathModule module = moduleRepository.findById(moduleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Módulo pedagógico não encontrado."));
 
+        double boundedScore = Math.max(0.0, Math.min(100.0, scorePercent));
         StudentModuleProgress progress = progressRepository.findByStudentIdAndModuleId(studentId, moduleId)
                 .orElseGet(() -> StudentModuleProgress.builder()
                         .studentId(studentId)
@@ -445,8 +446,9 @@ public class LearningPathService {
                         .build()
                 );
 
+        boolean alreadyCompleted = "COMPLETED".equalsIgnoreCase(progress.getStatus());
         progress.setStatus("COMPLETED");
-        progress.setScorePercent(Math.max(progress.getScorePercent(), scorePercent));
+        progress.setScorePercent(Math.max(progress.getScorePercent(), boundedScore));
         progress.setCompletedAt(LocalDateTime.now());
         progressRepository.save(progress);
 
@@ -469,8 +471,10 @@ public class LearningPathService {
                     }
                 });
 
-        // Award student XP
-        awardExperience(studentId, module.getLanguage(), module.getRequiredXp());
+        // Award student XP only on first completion of the module
+        if (!alreadyCompleted) {
+            awardExperience(studentId, module.getLanguage(), module.getRequiredXp());
+        }
 
         return getStudentLearningPath(studentId, module.getLanguage());
     }

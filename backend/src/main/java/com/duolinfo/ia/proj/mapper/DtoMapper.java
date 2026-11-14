@@ -40,13 +40,25 @@ public final class DtoMapper {
             institutionAdmin = teacher.isInstitutionAdmin();
             primaryInstitutionAdmin = teacher.isPrimaryInstitutionAdmin();
             if (teacher.getInstitution() != null) {
-                institutionId = teacher.getInstitution().getId();
-                institutionName = teacher.getInstitution().getName();
+                try {
+                    institutionId = teacher.getInstitution().getId();
+                    if (org.hibernate.Hibernate.isInitialized(teacher.getInstitution())) {
+                        institutionName = teacher.getInstitution().getName();
+                    }
+                } catch (Exception ignored) {
+                    // Safe fallback against lazy initialization outside active session
+                }
             }
         } else if (user instanceof Student student) {
             if (student.getInstitution() != null) {
-                institutionId = student.getInstitution().getId();
-                institutionName = student.getInstitution().getName();
+                try {
+                    institutionId = student.getInstitution().getId();
+                    if (org.hibernate.Hibernate.isInitialized(student.getInstitution())) {
+                        institutionName = student.getInstitution().getName();
+                    }
+                } catch (Exception ignored) {
+                    // Safe fallback against lazy initialization outside active session
+                }
             }
         }
 
@@ -73,7 +85,7 @@ public final class DtoMapper {
         }
 
         var languages =
-            student.getLanguages() == null
+            (student.getLanguages() == null || !org.hibernate.Hibernate.isInitialized(student.getLanguages()))
                 ? Collections.<String>emptyList()
                 : student.getLanguages()
                     .stream()
@@ -81,7 +93,7 @@ public final class DtoMapper {
                     .toList();
 
         var languageLevels =
-            student.getLanguages() == null
+            (student.getLanguages() == null || !org.hibernate.Hibernate.isInitialized(student.getLanguages()))
                 ? Collections.<String, String>emptyMap()
                 : student.getLanguages().stream().collect(
                     java.util.stream.Collectors.toMap(
@@ -93,7 +105,7 @@ public final class DtoMapper {
                 );
 
         var languageScores =
-            student.getLanguages() == null
+            (student.getLanguages() == null || !org.hibernate.Hibernate.isInitialized(student.getLanguages()))
                 ? Collections.<String, Integer>emptyMap()
                 : student.getLanguages().stream().collect(
                     java.util.stream.Collectors.toMap(
@@ -107,16 +119,24 @@ public final class DtoMapper {
         Long institutionId = null;
         String institutionName = null;
         if (student.getInstitution() != null) {
-            institutionId = student.getInstitution().getId();
-            institutionName = student.getInstitution().getName();
-        } else if (student.getEnrollments() != null && !student.getEnrollments().isEmpty()) {
+            try {
+                institutionId = student.getInstitution().getId();
+                if (org.hibernate.Hibernate.isInitialized(student.getInstitution())) {
+                    institutionName = student.getInstitution().getName();
+                }
+            } catch (Exception ignored) {
+                // Safe fallback
+            }
+        } else if (student.getEnrollments() != null && org.hibernate.Hibernate.isInitialized(student.getEnrollments())) {
             for (Enrollment e : student.getEnrollments()) {
                 if (e.getSchoolClass() != null
                         && e.getSchoolClass().getSchool() != null
                         && e.getSchoolClass().getSchool().getInstitution() != null) {
-                    institutionId = e.getSchoolClass().getSchool().getInstitution().getId();
-                    institutionName = e.getSchoolClass().getSchool().getInstitution().getName();
-                    break;
+                    try {
+                        institutionId = e.getSchoolClass().getSchool().getInstitution().getId();
+                        institutionName = e.getSchoolClass().getSchool().getInstitution().getName();
+                        break;
+                    } catch (Exception ignored) {}
                 }
             }
         }
@@ -146,15 +166,21 @@ public final class DtoMapper {
         String institutionName = null;
 
         if (teacher.getInstitution() != null) {
-            institutionId = teacher.getInstitution().getId();
-            institutionName = teacher.getInstitution().getName();
+            try {
+                institutionId = teacher.getInstitution().getId();
+                if (org.hibernate.Hibernate.isInitialized(teacher.getInstitution())) {
+                    institutionName = teacher.getInstitution().getName();
+                }
+            } catch (Exception ignored) {
+                // Safe fallback
+            }
         }
 
-        var taughtLanguages = teacher.getTaughtLanguages() == null
+        var taughtLanguages = (teacher.getTaughtLanguages() == null || !org.hibernate.Hibernate.isInitialized(teacher.getTaughtLanguages()))
             ? Collections.<String>emptyList()
             : new ArrayList<>(teacher.getTaughtLanguages());
 
-        var specializationAreas = teacher.getSpecializationAreas() == null
+        var specializationAreas = (teacher.getSpecializationAreas() == null || !org.hibernate.Hibernate.isInitialized(teacher.getSpecializationAreas()))
             ? Collections.<String>emptyList()
             : new ArrayList<>(teacher.getSpecializationAreas());
 

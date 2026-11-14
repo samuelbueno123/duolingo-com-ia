@@ -125,6 +125,16 @@ public class StudentController {
         if (!Boolean.TRUE.equals(schoolClass.getActive())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível entrar em uma turma inativa.");
         }
+        Long studentInstId = student.getInstitution() != null ? student.getInstitution().getId() : null;
+        Long classInstId = schoolClass.getInstitution() != null ? schoolClass.getInstitution().getId() :
+            (schoolClass.getSchool() != null && schoolClass.getSchool().getInstitution() != null
+                ? schoolClass.getSchool().getInstitution().getId() : null);
+        if (studentInstId != null && classInstId != null && !Objects.equals(studentInstId, classInstId)) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Você só pode se matricular em turmas da sua instituição."
+            );
+        }
         return DtoMapper.toEnrollmentResponse(
             enrollmentService.enrollStudent(
                 student.getId(),

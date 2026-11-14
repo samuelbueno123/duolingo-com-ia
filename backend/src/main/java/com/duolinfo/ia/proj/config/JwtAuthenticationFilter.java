@@ -93,7 +93,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
 
-        if (user == null) {
+        if (user == null || !user.isActive()) {
             return;
         }
 

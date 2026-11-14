@@ -173,6 +173,7 @@ public class UserController {
         summary = "Lista todos os usuários",
         description = "Retorna todos os usuários cadastrados."
     )
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public List<UserResponseDTO> listAll() {
 
         return userService.findAll()
@@ -227,6 +228,7 @@ public class UserController {
     @Operation(
         summary = "Busca usuários por nome"
     )
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public List<UserResponseDTO> findByName(
             @PathVariable String name) {
 

@@ -19,7 +19,7 @@ public class ExternalAiHealthIndicator implements HealthIndicator {
     public ExternalAiHealthIndicator(
             @Value("${app.ai.api-key:}") String aiApiKey,
             @Value("${app.ai.provider-url:}") String aiProviderUrl,
-            @Value("${app.ai.model:gemini-3.5-flash-lite}") String aiModel) {
+            @Value("${app.ai.model:gemini-2.5-flash}") String aiModel) {
         this.aiApiKey = aiApiKey;
         this.aiProviderUrl = aiProviderUrl;
         this.aiModel = aiModel;

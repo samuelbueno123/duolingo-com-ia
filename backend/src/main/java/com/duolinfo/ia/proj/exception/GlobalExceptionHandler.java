@@ -203,6 +203,39 @@ public class GlobalExceptionHandler {
             null);
     }
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNoResourceFound(
+            org.springframework.web.servlet.resource.NoResourceFoundException exception,
+            ServletWebRequest request) {
+        return build(
+            HttpStatus.NOT_FOUND,
+            "Recurso não encontrado.",
+            request,
+            null);
+    }
+
+    @ExceptionHandler(org.springframework.web.servlet.NoHandlerFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNoHandlerFound(
+            org.springframework.web.servlet.NoHandlerFoundException exception,
+            ServletWebRequest request) {
+        return build(
+            HttpStatus.NOT_FOUND,
+            "Rota não encontrada.",
+            request,
+            null);
+    }
+
+    @ExceptionHandler(org.springframework.http.InvalidMediaTypeException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidMediaType(
+            org.springframework.http.InvalidMediaTypeException exception,
+            ServletWebRequest request) {
+        return build(
+            HttpStatus.BAD_REQUEST,
+            "Tipo de mídia (Content-Type) inválido.",
+            request,
+            null);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneric(
             Exception exception,

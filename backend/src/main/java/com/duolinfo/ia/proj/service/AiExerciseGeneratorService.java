@@ -32,9 +32,9 @@ public class AiExerciseGeneratorService {
 
     public AiExerciseGeneratorService(
             ObjectMapper objectMapper,
-            @Value("${app.ai.api-key:AQ.Ab8RN6IdHoAh6sEX4IdGe_WsMRxDWUtZiuiC5N5EAQNTkOkQkQ}") String aiApiKey,
+            @Value("${app.ai.api-key:}") String aiApiKey,
             @Value("${app.ai.provider-url:https://generativelanguage.googleapis.com/v1beta/models}") String aiProviderUrl,
-            @Value("${app.ai.model:gemini-3.5-flash-lite}") String aiModel) {
+            @Value("${app.ai.model:gemini-2.5-flash}") String aiModel) {
         this.objectMapper = objectMapper;
         this.aiApiKey = aiApiKey;
         this.aiProviderUrl = aiProviderUrl;
@@ -45,7 +45,7 @@ public class AiExerciseGeneratorService {
     }
 
     public boolean isConfigured() {
-        return aiApiKey != null && !aiApiKey.isBlank();
+        return aiApiKey != null && !aiApiKey.isBlank() && !aiApiKey.startsWith("AQ.placeholder");
     }
 
     public List<ExerciseQuestionRequestDTO> generateQuestions(AiExerciseGenerateRequestDTO request) {
@@ -163,13 +163,13 @@ public class AiExerciseGeneratorService {
         if (isGemini) {
             String endpoint = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
             List<String> modelsToTry = new ArrayList<>();
-            String preferredModel = (aiModel != null && !aiModel.isBlank()) ? aiModel.trim() : "gemini-3.5-flash-lite";
+            String preferredModel = (aiModel != null && !aiModel.isBlank()) ? aiModel.trim() : "gemini-2.5-flash";
             modelsToTry.add(preferredModel);
-            if (!preferredModel.equals("gemini-3.5-flash-lite")) {
-                modelsToTry.add("gemini-3.5-flash-lite");
+            if (!preferredModel.equals("gemini-2.5-flash")) {
+                modelsToTry.add("gemini-2.5-flash");
             }
-            if (!preferredModel.equals("gemini-3.8-flash")) {
-                modelsToTry.add("gemini-3.8-flash");
+            if (!preferredModel.equals("gemini-2.5-flash-lite")) {
+                modelsToTry.add("gemini-2.5-flash-lite");
             }
             if (!preferredModel.equals("gemini-flash-latest")) {
                 modelsToTry.add("gemini-flash-latest");

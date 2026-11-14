@@ -28,9 +28,9 @@ public class AiExplanationService {
 
     public AiExplanationService(
             ObjectMapper objectMapper,
-            @Value("${app.ai.api-key:AQ.Ab8RN6IdHoAh6sEX4IdGe_WsMRxDWUtZiuiC5N5EAQNTkOkQkQ}") String aiApiKey,
+            @Value("${app.ai.api-key:}") String aiApiKey,
             @Value("${app.ai.provider-url:https://generativelanguage.googleapis.com/v1beta/models}") String aiProviderUrl,
-            @Value("${app.ai.model:gemini-3.5-flash-lite}") String aiModel) {
+            @Value("${app.ai.model:gemini-2.5-flash}") String aiModel) {
         this.objectMapper = objectMapper;
         this.aiApiKey = aiApiKey;
         this.aiProviderUrl = aiProviderUrl;
@@ -60,7 +60,8 @@ public class AiExplanationService {
                     lang, request.question(), request.wrongAnswer(), request.correctAnswer()
                 );
 
-                String endpoint = String.format("%s/%s:generateContent?key=%s", aiProviderUrl, aiModel, aiApiKey);
+                String model = (aiModel != null && !aiModel.isBlank()) ? aiModel.trim() : "gemini-2.5-flash";
+                String endpoint = String.format("%s/%s:generateContent?key=%s", aiProviderUrl, model, aiApiKey);
                 Map<String, Object> payload = Map.of(
                     "contents", List.of(
                         Map.of("parts", List.of(

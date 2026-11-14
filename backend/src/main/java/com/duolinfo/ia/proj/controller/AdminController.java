@@ -114,7 +114,7 @@ public class AdminController {
     @PutMapping("/tables/{tableName}/rows")
     public Map<String, Object> updateRow(
             @PathVariable String tableName,
-            @RequestBody AdminRowUpdateRequestDTO request,
+            @Valid @RequestBody AdminRowUpdateRequestDTO request,
             Authentication authentication) {
         adminService.requireSuperAdmin(authentication.getName());
         return adminService.updateRow(tableName, request.keys(), request.values());
@@ -153,7 +153,7 @@ public class AdminController {
     @PatchMapping("/users/{id}/admin")
     public AdminUserResponseDTO setAdminRole(
             @PathVariable Long id,
-            @RequestBody AdminRoleRequestDTO request,
+            @Valid @RequestBody AdminRoleRequestDTO request,
             Authentication authentication) {
         return adminService.setAdminRole(id, request.isAdmin(), authentication.getName());
     }
@@ -161,7 +161,7 @@ public class AdminController {
     @PatchMapping("/teachers/{id}/institution-admin")
     public TeacherResponseDTO setInstitutionAdminRole(
             @PathVariable Long id,
-            @RequestBody InstitutionAdminRoleRequestDTO request,
+            @Valid @RequestBody InstitutionAdminRoleRequestDTO request,
             Authentication authentication) {
         return adminService.setInstitutionAdminRole(id, request, authentication.getName());
     }
@@ -255,11 +255,13 @@ public class AdminController {
 
     @GetMapping("/dashboard/overview")
     public AdminDashboardOverviewDTO getDashboardOverview(Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
         return adminService.getDashboardOverview();
     }
 
     @GetMapping("/system/health")
     public AdminSystemHealthDTO getSystemHealth(Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
         return adminService.getSystemHealth();
     }
 
@@ -275,6 +277,7 @@ public class AdminController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "15") int size,
             Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
         return auditLogService.searchLogs(category, severity, result, actorEmail, search, startDate, endDate, page, size);
     }
 
@@ -287,6 +290,7 @@ public class AdminController {
     public List<CatalogOptionResponseDTO> listCatalog(
             @RequestParam(required = false) String type,
             Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
         return adminService.listCatalogOptions(type);
     }
 
@@ -326,11 +330,20 @@ public class AdminController {
     public ResponseEntity<byte[]> downloadTeacherDocument(
             @PathVariable Long id,
             Authentication authentication) {
-        TeacherDocument doc = adminService.getTeacherDocument(id);
-        String contentType = doc.getContentType() != null ? doc.getContentType() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        TeacherDocument doc = adminService.getTeacherDocument(id, authentication.getName());
+        MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        if (doc.getContentType() != null && !doc.getContentType().isBlank()) {
+            try {
+                mediaType = MediaType.parseMediaType(doc.getContentType());
+            } catch (org.springframework.http.InvalidMediaTypeException ignored) {
+                mediaType = MediaType.APPLICATION_OCTET_STREAM;
+            }
+        }
+        String rawFileName = doc.getFileName() != null ? doc.getFileName() : "document";
+        String safeFileName = rawFileName.replaceAll("[\\r\\n\"\\\\]", "_");
         return ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType(contentType))
-            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + doc.getFileName() + "\"")
+            .contentType(mediaType)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeFileName + "\"")
             .body(doc.getFileData());
     }
 }

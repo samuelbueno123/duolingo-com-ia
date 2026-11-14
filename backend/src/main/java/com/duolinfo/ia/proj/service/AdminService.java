@@ -116,6 +116,9 @@ public class AdminService {
     private final ExternalAiHealthIndicator externalAiHealthIndicator;
     private final CacheManager cacheManager;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.duolinfo.ia.proj.config.UserAuthCache userAuthCache;
+
     public AdminService(
             DataSource dataSource,
             JdbcTemplate jdbcTemplate,
@@ -374,6 +377,7 @@ public class AdminService {
             AdminUserRequestDTO request,
             String currentAdminEmail) {
         User user = userService.findById(userId);
+        String previousEmail = user.getEmail();
         ensureAdminCanChangeRole(user, request.isAdmin(), currentAdminEmail);
         boolean wasAdmin = user.isAdmin() || authService.isConfiguredAdmin(user);
 
@@ -390,6 +394,7 @@ public class AdminService {
         if (request.isAdmin() || wasAdmin) {
             teacherService.ensureAdminTeacherProfile(updatedUser.getId());
         }
+        evictAuthCache(updatedUser.getId(), previousEmail, updatedUser.getEmail());
         return toAdminUser(updatedUser);
     }
 
@@ -416,6 +421,7 @@ public class AdminService {
         } else if (isAdmin || wasAdmin) {
             teacherService.ensureAdminTeacherProfile(updatedUser.getId());
         }
+        evictAuthCache(updatedUser.getId(), updatedUser.getEmail());
         return toAdminUser(updatedUser);
     }
 
@@ -444,6 +450,7 @@ public class AdminService {
             teacher.setApprovalStatus("APPROVED");
         }
         Teacher saved = teacherRepository.save(teacher);
+        evictAuthCache(saved.getId(), saved.getEmail());
         return DtoMapper.toTeacherResponse(saved);
     }
 
@@ -976,9 +983,9 @@ public class AdminService {
         long totalExercises = learningExerciseRepository.count();
         long totalSubmissions = exerciseSubmissionRepository.count();
         long totalEnrollments = enrollmentRepository.count();
-        long totalLanguages = catalogOptionRepository.countByCatalogTypeAndActiveTrue("LANGUAGE");
+        long totalLanguages = catalogOptionRepository.countByCatalogTypeIgnoreCaseAndActiveTrue("language");
         if (totalLanguages == 0) {
-            totalLanguages = catalogOptionRepository.findByCatalogType("LANGUAGE").size();
+            totalLanguages = catalogOptionRepository.findByCatalogTypeIgnoreCase("language").size();
         }
 
         long adminCount = userRepository.countByAdminTrue();
@@ -1000,14 +1007,14 @@ public class AdminService {
         List<Map<String, Object>> topLanguages = new ArrayList<>();
         try {
             topLanguages = jdbcTemplate.queryForList(
-                "SELECT language as name, COUNT(*) as count FROM student_languages GROUP BY language ORDER BY count DESC LIMIT 5"
+                "SELECT language_name as name, COUNT(*) as count FROM student_languages GROUP BY language_name ORDER BY count DESC LIMIT 5"
             );
         } catch (Exception ignored) {}
 
         List<Map<String, Object>> topSpecializations = new ArrayList<>();
         try {
             topSpecializations = jdbcTemplate.queryForList(
-                "SELECT specialization as name, COUNT(*) as count FROM teacher_specializations GROUP BY specialization ORDER BY count DESC LIMIT 5"
+                "SELECT specialization_area as name, COUNT(*) as count FROM teacher_specialization_areas GROUP BY specialization_area ORDER BY count DESC LIMIT 5"
             );
         } catch (Exception ignored) {}
 
@@ -1061,14 +1068,31 @@ public class AdminService {
             "Usuário " + user.getEmail() + (newActive ? " reativado." : " suspenso pelo administrador.")
         );
 
+        evictAuthCache(saved.getId(), saved.getEmail());
         return toAdminUser(saved);
+    }
+
+    private void evictAuthCache(Long userId, String... emails) {
+        if (userAuthCache == null) {
+            return;
+        }
+        if (userId != null) {
+            userAuthCache.evict(userId);
+        }
+        if (emails != null) {
+            for (String email : emails) {
+                if (email != null && !email.isBlank()) {
+                    userAuthCache.evictByEmail(email);
+                }
+            }
+        }
     }
 
     @Transactional(readOnly = true)
     public List<CatalogOptionResponseDTO> listCatalogOptions(String type) {
         List<CatalogOption> options;
         if (type != null && !type.isBlank() && !"ALL".equalsIgnoreCase(type)) {
-            options = catalogOptionRepository.findByCatalogType(type.trim().toUpperCase());
+            options = catalogOptionRepository.findByCatalogTypeIgnoreCase(type.trim());
         } else {
             options = catalogOptionRepository.findByOrderByCatalogTypeAscValueAsc();
         }
@@ -1082,7 +1106,7 @@ public class AdminService {
         requireSuperAdmin(adminEmail);
         String type = request.catalogType().trim().toUpperCase();
         String val = request.value().trim();
-        if (catalogOptionRepository.existsByCatalogTypeAndValue(type, val)) {
+        if (catalogOptionRepository.existsByCatalogTypeIgnoreCaseAndValueIgnoreCase(type, val)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta opção já está cadastrada no catálogo.");
         }
         CatalogOption opt = new CatalogOption(type, val);
@@ -1161,9 +1185,10 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public Page<TeacherDocumentAdminDTO> listTeacherDocuments(String search, int page, int size, String adminEmail) {
+        Long scopedInstitutionId = resolveScopedInstitutionId(adminEmail);
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)), Sort.by(Sort.Direction.DESC, "id"));
         String searchTerm = (search != null && !search.isBlank()) ? search.trim() : null;
-        Page<TeacherDocument> docPage = teacherDocumentRepository.searchDocuments(searchTerm, pageable);
+        Page<TeacherDocument> docPage = teacherDocumentRepository.searchDocuments(scopedInstitutionId, searchTerm, pageable);
         return docPage.map(doc -> {
             Teacher t = doc.getTeacher();
             String instName = t != null && t.getInstitution() != null ? t.getInstitution().getName() : "Sem Instituição";
@@ -1182,9 +1207,22 @@ public class AdminService {
     }
 
     @Transactional(readOnly = true)
-    public TeacherDocument getTeacherDocument(Long id) {
-        return teacherDocumentRepository.findById(id)
+    public TeacherDocument getTeacherDocument(Long id, String adminEmail) {
+        TeacherDocument doc = teacherDocumentRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Documento não encontrado."));
+        Long scopedInstitutionId = resolveScopedInstitutionId(adminEmail);
+        if (scopedInstitutionId != null) {
+            Long docInstId = (doc.getTeacher() != null && doc.getTeacher().getInstitution() != null)
+                ? doc.getTeacher().getInstitution().getId()
+                : null;
+            if (!Objects.equals(scopedInstitutionId, docInstId)) {
+                throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Você só pode baixar documentos de professores vinculados à sua própria instituição."
+                );
+            }
+        }
+        return doc;
     }
 
     private void evictCatalogCache() {

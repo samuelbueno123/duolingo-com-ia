@@ -23,6 +23,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     /*
      * Busca alunos pelo idioma.
      */
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"languages", "institution"})
     List<Student> findByLanguages_LanguageNameIgnoreCase(String languageName);
 
     default List<Student> findByPreferredLanguage(String preferredLanguage) {
@@ -32,6 +33,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     /*
      * Busca alunos matriculados em uma determinada turma.
      */
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"languages", "institution"})
     List<Student> findByEnrollments_SchoolClass_Id(
         Long schoolClassId
     );
@@ -45,11 +47,13 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
      * TRANSFERRED
      * COMPLETED
      */
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"languages", "institution"})
     List<Student> findByEnrollments_SchoolClass_IdAndEnrollments_Status(
         Long schoolClassId,
         EnrollmentStatus status
     );
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"languages", "institution"})
     List<Student> findByInstitutionId(Long institutionId);
 
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT s FROM Student s LEFT JOIN FETCH s.languages WHERE s.institution.id = :institutionId")
@@ -58,5 +62,8 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT s FROM Student s LEFT JOIN FETCH s.languages")
     List<Student> findAllWithLanguages();
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"languages", "institution"})
     List<Student> findByNameContainingIgnoreCaseOrderByNameAsc(String name);
+
+    boolean existsByNameIgnoreCase(String name);
 }

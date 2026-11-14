@@ -543,12 +543,15 @@ public class LearningExerciseService {
         }
 
         Map<String, Integer> deduplicatedXpByLang = new HashMap<>();
+        Map<String, Integer> rawXpByLang = new HashMap<>();
         boolean submissionsChanged = false;
 
         for (List<ExerciseSubmission> exSubs : byExercise.values()) {
             exSubs.sort(Comparator.comparing(ExerciseSubmission::getSubmittedAt));
+            int rawForExercise = 0;
             int awardedSoFar = 0;
             for (ExerciseSubmission sub : exSubs) {
+                rawForExercise += Math.max(0, sub.getXpEarned());
                 int targetXp = sub.getCorrectCount() * 10;
                 int expectedDelta = Math.max(0, targetXp - awardedSoFar);
                 if (sub.getXpEarned() != expectedDelta) {
@@ -561,6 +564,7 @@ public class LearningExerciseService {
             String langName = exSubs.get(0).getExercise().getLanguageName();
             if (langName != null) {
                 String key = langName.trim().toLowerCase(Locale.ROOT);
+                rawXpByLang.merge(key, rawForExercise, Integer::sum);
                 deduplicatedXpByLang.merge(key, awardedSoFar, Integer::sum);
             }
         }
@@ -569,9 +573,21 @@ public class LearningExerciseService {
         for (StudentLanguage lang : student.getLanguages()) {
             if (lang.getLanguageName() == null) continue;
             String key = lang.getLanguageName().trim().toLowerCase(Locale.ROOT);
-            Integer expectedScore = deduplicatedXpByLang.get(key);
-            if (expectedScore != null && !Objects.equals(lang.getScore(), expectedScore)) {
-                lang.setScore(expectedScore);
+            Integer expectedExerciseXp = deduplicatedXpByLang.get(key);
+            if (expectedExerciseXp == null) {
+                continue;
+            }
+            int currentScore = lang.getScore() != null ? lang.getScore() : 0;
+            int rawExerciseXp = rawXpByLang.getOrDefault(key, 0);
+            int nextScore = currentScore;
+            if (submissionsChanged && rawExerciseXp != expectedExerciseXp) {
+                // Adjust only by the exercise over-award/under-award delta so XP from SRS, community, pronunciation, and paths stays intact.
+                nextScore = Math.max(expectedExerciseXp, Math.max(0, currentScore + (expectedExerciseXp - rawExerciseXp)));
+            } else if (currentScore < expectedExerciseXp) {
+                nextScore = expectedExerciseXp;
+            }
+            if (nextScore != currentScore) {
+                lang.setScore(nextScore);
                 studentChanged = true;
             }
         }

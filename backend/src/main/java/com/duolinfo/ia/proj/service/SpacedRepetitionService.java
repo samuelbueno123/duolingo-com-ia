@@ -132,14 +132,14 @@ public class SpacedRepetitionService {
             if (repetition == 0) {
                 interval = 1;
             } else if (repetition == 1) {
-                interval = (rating == 4) ? 6 : 4;
+                interval = (rating >= 4) ? 6 : 4;
             } else {
-                double bonus = (rating == 4) ? 1.3 : 1.0;
+                double bonus = (rating >= 4) ? 1.3 : 1.0;
                 interval = Math.max(1, (int) Math.round(interval * ease * bonus));
             }
             repetition++;
             ease = Math.max(1.30, ease + (0.1 - (5 - rating) * (0.08 + (5 - rating) * 0.02)));
-            xpEarned = (rating == 4) ? 10 : 6;
+            xpEarned = (rating >= 4) ? 10 : 6;
         }
 
         LocalDate nextDueDate = LocalDate.now().plusDays(interval);

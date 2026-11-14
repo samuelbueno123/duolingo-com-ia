@@ -32,7 +32,7 @@ public class Student extends User {
     /*
      * Instituição à qual o aluno está vinculado.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "institution_id")
     private Institution institution;
 

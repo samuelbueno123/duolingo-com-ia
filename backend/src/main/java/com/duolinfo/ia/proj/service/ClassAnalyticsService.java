@@ -39,10 +39,22 @@ public class ClassAnalyticsService {
     private final LearningExerciseRepository exerciseRepository;
     private final ExerciseSubmissionRepository submissionRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AccessControlService accessControlService;
+
     @Transactional(readOnly = true)
     public ClassAnalyticsResponseDTO getClassAnalytics(Long classId) {
         SchoolClass schoolClass = schoolClassRepository.findById(classId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Turma não encontrada."));
+
+        if (accessControlService != null && accessControlService.getCurrentUser().isPresent()) {
+            accessControlService.assertCanManageSchoolClass(schoolClass);
+            accessControlService.asTeacher(accessControlService.getCurrentUser().get())
+                .filter(t -> !Boolean.TRUE.equals(t.getApproved()) && !accessControlService.isSuperAdmin(t))
+                .ifPresent(t -> {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Professor aguardando aprovação institucional.");
+                });
+        }
 
         List<Enrollment> activeEnrollments = enrollmentRepository.findActiveWithStudentAndLanguagesBySchoolClassId(classId, EnrollmentStatus.ACTIVE);
         if (activeEnrollments == null || activeEnrollments.isEmpty()) {

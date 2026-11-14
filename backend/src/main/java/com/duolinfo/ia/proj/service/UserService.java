@@ -388,6 +388,10 @@ public class UserService {
             entityManager.clear();
         }
         userRepository.findById(id).ifPresent(userRepository::delete);
+        if (userAuthCache != null) {
+            userAuthCache.evict(id);
+            userAuthCache.evictByEmail(user.getEmail());
+        }
         schedulePictureCleanup(oldPicture, null);
     }
 
@@ -398,19 +402,16 @@ public class UserService {
         String[] cleanupSql = new String[] {
             "DELETE FROM password_reset_tokens WHERE user_id = ?",
             "DELETE FROM exercise_submissions WHERE student_id = ?",
-            "DELETE FROM exercise_submissions WHERE exercise_id IN (SELECT id FROM learning_exercises WHERE created_by_teacher_id = ?)",
-            "DELETE FROM learning_exercise_questions WHERE exercise_id IN (SELECT id FROM learning_exercises WHERE created_by_teacher_id = ?)",
-            "DELETE FROM learning_exercises WHERE created_by_teacher_id = ?",
+            "DELETE FROM exercise_submissions WHERE exercise_id IN (SELECT id FROM learning_exercises WHERE teacher_id = ?)",
+            "DELETE FROM learning_exercises WHERE teacher_id = ?",
             "DELETE FROM student_achievements WHERE student_id = ?",
-            "UPDATE student_achievements SET granted_by_user_id = NULL WHERE granted_by_user_id = ?",
             "DELETE FROM student_languages WHERE student_id = ?",
             "DELETE FROM enrollments WHERE student_id = ?",
             "DELETE FROM class_teacher_assignments WHERE teacher_id = ?",
             "DELETE FROM teacher_documents WHERE teacher_id = ?",
             "DELETE FROM teacher_taught_languages WHERE teacher_id = ?",
             "DELETE FROM teacher_specialization_areas WHERE teacher_id = ?",
-            "UPDATE admin_notifications SET related_user_id = NULL WHERE related_user_id = ?",
-            "DELETE FROM institution_requests WHERE requested_by_teacher_id = ?",
+            "DELETE FROM admin_notifications WHERE reference_id = ? AND reference_type IN ('TEACHER_REQUEST', 'USER')",
             "DELETE FROM spaced_review_items WHERE student_id = ?",
             "DELETE FROM ai_conversation_messages WHERE session_id IN (SELECT id FROM ai_conversation_sessions WHERE student_id = ?)",
             "DELETE FROM ai_conversation_sessions WHERE student_id = ?",
@@ -443,8 +444,15 @@ public class UserService {
     public void deleteByGoogleId(String googleId) {
         userRepository.findByGoogleId(googleId)
             .ifPresent(user -> {
-                userRepository.delete(user);
-                schedulePictureCleanup(user.getProfilePicture(), null);
+                if (user.getId() != null) {
+                    deleteById(user.getId());
+                } else {
+                    if (userAuthCache != null) {
+                        userAuthCache.evictByEmail(user.getEmail());
+                    }
+                    userRepository.delete(user);
+                    schedulePictureCleanup(user.getProfilePicture(), null);
+                }
             });
     }
 
@@ -452,8 +460,15 @@ public class UserService {
     public void deleteByEmail(String email) {
         User user = findByEmail(email);
         if (user != null) {
-            userRepository.delete(user);
-            schedulePictureCleanup(user.getProfilePicture(), null);
+            if (user.getId() != null) {
+                deleteById(user.getId());
+            } else {
+                if (userAuthCache != null) {
+                    userAuthCache.evictByEmail(user.getEmail());
+                }
+                userRepository.delete(user);
+                schedulePictureCleanup(user.getProfilePicture(), null);
+            }
         }
     }
 
@@ -505,10 +520,7 @@ public class UserService {
         if (name == null || name.isBlank()) {
             return List.of();
         }
-        String searchTerm = name.trim().toLowerCase(Locale.ROOT);
-        return userRepository.findAll().stream()
-            .filter(user -> user.getName() != null
-                && user.getName().toLowerCase(Locale.ROOT).contains(searchTerm))
+        return userRepository.findByNameContainingIgnoreCase(name.trim()).stream()
             .map(this::migrateLegacyProfilePicture)
             .toList();
     }
@@ -528,12 +540,14 @@ public class UserService {
     }
 
     public boolean existsByName(String name) {
-        return name != null && userRepository.findAll().stream()
-            .anyMatch(user -> user.getName() != null
-                && user.getName().equalsIgnoreCase(name.trim()));
+        return name != null && !name.isBlank()
+            && userRepository.existsByNameIgnoreCase(name.trim());
     }
 
     private User migrateLegacyProfilePicture(User user) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isCurrentTransactionReadOnly()) {
+            return user;
+        }
         String oldPicture = user.getProfilePicture();
         if (!profilePictureStorage.isInlinePicture(oldPicture)) {
             return user;

@@ -1,6 +1,7 @@
 package com.duolinfo.ia.proj.dto.request;
 
 import java.util.Map;
+import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 
@@ -28,20 +29,31 @@ public record StudentLanguageRequestDTO(
         if (input instanceof String str) {
             if (str.contains(":")) {
                 String[] parts = str.split(":", 2);
-                return new StudentLanguageRequestDTO(parts[0].trim(), parts[1].trim(), 0);
+                String parsedLevel = parts[1].trim();
+                return new StudentLanguageRequestDTO(
+                    parts[0].trim(),
+                    parsedLevel.isEmpty() ? "Básico" : parsedLevel,
+                    0
+                );
             }
-            return new StudentLanguageRequestDTO(str.trim(), "Iniciante", 0);
+            return new StudentLanguageRequestDTO(str.trim(), "Básico", 0);
         } else if (input instanceof Map<?, ?> map) {
-            String name = (String) map.get("languageName");
-            if (name == null) name = (String) map.get("language");
-            if (name == null) name = (String) map.get("name");
-
-            String level = (String) map.get("level");
-            if (level == null || level.isBlank()) level = "Iniciante";
+            String name = firstNonBlank(map, "languageName", "language", "name");
+            String level = firstNonBlank(map, "level", "proficiencyLevel", "proficiency");
+            if (level == null || level.isBlank()) {
+                level = "Básico";
+            }
 
             Integer score = 0;
-            if (map.get("score") instanceof Number num) {
+            Object rawScore = map.get("score");
+            if (rawScore instanceof Number num) {
                 score = num.intValue();
+            } else if (rawScore instanceof String strScore && !strScore.isBlank()) {
+                try {
+                    score = Integer.parseInt(strScore.trim());
+                } catch (NumberFormatException ignored) {
+                    score = 0;
+                }
             }
 
             return new StudentLanguageRequestDTO(
@@ -50,6 +62,16 @@ public record StudentLanguageRequestDTO(
                 score
             );
         }
-        return new StudentLanguageRequestDTO("", "Iniciante", 0);
+        return new StudentLanguageRequestDTO("", "Básico", 0);
+    }
+
+    private static String firstNonBlank(Map<?, ?> map, String... keys) {
+        for (String key : keys) {
+            String value = Objects.toString(map.get(key), null);
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 }

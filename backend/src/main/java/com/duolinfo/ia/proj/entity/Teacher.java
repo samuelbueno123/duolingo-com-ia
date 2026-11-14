@@ -42,7 +42,7 @@ public class Teacher extends User {
     /*
      * Instituição à qual o professor pertence.
      */
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "institution_id", nullable = false)
     private Institution institution;
 

@@ -322,6 +322,28 @@ public class EnrollmentService {
          */
         Student student = findStudent(studentId);
 
+        Institution targetInstitution = newClass.getSchool() != null && newClass.getSchool().getInstitution() != null
+            ? newClass.getSchool().getInstitution()
+            : newClass.getInstitution();
+        if (targetInstitution != null) {
+            Enrollment closedEnrollment = currentEnrollment;
+            boolean otherActiveInDifferentInstitution = activeEnrollments.stream()
+                .filter(e -> closedEnrollment == null || !e.getId().equals(closedEnrollment.getId()))
+                .anyMatch(e -> {
+                    Institution inst = e.getSchoolClass() != null
+                        ? (e.getSchoolClass().getSchool() != null ? e.getSchoolClass().getSchool().getInstitution() : e.getSchoolClass().getInstitution())
+                        : null;
+                    return inst != null && !inst.getId().equals(targetInstitution.getId());
+                });
+            if (otherActiveInDifferentInstitution) {
+                throw new BusinessException(
+                    "O estudante possui outras matrículas ativas em outra instituição. Cancele ou transfira todas antes de mudar de instituição."
+                );
+            }
+            student.setInstitution(targetInstitution);
+            studentRepository.save(student);
+        }
+
         Enrollment newEnrollment = Enrollment.builder()
             .student(student)
             .schoolClass(newClass)
@@ -330,7 +352,9 @@ public class EnrollmentService {
             .notes(notes)
             .build();
 
-        return enrollmentRepository.save(newEnrollment);
+        Enrollment saved = enrollmentRepository.save(newEnrollment);
+        notifyEnrollmentChanged(saved);
+        return saved;
     }
 
     @Transactional

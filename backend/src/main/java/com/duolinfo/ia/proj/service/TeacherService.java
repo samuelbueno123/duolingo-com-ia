@@ -51,6 +51,9 @@ public class TeacherService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.duolinfo.ia.proj.repository.InstitutionRequestRepository institutionRequestRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.duolinfo.ia.proj.config.UserAuthCache userAuthCache;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -212,6 +215,9 @@ public class TeacherService {
 
                 entityManager.flush();
                 entityManager.clear();
+                if (userAuthCache != null) {
+                    userAuthCache.evict(userId);
+                }
 
                 Teacher created = teacherRepository.findById(userId).orElseThrow();
                 if (!grantPrimaryAdmin) {
@@ -291,6 +297,9 @@ public class TeacherService {
             .setParameter("id", userId)
             .setParameter("institutionId", institution.getId())
             .executeUpdate();
+        if (userAuthCache != null) {
+            userAuthCache.evict(userId);
+        }
     }
 
     private String encodePasswordIfNeeded(String password) {
@@ -367,6 +376,10 @@ public class TeacherService {
         teacher.setApproved(approved);
         teacher.setApprovalStatus(approved ? "APPROVED" : "REJECTED");
         Teacher saved = teacherRepository.save(teacher);
+        if (userAuthCache != null) {
+            userAuthCache.evict(id);
+            userAuthCache.evictByEmail(saved.getEmail());
+        }
         notificationRepository.findByReferenceTypeAndReferenceId(TEACHER_REQUEST_REFERENCE, id)
             .forEach(notification -> {
                 notification.setRead(true);
@@ -382,7 +395,12 @@ public class TeacherService {
 
     @Transactional
     public void deleteById(Long id) {
-        teacherRepository.delete(findById(id));
+        Teacher teacher = findById(id);
+        teacherRepository.delete(teacher);
+        if (userAuthCache != null) {
+            userAuthCache.evict(id);
+            userAuthCache.evictByEmail(teacher.getEmail());
+        }
     }
 
     @Transactional
@@ -403,46 +421,46 @@ public class TeacherService {
 
     @Transactional(readOnly = true)
     public List<Teacher> findAll() {
-        return teacherRepository.findAllWithDetails();
+        return initializeDetailsList(teacherRepository.findAllWithDetails());
     }
 
     @Transactional(readOnly = true)
     public List<Teacher> findAllById(Iterable<Long> ids) {
-        return teacherRepository.findAllById(ids);
+        return initializeDetailsList(teacherRepository.findAllById(ids));
     }
 
     @Transactional(readOnly = true)
     public Teacher findById(Long id) {
-        return teacherRepository.findById(id)
+        return initializeDetails(teacherRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "Professor não encontrado: " + id
-            ));
+            )));
     }
 
     @Transactional(readOnly = true)
     public Teacher findByGoogleId(String googleId) {
-        return teacherRepository.findByGoogleId(googleId).orElse(null);
+        return initializeDetails(teacherRepository.findByGoogleId(googleId).orElse(null));
     }
 
     @Transactional(readOnly = true)
     public Teacher findByEmail(String email) {
-        return teacherRepository.findByEmailIgnoreCase(email).orElse(null);
+        return initializeDetails(teacherRepository.findByEmailIgnoreCase(email).orElse(null));
     }
 
     @Transactional(readOnly = true)
     public List<Teacher> findByName(String name) {
-        return teacherRepository.findByNameContainingIgnoreCase(name);
+        return initializeDetailsList(teacherRepository.findByNameContainingIgnoreCase(name));
     }
 
     @Transactional(readOnly = true)
     public List<Teacher> findByInstitution(String institution) {
-        return teacherRepository
-                .findByInstitution_NameContainingIgnoreCase(institution);
+        return initializeDetailsList(teacherRepository
+                .findByInstitution_NameContainingIgnoreCase(institution));
     }
 
     @Transactional(readOnly = true)
     public List<Teacher> findByInstitutionId(Long institutionId) {
-        return teacherRepository.findWithDetailsByInstitutionId(institutionId);
+        return initializeDetailsList(teacherRepository.findWithDetailsByInstitutionId(institutionId));
     }
 
     @Transactional(readOnly = true)
@@ -450,11 +468,11 @@ public class TeacherService {
             Long institutionId,
             String language) {
 
-        return teacherRepository
+        return initializeDetailsList(teacherRepository
                 .findByInstitutionIdAndTaughtLanguagesContaining(
                         institutionId,
                         language
-                );
+                ));
     }
 
     @Transactional(readOnly = true)
@@ -462,11 +480,30 @@ public class TeacherService {
             Long institutionId,
             String specializationArea) {
 
-        return teacherRepository
+        return initializeDetailsList(teacherRepository
                 .findByInstitutionIdAndSpecializationAreasContaining(
                         institutionId,
                         specializationArea
-                );
+                ));
+    }
+
+    private Teacher initializeDetails(Teacher teacher) {
+        if (teacher != null) {
+            org.hibernate.Hibernate.initialize(teacher.getTaughtLanguages());
+            org.hibernate.Hibernate.initialize(teacher.getSpecializationAreas());
+            if (teacher.getInstitution() != null) {
+                org.hibernate.Hibernate.initialize(teacher.getInstitution());
+            }
+        }
+        return teacher;
+    }
+
+    private List<Teacher> initializeDetailsList(List<Teacher> teachers) {
+        if (teachers == null || teachers.isEmpty()) {
+            return List.of();
+        }
+        teachers.forEach(this::initializeDetails);
+        return teachers;
     }
 
     // ==========================================

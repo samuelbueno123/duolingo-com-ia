@@ -6,8 +6,8 @@ import jakarta.validation.constraints.NotNull;
 
 public record SpacedReviewAnswerDTO(
     @NotNull(message = "A nota de avaliação é obrigatória.")
-    @Min(value = 1, message = "A nota deve ser entre 1 (Errei) e 4 (Fácil).")
-    @Max(value = 4, message = "A nota deve ser entre 1 (Errei) e 4 (Fácil).")
+    @Min(value = 0, message = "A nota deve ser entre 0 e 5.")
+    @Max(value = 5, message = "A nota deve ser entre 0 e 5.")
     Integer rating
 ) {
 }

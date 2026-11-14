@@ -74,8 +74,15 @@ public class CommunityReviewController {
 
     @GetMapping("/submissions/{id}")
     @Operation(summary = "Recupera detalhes de um exercício e suas avaliações comunitárias")
-    public CommunitySubmissionResponseDTO getSubmissionDetails(@PathVariable Long id) {
-        return communityService.getSubmissionDetails(id);
+    public CommunitySubmissionResponseDTO getSubmissionDetails(
+            @PathVariable Long id,
+            Authentication authentication) {
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        Long requesterStudentId = studentRepository.findByEmailIgnoreCase(authentication.getName())
+                .map(Student::getId)
+                .orElse(null);
+        return communityService.getSubmissionDetails(id, requesterStudentId, isAdmin);
     }
 
     @PostMapping("/reviews")

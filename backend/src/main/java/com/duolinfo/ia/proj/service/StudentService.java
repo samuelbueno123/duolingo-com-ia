@@ -48,6 +48,9 @@ public class StudentService {
     private final InstitutionRepository institutionRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.duolinfo.ia.proj.config.UserAuthCache userAuthCache;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -169,6 +172,9 @@ public class StudentService {
 
                 entityManager.flush();
                 entityManager.clear();
+                if (userAuthCache != null) {
+                    userAuthCache.evict(userId);
+                }
 
                 return studentRepository.findById(userId).orElseThrow();
             }
@@ -393,7 +399,12 @@ public class StudentService {
 
     @Transactional
     public void deleteById(Long id) {
-        studentRepository.delete(findById(id));
+        Student student = findById(id);
+        studentRepository.delete(student);
+        if (userAuthCache != null) {
+            userAuthCache.evict(id);
+            userAuthCache.evictByEmail(student.getEmail());
+        }
     }
 
     @Transactional
@@ -442,13 +453,10 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public List<Student> findByName(String name) {
-        return studentRepository.findAll().stream()
-                .filter(student ->
-                        student.getName() != null
-                                && student.getName()
-                                        .toLowerCase()
-                                        .contains(name.toLowerCase()))
-                .toList();
+        if (name == null || name.isBlank()) {
+            return List.of();
+        }
+        return studentRepository.findByNameContainingIgnoreCaseOrderByNameAsc(name.trim());
     }
 
     @Transactional(readOnly = true)
@@ -505,14 +513,15 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public boolean existsByEmail(String email) {
-        return studentRepository.findByEmail(email).isPresent();
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        return studentRepository.findByEmailIgnoreCase(email.trim()).isPresent();
     }
 
     @Transactional(readOnly = true)
     public boolean existsByName(String name) {
-        return studentRepository.findAll().stream()
-                .anyMatch(student ->
-                        student.getName() != null
-                                && student.getName().equalsIgnoreCase(name));
+        return name != null && !name.isBlank()
+                && studentRepository.existsByNameIgnoreCase(name.trim());
     }
 }

@@ -27,7 +27,7 @@ public class CatalogController {
     @org.springframework.cache.annotation.Cacheable("catalogLanguages")
     public List<String> findLanguages() {
         return catalogOptionRepository
-            .findByCatalogTypeAndActiveTrueOrderByValueAsc("language")
+            .findByCatalogTypeIgnoreCaseAndActiveTrueOrderByValueAsc("language")
             .stream()
             .map(option -> option.getValue())
             .toList();

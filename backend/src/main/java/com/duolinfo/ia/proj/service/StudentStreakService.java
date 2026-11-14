@@ -68,6 +68,7 @@ public class StudentStreakService {
         Student student = studentRepository.findById(studentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Estudante não encontrado."));
 
+        int safeXp = Math.max(0, xpEarned);
         LocalDate today = LocalDate.now();
         LocalDate lastActive = student.getLastActiveDate();
 
@@ -78,19 +79,19 @@ public class StudentStreakService {
 
         if (lastActive == null) {
             current = 1;
-            todayXp = xpEarned;
+            todayXp = safeXp;
         } else if (lastActive.equals(today)) {
-            todayXp += xpEarned;
+            todayXp += safeXp;
         } else if (lastActive.equals(today.minusDays(1))) {
             current += 1;
-            todayXp = xpEarned;
+            todayXp = safeXp;
         } else if (lastActive.equals(today.minusDays(2)) && freezes > 0) {
             freezes -= 1;
             current += 1;
-            todayXp = xpEarned;
+            todayXp = safeXp;
         } else {
             current = 1;
-            todayXp = xpEarned;
+            todayXp = safeXp;
         }
 
         longest = Math.max(longest, current);
@@ -117,6 +118,9 @@ public class StudentStreakService {
 
     @Transactional
     public StreakResponseDTO setDailyGoal(Long studentId, int dailyGoal) {
+        if (dailyGoal < 5 || dailyGoal > 500) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A meta diária de XP deve estar entre 5 e 500.");
+        }
         Student student = studentRepository.findById(studentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Estudante não encontrado."));
 

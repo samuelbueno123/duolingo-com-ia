@@ -155,8 +155,17 @@ public class AuthController {
     @GetMapping("/me")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Retorna o usuário autenticado")
+    @org.springframework.transaction.annotation.Transactional
     public AuthenticatedUserResponseDTO me(Authentication authentication) {
         User user = authenticatedUser(authentication);
+        if (user.getId() != null) {
+            try {
+                User reloaded = userService.findById(user.getId());
+                if (reloaded != null) {
+                    user = reloaded;
+                }
+            } catch (Exception ignored) {}
+        }
         return new AuthenticatedUserResponseDTO(
             true,
             true,

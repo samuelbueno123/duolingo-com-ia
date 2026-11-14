@@ -66,6 +66,7 @@ public class LearningExerciseController {
     }
 
     @PostMapping("/generate-ai")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     @Operation(summary = "Gera sugestões editáveis de questões usando o provedor de IA configurado no servidor")
     public List<ExerciseQuestionRequestDTO> generateWithAi(
             @Valid @RequestBody AiExerciseGenerateRequestDTO request) {
@@ -79,6 +80,7 @@ public class LearningExerciseController {
     }
 
     @PostMapping("/generate-options-ai")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     @Operation(summary = "Gera opcoes incorretas com IA para uma questao")
     public List<String> generateOptionsWithAi(@RequestBody Map<String, String> body) {
         if (aiGeneratorService == null) {
@@ -92,6 +94,7 @@ public class LearningExerciseController {
     }
 
     @PostMapping("/explain-ai")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     @Operation(summary = "Gera explicacao pedagogica para uma questao com IA")
     public Map<String, String> explainWithAi(@RequestBody Map<String, String> body) {
         if (aiGeneratorService == null) {

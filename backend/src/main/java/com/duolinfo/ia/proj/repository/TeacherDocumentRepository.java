@@ -16,9 +16,21 @@ public interface TeacherDocumentRepository extends JpaRepository<TeacherDocument
 
     List<TeacherDocument> findByTeacherId(Long teacherId);
 
-    @Query("SELECT d FROM TeacherDocument d JOIN FETCH d.teacher t LEFT JOIN FETCH t.institution i " +
-           "WHERE (:search IS NULL OR LOWER(d.fileName) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "OR LOWER(t.email) LIKE LOWER(CONCAT('%', :search, '%')))")
-    Page<TeacherDocument> searchDocuments(@Param("search") String search, Pageable pageable);
+    @Query(
+        value = "SELECT d FROM TeacherDocument d JOIN FETCH d.teacher t LEFT JOIN FETCH t.institution i " +
+                "WHERE (:institutionId IS NULL OR i.id = :institutionId) " +
+                "AND (:search IS NULL OR LOWER(d.fileName) LIKE LOWER(CONCAT('%', :search, '%')) " +
+                "OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+                "OR LOWER(t.email) LIKE LOWER(CONCAT('%', :search, '%')))",
+        countQuery = "SELECT COUNT(d) FROM TeacherDocument d JOIN d.teacher t LEFT JOIN t.institution i " +
+                     "WHERE (:institutionId IS NULL OR i.id = :institutionId) " +
+                     "AND (:search IS NULL OR LOWER(d.fileName) LIKE LOWER(CONCAT('%', :search, '%')) " +
+                     "OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+                     "OR LOWER(t.email) LIKE LOWER(CONCAT('%', :search, '%')))"
+    )
+    Page<TeacherDocument> searchDocuments(
+        @Param("institutionId") Long institutionId,
+        @Param("search") String search,
+        Pageable pageable
+    );
 }

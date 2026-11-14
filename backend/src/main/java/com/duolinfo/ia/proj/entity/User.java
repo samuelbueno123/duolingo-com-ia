@@ -52,6 +52,7 @@ public class User {
     @Column(name = "profile_picture", columnDefinition = "TEXT")
     private String profilePicture;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @Column(name = "password_hash")
     private String passwordHash;
 

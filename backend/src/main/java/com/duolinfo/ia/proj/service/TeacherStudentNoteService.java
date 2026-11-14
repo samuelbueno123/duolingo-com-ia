@@ -30,6 +30,9 @@ public class TeacherStudentNoteService {
     private final StudentRepository studentRepository;
     private final SchoolClassRepository schoolClassRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AccessControlService accessControlService;
+
     @Transactional
     public TeacherStudentNoteResponseDTO saveNote(Long teacherId, TeacherStudentNoteRequestDTO dto) {
         Teacher teacher = teacherRepository.findById(teacherId)
@@ -40,7 +43,18 @@ public class TeacherStudentNoteService {
 
         SchoolClass schoolClass = null;
         if (dto.schoolClassId() != null) {
-            schoolClass = schoolClassRepository.findById(dto.schoolClassId()).orElse(null);
+            schoolClass = schoolClassRepository.findById(dto.schoolClassId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Turma não encontrada."));
+        }
+
+        if (accessControlService != null && accessControlService.getCurrentUser().isPresent()) {
+            if (!Boolean.TRUE.equals(teacher.getApproved()) && !accessControlService.isSuperAdmin(teacher)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Professor aguardando aprovação institucional.");
+            }
+            accessControlService.assertCanReadStudent(student);
+            if (schoolClass != null) {
+                accessControlService.assertCanManageSchoolClass(schoolClass);
+            }
         }
 
         TeacherStudentNote note = TeacherStudentNote.builder()
@@ -58,6 +72,16 @@ public class TeacherStudentNoteService {
 
     @Transactional(readOnly = true)
     public List<TeacherStudentNoteResponseDTO> getNotes(Long teacherId, Long studentId, Long classId) {
+        if (accessControlService != null && accessControlService.getCurrentUser().isPresent()) {
+            if (studentId != null) {
+                Student student = studentRepository.findById(studentId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Estudante não encontrado."));
+                accessControlService.assertCanReadStudent(student);
+            }
+            if (classId != null) {
+                accessControlService.assertCanViewSchoolClass(classId);
+            }
+        }
         List<TeacherStudentNote> list;
         if (studentId != null) {
             list = noteRepository.findByTeacher_IdAndStudent_IdOrderByUpdatedAtDesc(teacherId, studentId);

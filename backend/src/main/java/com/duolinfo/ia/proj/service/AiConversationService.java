@@ -128,9 +128,9 @@ public class AiConversationService {
             StudentRepository studentRepository,
             StudentLanguageRepository studentLanguageRepository,
             ObjectMapper objectMapper,
-            @Value("${app.ai.api-key:AQ.Ab8RN6IdHoAh6sEX4IdGe_WsMRxDWUtZiuiC5N5EAQNTkOkQkQ}") String aiApiKey,
+            @Value("${app.ai.api-key:}") String aiApiKey,
             @Value("${app.ai.provider-url:https://generativelanguage.googleapis.com/v1beta/models}") String aiProviderUrl,
-            @Value("${app.ai.model:gemini-3.5-flash-lite}") String aiModel) {
+            @Value("${app.ai.model:gemini-2.5-flash}") String aiModel) {
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.studentRepository = studentRepository;
@@ -354,7 +354,7 @@ public class AiConversationService {
             List<AiConversationMessage> history,
             String userText) {
 
-        if (aiApiKey != null && !aiApiKey.isBlank()) {
+        if (aiApiKey != null && !aiApiKey.isBlank() && !aiApiKey.startsWith("AQ.placeholder")) {
             try {
                 return callAiProvider(session, history, userText);
             } catch (Exception e) {
@@ -372,7 +372,7 @@ public class AiConversationService {
 
         String baseUrl = aiProviderUrl != null ? aiProviderUrl.trim() : "";
         String endpoint = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        String model = (aiModel != null && !aiModel.isBlank()) ? aiModel.trim() : "gemini-3.5-flash-lite";
+        String model = (aiModel != null && !aiModel.isBlank()) ? aiModel.trim() : "gemini-2.5-flash";
         String url = endpoint + "/" + model + ":generateContent?key=" + aiApiKey.trim();
 
         StringBuilder conversationContext = new StringBuilder();

@@ -32,6 +32,9 @@ public class ClassAnnouncementService {
     private final EnrollmentRepository enrollmentRepository;
     private final StudentNotificationService studentNotificationService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AccessControlService accessControlService;
+
     @Transactional
     public ClassAnnouncementResponseDTO createAnnouncement(
             Long teacherId,
@@ -42,6 +45,13 @@ public class ClassAnnouncementService {
 
         Teacher teacher = teacherRepository.findById(teacherId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Professor não encontrado."));
+
+        if (accessControlService != null && accessControlService.getCurrentUser().isPresent()) {
+            accessControlService.assertCanManageSchoolClass(schoolClass);
+            if (!Boolean.TRUE.equals(teacher.getApproved()) && !accessControlService.isSuperAdmin(teacher)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Professor aguardando aprovação institucional.");
+            }
+        }
 
         ClassAnnouncement announcement = ClassAnnouncement.builder()
             .schoolClass(schoolClass)
@@ -75,6 +85,9 @@ public class ClassAnnouncementService {
 
     @Transactional(readOnly = true)
     public List<ClassAnnouncementResponseDTO> getAnnouncementsByClass(Long classId) {
+        if (accessControlService != null && accessControlService.getCurrentUser().isPresent()) {
+            accessControlService.assertCanViewSchoolClass(classId);
+        }
         return announcementRepository.findBySchoolClass_IdOrderByPinnedDescCreatedAtDesc(classId)
             .stream()
             .map(this::mapToDTO)

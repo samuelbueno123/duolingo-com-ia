@@ -84,7 +84,8 @@ public class SecurityConfig {
 
                 .requestMatchers(
                     "/api/students/me",
-                    "/api/students/me/**").authenticated()
+                    "/api/students/me/**").hasAnyRole("STUDENT", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/teachers/me").authenticated()
                 .requestMatchers(
                     "/api/teachers/me",
                     "/api/teachers/me/**").authenticated()
@@ -148,7 +149,9 @@ public class SecurityConfig {
 
                 // Language learning modules
                 .requestMatchers("/api/srs/**")
-                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
+                    .hasAnyRole("STUDENT", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/ai/explain-mistake")
+                    .authenticated()
                 .requestMatchers("/api/ai/**")
                     .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers("/api/pronunciation/**")

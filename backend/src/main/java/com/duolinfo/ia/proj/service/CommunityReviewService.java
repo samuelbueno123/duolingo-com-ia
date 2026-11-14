@@ -57,11 +57,20 @@ public class CommunityReviewService {
         if (submissionRepository.count() > 0) {
             return;
         }
+        List<Student> students = studentRepository
+                .findAll(org.springframework.data.domain.PageRequest.of(0, 3))
+                .getContent();
+        if (students.isEmpty()) {
+            return;
+        }
+        Student s1 = students.get(0);
+        Student s2 = students.get(1 % students.size());
+        Student s3 = students.get(2 % students.size());
 
         List<CommunitySubmission> starterSubmissions = List.of(
             CommunitySubmission.builder()
-                .authorStudentId(0L)
-                .authorName("Lucas Silva (Estudante)")
+                .authorStudentId(s1.getId())
+                .authorName(s1.getName())
                 .language("Inglês")
                 .promptTitle("Descreva sua rotina matinal ideal")
                 .content("In the morning I like wake up at 7 AM. I drink one black coffee and eats bread with butter. After I go to work with my bicycle.")
@@ -73,8 +82,8 @@ public class CommunityReviewService {
                 .build(),
 
             CommunitySubmission.builder()
-                .authorStudentId(0L)
-                .authorName("Mariana Costa (Estudante)")
+                .authorStudentId(s2.getId())
+                .authorName(s2.getName())
                 .language("Inglês")
                 .promptTitle("Por que aprender novos idiomas é importante?")
                 .content("Learning language help people to connect with others cultures. When I travel, I can making friends more easy and understand movies without subtitles.")
@@ -86,8 +95,8 @@ public class CommunityReviewService {
                 .build(),
 
             CommunitySubmission.builder()
-                .authorStudentId(0L)
-                .authorName("Carlos Mendes (Estudante)")
+                .authorStudentId(s3.getId())
+                .authorName(s3.getName())
                 .language("Espanhol")
                 .promptTitle("Mi viaje favorito de vacaciones")
                 .content("El año pasado yo fue a Buenos Aires con mis amigos. Nosotros comemos comida muy rica y caminamos por todos los barrios antiguos.")
@@ -160,8 +169,22 @@ public class CommunityReviewService {
 
     @Transactional(readOnly = true)
     public CommunitySubmissionResponseDTO getSubmissionDetails(Long submissionId) {
+        return getSubmissionDetails(submissionId, null, true);
+    }
+
+    @Transactional(readOnly = true)
+    public CommunitySubmissionResponseDTO getSubmissionDetails(
+            Long submissionId,
+            Long requesterStudentId,
+            boolean isAdmin) {
         CommunitySubmission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Exercício comunitário não encontrado."));
+
+        if (!Boolean.TRUE.equals(submission.getIsPublic())
+                && !isAdmin
+                && (requesterStudentId == null || !requesterStudentId.equals(submission.getAuthorStudentId()))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Você não tem permissão para visualizar este exercício privado.");
+        }
 
         List<CommunityReviewResponseDTO> reviews = reviewRepository.findBySubmissionIdOrderByCreatedAtDesc(submission.getId())
                 .stream()
@@ -175,6 +198,10 @@ public class CommunityReviewService {
     public CommunityReviewResponseDTO addReview(Long reviewerStudentId, CommunityReviewRequestDTO dto) {
         CommunitySubmission submission = submissionRepository.findById(dto.submissionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Exercício não encontrado."));
+
+        if (!Boolean.TRUE.equals(submission.getIsPublic())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Este exercício é privado e não aceita avaliações comunitárias.");
+        }
 
         if (submission.getAuthorStudentId().equals(reviewerStudentId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Você não pode avaliar seu próprio exercício submetido.");

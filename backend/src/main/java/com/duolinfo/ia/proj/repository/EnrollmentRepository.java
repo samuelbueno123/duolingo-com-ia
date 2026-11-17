@@ -1,7 +1,9 @@
 package com.duolinfo.ia.proj.repository;
 
 import java.util.List;
+import java.util.Optional;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -11,24 +13,32 @@ import com.duolinfo.ia.proj.entity.EnrollmentStatus;
 @Repository
 public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
 
+    @Override
+    @EntityGraph(attributePaths = {"student", "schoolClass", "schoolClass.school", "schoolClass.school.institution", "schoolClass.institution"})
+    Optional<Enrollment> findById(Long id);
+
     /*
      * Todas as matrículas de um aluno.
      */
+    @EntityGraph(attributePaths = {"student", "schoolClass", "schoolClass.school", "schoolClass.school.institution", "schoolClass.institution"})
     List<Enrollment> findByStudentId(Long studentId);
 
     /*
      * Todas as matrículas de uma turma.
      */
+    @EntityGraph(attributePaths = {"student", "schoolClass", "schoolClass.school", "schoolClass.school.institution", "schoolClass.institution"})
     List<Enrollment> findBySchoolClassId(Long schoolClassId);
 
     /*
      * Matrículas por status.
      */
+    @EntityGraph(attributePaths = {"student", "schoolClass", "schoolClass.school", "schoolClass.school.institution", "schoolClass.institution"})
     List<Enrollment> findByStatus(EnrollmentStatus status);
 
     /*
      * Matrículas de um aluno com determinado status.
      */
+    @EntityGraph(attributePaths = {"student", "schoolClass", "schoolClass.school", "schoolClass.school.institution", "schoolClass.institution"})
     List<Enrollment> findByStudentIdAndStatus(
         Long studentId,
         EnrollmentStatus status
@@ -37,6 +47,7 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     /*
      * Matrículas de uma turma com determinado status.
      */
+    @EntityGraph(attributePaths = {"student", "schoolClass", "schoolClass.school", "schoolClass.school.institution", "schoolClass.institution"})
     List<Enrollment> findBySchoolClassIdAndStatus(
         Long schoolClassId,
         EnrollmentStatus status
@@ -45,6 +56,7 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     /*
      * Matrículas de uma turma ordenadas pela data.
      */
+    @EntityGraph(attributePaths = {"student", "schoolClass", "schoolClass.school", "schoolClass.school.institution", "schoolClass.institution"})
     List<Enrollment> findBySchoolClassIdAndStatusOrderByEnrollmentDateAsc(
         Long schoolClassId,
         EnrollmentStatus status

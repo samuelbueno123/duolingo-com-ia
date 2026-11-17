@@ -120,7 +120,7 @@ public class EnrollmentService {
 
         Enrollment saved = enrollmentRepository.save(enrollment);
         notifyEnrollmentChanged(saved);
-        return saved;
+        return initializeAssociations(saved);
     }
 
     @Transactional(readOnly = true)
@@ -201,7 +201,7 @@ public class EnrollmentService {
 
         Enrollment saved = enrollmentRepository.save(enrollment);
         notifyEnrollmentChanged(saved);
-        return saved;
+        return initializeAssociations(saved);
     }
 
     @Transactional
@@ -233,7 +233,7 @@ public class EnrollmentService {
 
         Enrollment saved = enrollmentRepository.save(enrollment);
         notifyEnrollmentChanged(saved);
-        return saved;
+        return initializeAssociations(saved);
     }
 
     @Transactional
@@ -259,7 +259,7 @@ public class EnrollmentService {
         if (notes != null) enrollment.setNotes(notes);
         Enrollment saved = enrollmentRepository.save(enrollment);
         notifyEnrollmentChanged(saved);
-        return saved;
+        return initializeAssociations(saved);
     }
 
     @Transactional
@@ -361,7 +361,31 @@ public class EnrollmentService {
 
         Enrollment saved = enrollmentRepository.save(newEnrollment);
         notifyEnrollmentChanged(saved);
-        return saved;
+        return initializeAssociations(saved);
+    }
+
+    private static Enrollment initializeAssociations(Enrollment enrollment) {
+        if (enrollment == null) {
+            return null;
+        }
+        if (enrollment.getStudent() != null) {
+            org.hibernate.Hibernate.initialize(enrollment.getStudent());
+            enrollment.getStudent().getName();
+        }
+        if (enrollment.getSchoolClass() != null) {
+            org.hibernate.Hibernate.initialize(enrollment.getSchoolClass());
+            enrollment.getSchoolClass().getName();
+            if (enrollment.getSchoolClass().getSchool() != null) {
+                org.hibernate.Hibernate.initialize(enrollment.getSchoolClass().getSchool());
+                if (enrollment.getSchoolClass().getSchool().getInstitution() != null) {
+                    org.hibernate.Hibernate.initialize(enrollment.getSchoolClass().getSchool().getInstitution());
+                }
+            }
+            if (enrollment.getSchoolClass().getInstitution() != null) {
+                org.hibernate.Hibernate.initialize(enrollment.getSchoolClass().getInstitution());
+            }
+        }
+        return enrollment;
     }
 
     @Transactional

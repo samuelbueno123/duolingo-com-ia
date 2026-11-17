@@ -29,8 +29,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.duolinfo.ia.proj.config.Utf8MojibakeSanitizer;
 import com.duolinfo.ia.proj.dto.request.StudentLanguageRequestDTO;
 import com.duolinfo.ia.proj.entity.CatalogOption;
+import com.duolinfo.ia.proj.entity.ClassTeacherAssignment;
 import com.duolinfo.ia.proj.entity.CommunitySubmission;
 import com.duolinfo.ia.proj.entity.Enrollment;
 import com.duolinfo.ia.proj.entity.EnrollmentStatus;
@@ -45,6 +47,7 @@ import com.duolinfo.ia.proj.entity.StudentLanguage;
 import com.duolinfo.ia.proj.entity.Teacher;
 import com.duolinfo.ia.proj.entity.TeacherDocument;
 import com.duolinfo.ia.proj.repository.CatalogOptionRepository;
+import com.duolinfo.ia.proj.repository.ClassTeacherAssignmentRepository;
 import com.duolinfo.ia.proj.repository.CommunitySubmissionRepository;
 import com.duolinfo.ia.proj.repository.EnrollmentRepository;
 import com.duolinfo.ia.proj.repository.InstitutionRepository;
@@ -84,6 +87,7 @@ class BackendAuditRegressionTests {
     @Autowired private LearningExerciseRepository learningExerciseRepository;
     @Autowired private StudentLanguageRepository studentLanguageRepository;
     @Autowired private EnrollmentRepository enrollmentRepository;
+    @Autowired private ClassTeacherAssignmentRepository classTeacherAssignmentRepository;
     @Autowired private AdminService adminService;
     @Autowired private LearningExerciseService learningExerciseService;
     @Autowired private StudentStreakService studentStreakService;
@@ -555,5 +559,133 @@ class BackendAuditRegressionTests {
                     "languages", List.of(Map.of("languageName", "Esperanto", "level", "Básico"))
                 ))))
             .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("Endpoints de matriculas, turmas, atribuicoes docentes e documentos nao falham com LazyInitializationException ou SQL bytea quando open-in-view=false")
+    void noLazyInitializationOrByteaSearchFailuresAcrossControllers() throws Exception {
+        String sfx = uniq();
+        Institution inst = createInstitution("LAZY_" + sfx);
+        School school = schoolRepository.saveAndFlush(School.builder()
+            .name("Escola Lazy " + sfx)
+            .institution(inst)
+            .build());
+        SchoolClass schoolClass = schoolClassRepository.saveAndFlush(SchoolClass.builder()
+            .name("Turma Inglês " + sfx)
+            .languageName("Inglês")
+            .school(school)
+            .institution(null) // proposital: força fallback para school.getInstitution()
+            .active(true)
+            .build());
+        Teacher teacher = createTeacher("lazy_" + sfx, inst, true, true, true);
+        Student student = createStudent("lazy_" + sfx, null, true); // institution null força lookup por enrollments
+        studentLanguageRepository.saveAndFlush(StudentLanguage.builder()
+            .student(student)
+            .languageName("Inglês")
+            .level("Básico")
+            .score(0)
+            .build());
+
+        Enrollment enrollment = enrollmentRepository.saveAndFlush(Enrollment.builder()
+            .student(student)
+            .schoolClass(schoolClass)
+            .enrollmentDate(LocalDate.now())
+            .status(EnrollmentStatus.ACTIVE)
+            .notes("Matrícula de teste")
+            .build());
+
+        ClassTeacherAssignment assignment = classTeacherAssignmentRepository.saveAndFlush(ClassTeacherAssignment.builder()
+            .schoolClass(schoolClass)
+            .teacher(teacher)
+            .startDate(LocalDate.now())
+            .reason("Titular")
+            .build());
+
+        TeacherDocument doc = new TeacherDocument();
+        doc.setTeacher(teacher);
+        doc.setFileName("certificado_ingles_" + sfx + ".pdf");
+        doc.setContentType("application/pdf");
+        doc.setFileSize(4L);
+        doc.setFileData(new byte[] {1, 2, 3, 4});
+        teacherDocumentRepository.saveAndFlush(doc);
+
+        String studentToken = jwtService.generateToken(student, "STUDENT");
+        String teacherToken = jwtService.generateToken(teacher, "TEACHER");
+        String adminToken = jwtService.generateToken(teacher, "ADMIN");
+
+        mockMvc.perform(get("/api/students/" + student.getId() + "/enrollments")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id").value(enrollment.getId()))
+            .andExpect(jsonPath("$[0].studentName").value(student.getName()))
+            .andExpect(jsonPath("$[0].schoolClassName").value(schoolClass.getName()));
+
+        mockMvc.perform(get("/api/students/" + student.getId() + "/enrollments/active")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].schoolClassLanguage").value("Inglês"));
+
+        mockMvc.perform(get("/api/enrollments/student/" + student.getId())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].studentName").value(student.getName()));
+
+        mockMvc.perform(get("/api/enrollments/class/" + schoolClass.getId() + "/active")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].schoolClassName").value(schoolClass.getName()));
+
+        mockMvc.perform(get("/api/classes")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].name", hasItem(schoolClass.getName())));
+
+        mockMvc.perform(get("/api/classes/" + schoolClass.getId())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.name").value(schoolClass.getName()));
+
+        mockMvc.perform(get("/api/classes/" + schoolClass.getId() + "/dashboard")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.name").value(schoolClass.getName()));
+
+        mockMvc.perform(get("/api/teachers/" + teacher.getId() + "/assignments")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id").value(assignment.getId()))
+            .andExpect(jsonPath("$[0].schoolClassName").value(schoolClass.getName()));
+
+        mockMvc.perform(get("/api/class-teacher-assignments/class/" + schoolClass.getId() + "/current")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.teacherName").value(teacher.getName()));
+
+        // /api/admin/documents sem e com search (evita lower(bytea) no PostgreSQL)
+        mockMvc.perform(get("/api/admin/documents")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[*].fileName", hasItem(doc.getFileName())));
+
+        mockMvc.perform(get("/api/admin/documents")
+                .param("search", "certificado_ingles_" + sfx)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[*].fileName", hasItem(doc.getFileName())));
+    }
+
+    @Test
+    @DisplayName("Utf8MojibakeSanitizer recupera strings duplamente codificadas sem alterar acentos validos")
+    void utf8MojibakeSanitizerRepairsAndPreservesValidText() {
+        assertEquals("Turma de Inglês Básico A1", Utf8MojibakeSanitizer.repairIfMojibake("Turma de InglÃªs BÃ¡sico A1"));
+        assertEquals("Español Práctico: En el Restaurante", Utf8MojibakeSanitizer.repairIfMojibake("EspaÃ±ol PrÃ¡ctico: En el Restaurante"));
+        assertEquals("A prática diária leva à fluência.", Utf8MojibakeSanitizer.repairIfMojibake("A prÃ¡tica diÃ¡ria leva Ã\u00a0 fluÃªncia."));
+        assertEquals("Conquista / Realização", Utf8MojibakeSanitizer.repairIfMojibake("Conquista / RealizaÃ§Ã£o"));
+
+        // Textos já válidos em UTF-8 permanecem idênticos
+        assertEquals("MANHÃ", Utf8MojibakeSanitizer.repairIfMojibake("MANHÃ"));
+        assertEquals("Inglês", Utf8MojibakeSanitizer.repairIfMojibake("Inglês"));
+        assertEquals("Avançado", Utf8MojibakeSanitizer.repairIfMojibake("Avançado"));
+        assertEquals("Professor Responsável", Utf8MojibakeSanitizer.repairIfMojibake("Professor Responsável"));
     }
 }

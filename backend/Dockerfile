@@ -33,8 +33,10 @@ USER appuser
 
 EXPOSE 8080
 
-# Flags JVM para limites de memória em container e entropia rápida
-ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
+# Flags JVM para limites de memória em container, encoding UTF-8 e entropia rápida
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV JAVA_OPTS="-Dfile.encoding=UTF-8 -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
 
 # Healthcheck nativo consultando o Actuator
 HEALTHCHECK --interval=20s --timeout=5s --start-period=45s --retries=3 \

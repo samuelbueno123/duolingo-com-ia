@@ -177,7 +177,7 @@ public class StudentService {
                     userAuthCache.evict(userId);
                 }
 
-                return studentRepository.findById(userId).orElseThrow();
+                return initializeDetails(studentRepository.findById(userId).orElseThrow());
             }
 
             // Se for uma conta nova e com senha pura informada, criptografa a senha antes de salvar
@@ -204,7 +204,7 @@ public class StudentService {
             }
         }
 
-        return studentRepository.save(student);
+        return initializeDetails(studentRepository.save(student));
     }
 
     private boolean isCallerAuthenticatedAs(String email) {
@@ -311,7 +311,20 @@ public class StudentService {
             }
         }
 
-        return studentRepository.save(current);
+        return initializeDetails(studentRepository.save(current));
+    }
+
+    private static Student initializeDetails(Student student) {
+        if (student == null) {
+            return null;
+        }
+        if (student.getInstitution() != null) {
+            org.hibernate.Hibernate.initialize(student.getInstitution());
+        }
+        if (student.getLanguages() != null) {
+            org.hibernate.Hibernate.initialize(student.getLanguages());
+        }
+        return student;
     }
 
     @Transactional

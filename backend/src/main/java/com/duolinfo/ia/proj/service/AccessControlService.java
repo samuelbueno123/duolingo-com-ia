@@ -1,15 +1,17 @@
 package com.duolinfo.ia.proj.service;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.hibernate.Hibernate;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.duolinfo.ia.proj.entity.ClassTeacherAssignment;
 import com.duolinfo.ia.proj.entity.Enrollment;
 import com.duolinfo.ia.proj.entity.School;
 import com.duolinfo.ia.proj.entity.SchoolClass;
@@ -25,6 +27,7 @@ import com.duolinfo.ia.proj.repository.TeacherRepository;
 import com.duolinfo.ia.proj.repository.UserRepository;
 
 @Service
+@Transactional(readOnly = true)
 public class AccessControlService {
 
     private final UserRepository userRepository;
@@ -109,21 +112,25 @@ public class AccessControlService {
     }
 
     public Optional<Teacher> asTeacher(User user) {
-        if (user == null) {
+        if (user == null || user.getId() == null) {
             return Optional.empty();
         }
-        if (user instanceof Teacher teacher) {
-            return Optional.of(teacher);
+        if (user instanceof Teacher teacher && Hibernate.isInitialized(teacher)) {
+            if (teacher.getInstitution() == null || Hibernate.isInitialized(teacher.getInstitution())) {
+                return Optional.of(teacher);
+            }
         }
         return teacherRepository.findById(user.getId());
     }
 
     public Optional<Student> asStudent(User user) {
-        if (user == null) {
+        if (user == null || user.getId() == null) {
             return Optional.empty();
         }
-        if (user instanceof Student student) {
-            return Optional.of(student);
+        if (user instanceof Student student && Hibernate.isInitialized(student)) {
+            if (student.getInstitution() == null || Hibernate.isInitialized(student.getInstitution())) {
+                return Optional.of(student);
+            }
         }
         return studentRepository.findById(user.getId());
     }
@@ -142,8 +149,11 @@ public class AccessControlService {
             if (student.getInstitution() != null) {
                 return student.getInstitution().getId();
             }
-            if (student.getEnrollments() != null) {
-                for (Enrollment e : student.getEnrollments()) {
+            List<Enrollment> studentEnrollments = Hibernate.isInitialized(student.getEnrollments())
+                ? student.getEnrollments()
+                : enrollmentRepository.findByStudentId(student.getId());
+            if (studentEnrollments != null) {
+                for (Enrollment e : studentEnrollments) {
                     Long classInstId = getSchoolClassInstitutionId(e.getSchoolClass());
                     if (classInstId != null) {
                         return classInstId;
@@ -155,11 +165,33 @@ public class AccessControlService {
     }
 
     public Long getSchoolClassInstitutionId(SchoolClass schoolClass) {
-        if (schoolClass == null || schoolClass.getSchool() == null
-                || schoolClass.getSchool().getInstitution() == null) {
+        if (schoolClass == null) {
             return null;
         }
-        return schoolClass.getSchool().getInstitution().getId();
+        SchoolClass resolved = schoolClass;
+        boolean needsReload = !Hibernate.isInitialized(resolved)
+            || (!Hibernate.isInitialized(resolved.getInstitution())
+                && !Hibernate.isInitialized(resolved.getSchool()));
+        if (needsReload && resolved.getId() != null) {
+            resolved = schoolClassRepository.findById(resolved.getId()).orElse(resolved);
+        }
+        if (resolved.getInstitution() != null) {
+            return resolved.getInstitution().getId();
+        }
+        School school = resolved.getSchool();
+        if (school == null && resolved.getId() != null && !Hibernate.isInitialized(resolved.getSchool())) {
+            resolved = schoolClassRepository.findById(resolved.getId()).orElse(resolved);
+            school = resolved.getSchool();
+        }
+        if (school != null) {
+            if (!Hibernate.isInitialized(school) && school.getId() != null && schoolRepository != null) {
+                school = schoolRepository.findById(school.getId()).orElse(school);
+            }
+            if (school.getInstitution() != null) {
+                return school.getInstitution().getId();
+            }
+        }
+        return null;
     }
 
     public boolean isInstitutionAdminFor(User user, Long institutionId) {

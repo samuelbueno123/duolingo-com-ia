@@ -11,6 +11,11 @@ import com.duolinfo.ia.proj.entity.Teacher;
 @Repository
 public interface TeacherRepository extends JpaRepository<Teacher, Long> {
 
+    @Override
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
+    Optional<Teacher> findById(Long id);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
     Optional<Teacher> findByGoogleId(String googleId);
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
@@ -19,6 +24,7 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
     Optional<Teacher> findByEmailIgnoreCase(String email);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
     List<Teacher> findByNameContainingIgnoreCase(String name);
     boolean existsByNameIgnoreCase(String name);
 
@@ -27,6 +33,7 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
         String email
     );
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
     List<Teacher> findByInstitutionId(Long institutionId);
 
     List<Teacher> findByInstitutionIdAndTaughtLanguagesContaining(
@@ -45,6 +52,7 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
 
     long countByInstitutionIdAndEmailNotIgnoreCase(Long institutionId, String email);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
     List<Teacher> findByInstitutionIdAndApprovedTrue(Long institutionId);
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
@@ -56,5 +64,6 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
 
     long countByApprovedFalse();
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"taughtLanguages", "institution"})
     List<Teacher> findByApprovedFalse();
 }

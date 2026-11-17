@@ -220,7 +220,7 @@ public class TeacherService {
                     userAuthCache.evict(userId);
                 }
 
-                Teacher created = teacherRepository.findById(userId).orElseThrow();
+                Teacher created = initializeDetails(teacherRepository.findById(userId).orElseThrow());
                 if (!grantPrimaryAdmin) {
                     createTeacherRequestNotification(created, institution);
                 }
@@ -239,7 +239,7 @@ public class TeacherService {
         if (!grantPrimaryAdmin) {
             createTeacherRequestNotification(saved, institution);
         }
-        return saved;
+        return initializeDetails(saved);
     }
 
     private boolean isCallerAuthenticatedAs(String email) {
@@ -362,7 +362,7 @@ public class TeacherService {
             data.getBibliography()
         );
 
-        return teacherRepository.save(current);
+        return initializeDetails(teacherRepository.save(current));
     }
 
     @Transactional
@@ -386,7 +386,7 @@ public class TeacherService {
                 notification.setRead(true);
                 notificationRepository.save(notification);
             });
-        return saved;
+        return initializeDetails(saved);
     }
 
     @Transactional

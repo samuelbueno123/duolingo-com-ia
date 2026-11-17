@@ -87,7 +87,7 @@ public class SchoolClassService {
         schoolClass.setSchool(school);
         schoolClass.setInstitution(school.getInstitution());
 
-        return schoolClassRepository.save(schoolClass);
+        return initializeAssociations(schoolClassRepository.save(schoolClass));
     }
 
     @Transactional
@@ -406,7 +406,7 @@ public class SchoolClassService {
             current.setActive(data.getActive());
         }
 
-        return schoolClassRepository.save(current);
+        return initializeAssociations(schoolClassRepository.save(current));
     }
 
     @Transactional
@@ -415,7 +415,7 @@ public class SchoolClassService {
         SchoolClass schoolClass = findById(id);
         schoolClass.setActive(true);
 
-        return schoolClassRepository.save(schoolClass);
+        return initializeAssociations(schoolClassRepository.save(schoolClass));
     }
 
     @Transactional
@@ -424,7 +424,23 @@ public class SchoolClassService {
         SchoolClass schoolClass = findById(id);
         schoolClass.setActive(false);
 
-        return schoolClassRepository.save(schoolClass);
+        return initializeAssociations(schoolClassRepository.save(schoolClass));
+    }
+
+    private static SchoolClass initializeAssociations(SchoolClass schoolClass) {
+        if (schoolClass == null) {
+            return null;
+        }
+        if (schoolClass.getSchool() != null) {
+            org.hibernate.Hibernate.initialize(schoolClass.getSchool());
+            if (schoolClass.getSchool().getInstitution() != null) {
+                org.hibernate.Hibernate.initialize(schoolClass.getSchool().getInstitution());
+            }
+        }
+        if (schoolClass.getInstitution() != null) {
+            org.hibernate.Hibernate.initialize(schoolClass.getInstitution());
+        }
+        return schoolClass;
     }
 
     @Transactional

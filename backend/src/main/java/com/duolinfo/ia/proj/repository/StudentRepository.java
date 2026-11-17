@@ -12,6 +12,11 @@ import com.duolinfo.ia.proj.entity.Student;
 @Repository
 public interface StudentRepository extends JpaRepository<Student, Long> {
 
+    @Override
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"languages", "institution"})
+    Optional<Student> findById(Long id);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"languages", "institution"})
     Optional<Student> findByGoogleId(String googleId);
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"languages", "institution"})

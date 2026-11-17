@@ -105,7 +105,7 @@ public class ClassTeacherAssignmentService {
                 .reason(reason)
                 .build();
 
-        return assignmentRepository.save(assignment);
+        return initializeAssociations(assignmentRepository.save(assignment));
     }
 
     @Transactional(readOnly = true)
@@ -188,7 +188,34 @@ public class ClassTeacherAssignmentService {
 
         current.setEndDate(date);
 
-        return assignmentRepository.save(current);
+        return initializeAssociations(assignmentRepository.save(current));
+    }
+
+    private static ClassTeacherAssignment initializeAssociations(ClassTeacherAssignment assignment) {
+        if (assignment == null) {
+            return null;
+        }
+        if (assignment.getTeacher() != null) {
+            org.hibernate.Hibernate.initialize(assignment.getTeacher());
+            assignment.getTeacher().getName();
+            if (assignment.getTeacher().getInstitution() != null) {
+                org.hibernate.Hibernate.initialize(assignment.getTeacher().getInstitution());
+            }
+        }
+        if (assignment.getSchoolClass() != null) {
+            org.hibernate.Hibernate.initialize(assignment.getSchoolClass());
+            assignment.getSchoolClass().getName();
+            if (assignment.getSchoolClass().getSchool() != null) {
+                org.hibernate.Hibernate.initialize(assignment.getSchoolClass().getSchool());
+                if (assignment.getSchoolClass().getSchool().getInstitution() != null) {
+                    org.hibernate.Hibernate.initialize(assignment.getSchoolClass().getSchool().getInstitution());
+                }
+            }
+            if (assignment.getSchoolClass().getInstitution() != null) {
+                org.hibernate.Hibernate.initialize(assignment.getSchoolClass().getInstitution());
+            }
+        }
+        return assignment;
     }
 
     @Transactional

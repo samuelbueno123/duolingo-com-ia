@@ -33,6 +33,9 @@ public class TeacherStudentNoteService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private AccessControlService accessControlService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private StudentNotificationService studentNotificationService;
+
     @Transactional
     public TeacherStudentNoteResponseDTO saveNote(Long teacherId, TeacherStudentNoteRequestDTO dto) {
         Teacher teacher = teacherRepository.findById(teacherId)
@@ -67,7 +70,25 @@ public class TeacherStudentNoteService {
             .build();
 
         note = noteRepository.save(note);
+        if (studentNotificationService != null) {
+            String classPrefix = schoolClass != null ? " (" + schoolClass.getName() + ")" : "";
+            studentNotificationService.notifyStudent(
+                student.getId(),
+                "Anotação privada de " + teacher.getName() + classPrefix,
+                note.getNote(),
+                "TEACHER_NOTE",
+                "/profile"
+            );
+        }
         return mapToDTO(note);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeacherStudentNoteResponseDTO> getNotesForStudent(Long studentId) {
+        return noteRepository.findByStudent_IdOrderByUpdatedAtDesc(studentId)
+            .stream()
+            .map(this::mapToDTO)
+            .toList();
     }
 
     @Transactional(readOnly = true)

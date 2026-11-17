@@ -15,5 +15,7 @@ public interface TeacherStudentNoteRepository extends JpaRepository<TeacherStude
 
     List<TeacherStudentNote> findByTeacher_IdAndSchoolClass_IdOrderByUpdatedAtDesc(Long teacherId, Long schoolClassId);
 
+    List<TeacherStudentNote> findByStudent_IdOrderByUpdatedAtDesc(Long studentId);
+
     Optional<TeacherStudentNote> findByIdAndTeacher_Id(Long id, Long teacherId);
 }

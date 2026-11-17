@@ -113,12 +113,68 @@ public class CommunityReviewService {
         log.info("Inicializados {} posts comunitários de exemplo para revisão colaborativa.", starterSubmissions.size());
     }
 
+    private static String normalizeTier(String levelOrCefr) {
+        if (levelOrCefr == null || levelOrCefr.isBlank()) {
+            return null;
+        }
+        String clean = SupportedLanguages.stripAccentsLower(levelOrCefr);
+        if (clean.contains("avanc") || clean.equals("c1") || clean.equals("c2") || clean.equals("3")) {
+            return "AVANCADO";
+        }
+        if (clean.contains("intermed") || clean.equals("b1") || clean.equals("b2") || clean.equals("2")) {
+            return "INTERMEDIARIO";
+        }
+        if (clean.contains("basic") || clean.contains("inici") || clean.equals("a1") || clean.equals("a2") || clean.equals("1")) {
+            return "BASICO";
+        }
+        return null;
+    }
+
+    private static String defaultCefrForTier(String tier) {
+        if ("AVANCADO".equals(tier)) return "C1";
+        if ("INTERMEDIARIO".equals(tier)) return "B1";
+        return "A2";
+    }
+
+    private String resolveStudentTierForLanguage(Student student, String language) {
+        if (student == null || language == null) {
+            return null;
+        }
+        StudentLanguage sl = studentLanguageRepository.findByStudentAndLanguageNameIgnoreCase(student, language)
+                .orElse(null);
+        if (sl == null && student.getLanguages() != null) {
+            sl = student.getLanguages().stream()
+                    .filter(l -> SupportedLanguages.matches(l.getLanguageName(), language))
+                    .findFirst()
+                    .orElse(null);
+        }
+        if (sl == null || sl.getLevel() == null || sl.getLevel().isBlank()) {
+            return null;
+        }
+        return normalizeTier(sl.getLevel());
+    }
+
     @Transactional
     public CommunitySubmissionResponseDTO createSubmission(Long studentId, CommunitySubmissionRequestDTO dto) {
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Estudante não encontrado."));
 
         String canonicalLanguage = SupportedLanguages.normalizeOrThrow(dto.language());
+        String studentTier = resolveStudentTierForLanguage(student, canonicalLanguage);
+        String requestedLevel = dto.targetLevel() != null && !dto.targetLevel().isBlank()
+                ? dto.targetLevel().trim()
+                : (studentTier != null ? defaultCefrForTier(studentTier) : "A2");
+
+        if (studentTier != null) {
+            String requestedTier = normalizeTier(requestedLevel);
+            if (requestedTier != null && !studentTier.equals(requestedTier)) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Você só pode publicar exercícios compatíveis com o seu nível atual (" + studentTier + ") neste idioma."
+                );
+            }
+        }
+
         CommunitySubmission submission = CommunitySubmission.builder()
                 .authorStudentId(studentId)
                 .authorName(student.getName())
@@ -126,7 +182,7 @@ public class CommunityReviewService {
                 .promptTitle(dto.promptTitle().trim())
                 .content(dto.content().trim())
                 .audioUrl(dto.audioUrl())
-                .targetLevel(dto.targetLevel() != null ? dto.targetLevel() : "A2")
+                .targetLevel(requestedLevel)
                 .isPublic(dto.isPublic() != null ? dto.isPublic() : true)
                 .status("PENDING_REVIEW")
                 .reviewCount(0)
@@ -142,12 +198,18 @@ public class CommunityReviewService {
         String normalizedLang = (language != null && !language.isBlank())
                 ? SupportedLanguages.normalizeOrThrow(language)
                 : null;
+        Student viewer = studentRepository.findById(studentId).orElse(null);
         List<CommunitySubmission> list = (normalizedLang != null)
                 ? submissionRepository.findByLanguageIgnoreCaseAndIsPublicTrueOrderByCreatedAtDesc(normalizedLang)
                 : submissionRepository.findByIsPublicTrueOrderByCreatedAtDesc();
 
         return list.stream()
                 .filter(s -> !s.getAuthorStudentId().equals(studentId)) // do not show own submissions in review feed
+                .filter(s -> {
+                    String viewerTier = resolveStudentTierForLanguage(viewer, s.getLanguage());
+                    String subTier = normalizeTier(s.getTargetLevel());
+                    return viewerTier == null || subTier == null || viewerTier.equals(subTier);
+                })
                 .map(s -> {
                     List<CommunityReviewResponseDTO> reviews = reviewRepository.findBySubmissionIdOrderByCreatedAtDesc(s.getId())
                             .stream()
@@ -218,6 +280,15 @@ public class CommunityReviewService {
 
         Student reviewer = studentRepository.findById(reviewerStudentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Perfil do avaliador não encontrado."));
+
+        String reviewerTier = resolveStudentTierForLanguage(reviewer, submission.getLanguage());
+        String subTier = normalizeTier(submission.getTargetLevel());
+        if (reviewerTier != null && subTier != null && !reviewerTier.equals(subTier)) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Você só pode avaliar textos do seu nível atual neste idioma."
+            );
+        }
 
         // Determine reviewer fluency
         String fluencyLevel = "Intermediário (B2)";

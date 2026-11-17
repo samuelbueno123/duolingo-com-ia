@@ -455,14 +455,15 @@ public class LearningExerciseService {
         if (xpDelta <= 0 || languageName == null || languageName.isBlank()) {
             return;
         }
+        String canonical = SupportedLanguages.normalizeOrDefault(languageName, SupportedLanguages.DEFAULT);
         for (StudentLanguage language : student.getLanguages()) {
-            if (language.getLanguageName().equalsIgnoreCase(languageName.trim())) {
-                language.setScore(language.getScore() + xpDelta);
+            if (SupportedLanguages.matches(language.getLanguageName(), canonical)) {
+                language.setScore((language.getScore() != null ? language.getScore() : 0) + xpDelta);
                 return;
             }
         }
         StudentLanguage newLang = new StudentLanguage();
-        newLang.setLanguageName(languageName.trim());
+        newLang.setLanguageName(canonical);
         newLang.setLevel("Básico");
         newLang.setScore(xpDelta);
         student.addLanguage(newLang);
@@ -526,6 +527,12 @@ public class LearningExerciseService {
             }
         }
 
+        if (student.getLastActiveDate() != null
+                && student.getLastActiveDate().equals(today)
+                && student.getTodayXpEarned() != null) {
+            todayXp = Math.max(todayXp, Math.max(0, student.getTodayXpEarned()));
+        }
+
         int dailyGoalMinutes = student.getEffectiveDailyGoalMinutes();
         int dailyGoalXp = dailyGoalMinutes * 2;
         boolean dailyGoalCompleted = todayXp >= dailyGoalXp;
@@ -585,7 +592,8 @@ public class LearningExerciseService {
             }
             String langName = exSubs.get(0).getExercise().getLanguageName();
             if (langName != null) {
-                String key = langName.trim().toLowerCase(Locale.ROOT);
+                String canonical = SupportedLanguages.normalize(langName).orElse(langName);
+                String key = SupportedLanguages.stripAccentsLower(canonical);
                 rawXpByLang.merge(key, rawForExercise, Integer::sum);
                 deduplicatedXpByLang.merge(key, awardedSoFar, Integer::sum);
             }
@@ -594,7 +602,8 @@ public class LearningExerciseService {
         boolean studentChanged = false;
         for (StudentLanguage lang : student.getLanguages()) {
             if (lang.getLanguageName() == null) continue;
-            String key = lang.getLanguageName().trim().toLowerCase(Locale.ROOT);
+            String canonical = SupportedLanguages.normalize(lang.getLanguageName()).orElse(lang.getLanguageName());
+            String key = SupportedLanguages.stripAccentsLower(canonical);
             Integer expectedExerciseXp = deduplicatedXpByLang.get(key);
             if (expectedExerciseXp == null) {
                 continue;
@@ -1183,7 +1192,9 @@ public class LearningExerciseService {
 
     private static String normalize(String value) {
         if (value == null) return "";
-        return value.trim()
+        String decomposed = java.text.Normalizer.normalize(value.trim(), java.text.Normalizer.Form.NFD);
+        return decomposed
+            .replaceAll("\\p{M}+", "")
             .toLowerCase(Locale.ROOT)
             .replaceAll("^[.,!?;:\"'¡¿\\s]+|[.,!?;:\"'¡¿\\s]+$", "")
             .replaceAll("\\s+", " ");

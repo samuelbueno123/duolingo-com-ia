@@ -25,9 +25,11 @@ import com.duolinfo.ia.proj.entity.Enrollment;
 import com.duolinfo.ia.proj.entity.SchoolClass;
 import com.duolinfo.ia.proj.service.EnrollmentService;
 import com.duolinfo.ia.proj.service.SchoolClassService;
+import com.duolinfo.ia.proj.service.TeacherStudentNoteService;
 import com.duolinfo.ia.proj.dto.response.EnrollmentResponseDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionMembersResponseDTO;
 import com.duolinfo.ia.proj.dto.response.StudentResponseDTO;
+import com.duolinfo.ia.proj.dto.response.TeacherStudentNoteResponseDTO;
 import com.duolinfo.ia.proj.entity.Student;
 import com.duolinfo.ia.proj.entity.User;
 import com.duolinfo.ia.proj.exception.ResourceNotFoundException;
@@ -59,6 +61,9 @@ public class StudentController {
 
     @Autowired(required = false)
     private SchoolClassService schoolClassService;
+
+    @Autowired(required = false)
+    private TeacherStudentNoteService teacherStudentNoteService;
 
     public StudentController(StudentService studentService) {
         this.studentService = studentService;
@@ -110,6 +115,16 @@ public class StudentController {
             @RequestParam(required = false) String search,
             Authentication authentication) {
         return studentService.findInstitutionMembers(authentication.getName(), search);
+    }
+
+    @GetMapping("/me/teacher-notes")
+    @Operation(summary = "Lista os recados e anotações enviadas pelos professores para o estudante autenticado")
+    public List<TeacherStudentNoteResponseDTO> findMyTeacherNotes(Authentication authentication) {
+        Student student = requireStudent(studentService.findByEmail(authentication.getName()));
+        if (teacherStudentNoteService == null) {
+            return List.of();
+        }
+        return teacherStudentNoteService.getNotesForStudent(student.getId());
     }
 
     @PostMapping("/me/enrollments")
@@ -175,8 +190,15 @@ public class StudentController {
             return List.of();
         }
         Long instId = student.getInstitution() != null ? student.getInstitution().getId() : null;
+        java.util.Set<Long> activeClassIds = enrollmentService != null
+            ? enrollmentService.findActiveByStudent(student.getId()).stream()
+                .filter(e -> e.getSchoolClass() != null)
+                .map(e -> e.getSchoolClass().getId())
+                .collect(java.util.stream.Collectors.toSet())
+            : java.util.Set.of();
         return schoolClassService.findAll().stream()
             .filter(sc -> Boolean.TRUE.equals(sc.getActive()))
+            .filter(sc -> !activeClassIds.contains(sc.getId()))
             .filter(sc -> {
                 if (instId == null) return true;
                 Long classInstId = sc.getInstitution() != null ? sc.getInstitution().getId() :

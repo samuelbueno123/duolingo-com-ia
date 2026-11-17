@@ -244,24 +244,11 @@ public class ProfilePictureStorageService {
     }
 
     private String validateExternalUrl(String value) {
-        if (value.length() > 2048) {
-            throw badRequest("A URL da foto de perfil é muito longa.");
+        ExternalImageFetcher.FetchedResult fetched = ExternalImageFetcher.fetchExternalImage(value);
+        if (fetched.dataUrl() != null) {
+            return storeDataUrl(fetched.dataUrl());
         }
-
-        try {
-            URI uri = URI.create(value);
-            String scheme = uri.getScheme();
-            if (scheme == null
-                    || (!scheme.equalsIgnoreCase("https")
-                        && !scheme.equalsIgnoreCase("http"))
-                    || uri.getHost() == null
-                    || uri.getUserInfo() != null) {
-                throw badRequest("Informe uma URL de imagem HTTP ou HTTPS válida.");
-            }
-            return uri.toASCIIString();
-        } catch (IllegalArgumentException exception) {
-            throw badRequest("Informe uma URL de imagem HTTP ou HTTPS válida.");
-        }
+        return fetched.verifiedExternalUrl();
     }
 
     private String validateImage(byte[] imageBytes, String declaredMediaType) {

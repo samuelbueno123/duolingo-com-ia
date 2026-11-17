@@ -57,8 +57,25 @@ public class LearningPathController {
 
     @GetMapping("/diagnostic")
     @Operation(summary = "Retorna o questionário diagnóstico para aferição do nível CEFR")
-    public List<DiagnosticQuestionDTO> getDiagnosticQuestions() {
-        return learningPathService.getDiagnosticQuestions();
+    public List<DiagnosticQuestionDTO> getDiagnosticQuestions(
+            @RequestParam(required = false) String language) {
+        return learningPathService.getDiagnosticQuestions(language);
+    }
+
+    @GetMapping("/modules/{moduleId}/quiz")
+    @Operation(summary = "Retorna as questões práticas obrigatórias para concluir um módulo da trilha")
+    public List<DiagnosticQuestionDTO> getModuleQuiz(@PathVariable Long moduleId) {
+        return learningPathService.getModuleQuiz(moduleId);
+    }
+
+    @PostMapping("/modules/{moduleId}/quiz-submit")
+    @Operation(summary = "Avalia o questionário do módulo e só conclui se o aluno atingir aproveitamento mínimo")
+    public java.util.Map<String, Object> submitModuleQuiz(
+            @PathVariable Long moduleId,
+            @RequestBody(required = false) java.util.Map<String, Object> body,
+            Authentication authentication) {
+        Student student = resolveStudent(authentication);
+        return learningPathService.submitModuleQuizPayload(student.getId(), moduleId, body);
     }
 
     @PostMapping("/diagnostic")

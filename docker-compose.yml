@@ -47,13 +47,15 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-duolingo_dev_password}
       PROFILE_PICTURE_STORAGE_PATH: /app/uploads/profile-pictures
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
-      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-}
-      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-mailpit}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
       SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
       SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
-      SPRING_MAIL_AUTH: ${SPRING_MAIL_AUTH:-true}
-      SPRING_MAIL_STARTTLS: ${SPRING_MAIL_STARTTLS:-true}
-      APP_MAIL_FROM: ${APP_MAIL_FROM:-noreply@duolinfo.com}
+      SPRING_MAIL_AUTH: ${SPRING_MAIL_AUTH:-false}
+      SPRING_MAIL_STARTTLS: ${SPRING_MAIL_STARTTLS:-false}
+      SPRING_MAIL_STARTTLS_REQUIRED: ${SPRING_MAIL_STARTTLS_REQUIRED:-false}
+      SPRING_MAIL_SSL_TRUST: ${SPRING_MAIL_SSL_TRUST:-*}
+      APP_MAIL_FROM: ${APP_MAIL_FROM:-no-reply@duolinfo.local}
       FRONTEND_PROTOCOL: ${FRONTEND_PROTOCOL:-http}
       FRONTEND_HOST: ${FRONTEND_HOST:-localhost}
       FRONTEND_PORT: ${FRONTEND_PORT:-5500}
@@ -96,6 +98,16 @@ services:
       interval: 15s
       timeout: 3s
       retries: 3
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: duolinfo-mailpit
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+    networks:
+      - duolinfo-network
     restart: unless-stopped
 
 networks:

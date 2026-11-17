@@ -48,8 +48,10 @@ public class AiConversationController {
 
     @GetMapping("/scenarios")
     @Operation(summary = "Lista os cenários de simulação disponíveis (aeroporto, restaurante, etc.)")
-    public List<AiScenarioDTO> getScenarios(@RequestParam(required = false) String cefrLevel) {
-        return aiConversationService.getScenarios(cefrLevel);
+    public List<AiScenarioDTO> getScenarios(
+            @RequestParam(required = false) String cefrLevel,
+            @RequestParam(required = false) String language) {
+        return aiConversationService.getScenarios(cefrLevel, language);
     }
 
     @PostMapping("/start")

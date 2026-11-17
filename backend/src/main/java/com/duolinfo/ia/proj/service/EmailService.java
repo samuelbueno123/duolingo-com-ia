@@ -35,7 +35,7 @@ public class EmailService {
     @Value("${FRONTEND_HOST:${app.frontend.host:localhost}}")
     private String frontendHost;
 
-    @Value("${FRONTEND_PORT:${app.frontend.port:3000}}")
+    @Value("${FRONTEND_PORT:${app.frontend.port:5500}}")
     private String frontendPort;
 
     @Value("${FRONTEND_PROTOCOL:${app.frontend.protocol:http}}")
@@ -100,7 +100,7 @@ public class EmailService {
         }
         String protocol = (frontendProtocol != null && !frontendProtocol.isBlank()) ? frontendProtocol.trim() : "http";
         String host = (frontendHost != null && !frontendHost.isBlank()) ? frontendHost.trim() : "localhost";
-        String port = (frontendPort != null && !frontendPort.isBlank()) ? frontendPort.trim() : "3000";
+        String port = (frontendPort != null && !frontendPort.isBlank()) ? frontendPort.trim() : "5500";
 
         if (("80".equals(port) && "http".equalsIgnoreCase(protocol)) ||
             ("443".equals(port) && "https".equalsIgnoreCase(protocol)) ||

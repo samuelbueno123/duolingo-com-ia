@@ -106,17 +106,33 @@ public class EnrollmentService {
             studentRepository.save(student);
         }
 
-        Enrollment enrollment = Enrollment.builder()
-            .student(student)
-            .schoolClass(schoolClass)
-            .enrollmentDate(
-                enrollmentDate != null
-                    ? enrollmentDate
-                    : LocalDate.now()
-            )
-            .status(EnrollmentStatus.ACTIVE)
-            .notes(notes)
-            .build();
+        Enrollment existingSameClass = enrollmentRepository.findByStudentId(studentId).stream()
+            .filter(e -> e.getSchoolClass() != null && e.getSchoolClass().getId().equals(schoolClassId))
+            .findFirst()
+            .orElse(null);
+
+        Enrollment enrollment;
+        if (existingSameClass != null) {
+            existingSameClass.setStatus(EnrollmentStatus.ACTIVE);
+            existingSameClass.setCancellationDate(null);
+            existingSameClass.setEnrollmentDate(enrollmentDate != null ? enrollmentDate : LocalDate.now());
+            if (notes != null && !notes.isBlank()) {
+                existingSameClass.setNotes(notes);
+            }
+            enrollment = existingSameClass;
+        } else {
+            enrollment = Enrollment.builder()
+                .student(student)
+                .schoolClass(schoolClass)
+                .enrollmentDate(
+                    enrollmentDate != null
+                        ? enrollmentDate
+                        : LocalDate.now()
+                )
+                .status(EnrollmentStatus.ACTIVE)
+                .notes(notes)
+                .build();
+        }
 
         Enrollment saved = enrollmentRepository.save(enrollment);
         notifyEnrollmentChanged(saved);

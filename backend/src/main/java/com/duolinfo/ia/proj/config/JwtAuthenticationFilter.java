@@ -71,11 +71,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (userIdOpt.isPresent()) {
             Long userId = userIdOpt.get();
+            String tokenEmail = jwtService.getEmailFromToken(token);
             var cached = userAuthCache.getById(userId);
-            if (cached != null) {
+            if (cached != null
+                    && cached.user() != null
+                    && (tokenEmail == null || tokenEmail.equalsIgnoreCase(cached.user().getEmail()))) {
                 user = cached.user();
                 authorities = cached.authorities();
             } else {
+                if (cached != null) {
+                    userAuthCache.evict(userId);
+                }
                 try {
                     user = userService.findById(userId);
                 } catch (ResourceNotFoundException exception) {

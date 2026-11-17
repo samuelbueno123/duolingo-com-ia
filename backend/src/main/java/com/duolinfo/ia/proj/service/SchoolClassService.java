@@ -109,14 +109,7 @@ public class SchoolClassService {
         }
 
         final Institution targetInstitution = institution;
-        School school = schoolRepository.findByInstitutionId(targetInstitution.getId())
-            .stream()
-            .findFirst()
-            .orElseGet(() -> schoolRepository.save(School.builder()
-                .name(targetInstitution.getName())
-                .inepCode("INEP-" + targetInstitution.getId())
-                .institution(targetInstitution)
-                .build()));
+        School school = resolveOrCreateDefaultSchool(targetInstitution);
 
         if (schoolClass.getSchoolYear() == null || schoolClass.getSchoolYear().isBlank()) {
             schoolClass.setSchoolYear(String.valueOf(LocalDate.now().getYear()));
@@ -144,6 +137,37 @@ public class SchoolClassService {
         }
 
         return created;
+    }
+
+    @Transactional
+    public SchoolClass createForInstitution(
+        Long institutionId,
+        SchoolClass schoolClass
+    ) {
+        Institution institution = institutionRepository.findById(institutionId)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "Instituição não encontrada: " + institutionId
+            ));
+
+        School school = resolveOrCreateDefaultSchool(institution);
+        if (schoolClass.getSchoolYear() == null || schoolClass.getSchoolYear().isBlank()) {
+            schoolClass.setSchoolYear(String.valueOf(LocalDate.now().getYear()));
+        }
+        if (schoolClass.getActive() == null) {
+            schoolClass.setActive(true);
+        }
+        return create(school.getId(), schoolClass);
+    }
+
+    private School resolveOrCreateDefaultSchool(Institution targetInstitution) {
+        return schoolRepository.findByInstitutionId(targetInstitution.getId())
+            .stream()
+            .findFirst()
+            .orElseGet(() -> schoolRepository.save(School.builder()
+                .name(targetInstitution.getName())
+                .inepCode("INEP-" + targetInstitution.getId())
+                .institution(targetInstitution)
+                .build()));
     }
 
     @Transactional(readOnly = true)
@@ -200,9 +224,7 @@ public class SchoolClassService {
                 ? 0.0
                 : Math.round(((sCorrect * 100.0) / sQuestions) * 10.0) / 10.0;
 
-            String studentEmail = (callerIsStudent && !Objects.equals(student.getId(), currentUser.getId()))
-                ? null
-                : student.getEmail();
+            String studentEmail = callerIsStudent ? null : student.getEmail();
 
             studentSummaries.add(new ClassStudentSummaryDTO(
                 student.getId(),

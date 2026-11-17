@@ -35,6 +35,9 @@ public class ClassAnnouncementService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private AccessControlService accessControlService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SseEmitterService sseEmitterService;
+
     @Transactional
     public ClassAnnouncementResponseDTO createAnnouncement(
             Long teacherId,
@@ -67,16 +70,34 @@ public class ClassAnnouncementService {
 
         // Notify all active enrolled students in this class
         List<Enrollment> activeEnrollments = enrollmentRepository.findBySchoolClassIdAndStatus(classId, EnrollmentStatus.ACTIVE);
+        java.util.List<Long> studentIds = new java.util.ArrayList<>();
 
         for (Enrollment e : activeEnrollments) {
             if (e.getStudent() != null) {
+                Long sid = e.getStudent().getId();
+                studentIds.add(sid);
                 studentNotificationService.notifyStudent(
-                    e.getStudent().getId(),
+                    sid,
                     "Aviso da turma " + schoolClass.getName() + ": " + announcement.getTitle(),
                     announcement.getContent(),
                     "ANNOUNCEMENT",
                     "/classes"
                 );
+            }
+        }
+
+        if (sseEmitterService != null && !studentIds.isEmpty()) {
+            try {
+                sseEmitterService.sendToUsers(studentIds, "CLASS_ANNOUNCEMENT", java.util.Map.of(
+                    "announcementId", announcement.getId(),
+                    "classId", schoolClass.getId(),
+                    "className", schoolClass.getName(),
+                    "teacherName", teacher.getName(),
+                    "title", announcement.getTitle(),
+                    "content", announcement.getContent(),
+                    "priority", announcement.getPriority()
+                ));
+            } catch (Exception ignored) {
             }
         }
 

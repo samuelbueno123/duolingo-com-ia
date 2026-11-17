@@ -277,7 +277,7 @@ public class StudentService {
         }
 
         if (student.getLanguages() != null) {
-            Map<String, Integer> existingScores = new LinkedHashMap<>();
+            Map<String, StudentLanguage> existingByKey = new LinkedHashMap<>();
             if (current.getLanguages() != null) {
                 for (StudentLanguage existingLang : current.getLanguages()) {
                     if (existingLang.getLanguageName() != null) {
@@ -285,29 +285,61 @@ public class StudentService {
                             SupportedLanguages.normalize(existingLang.getLanguageName())
                                 .orElse(existingLang.getLanguageName())
                         );
-                        existingScores.put(
-                            key,
-                            existingLang.getScore() != null ? existingLang.getScore() : 0
-                        );
+                        existingByKey.putIfAbsent(key, existingLang);
                     }
                 }
             }
-            current.getLanguages().clear();
-            Set<String> seenLanguageKeys = new HashSet<>();
+
+            Map<String, StudentLanguage> desiredByKey = new LinkedHashMap<>();
             for (StudentLanguage language : student.getLanguages()) {
                 if (language.getLanguageName() == null || language.getLanguageName().isBlank()) continue;
                 String canonical = SupportedLanguages.normalizeOrThrow(language.getLanguageName());
                 String key = SupportedLanguages.stripAccentsLower(canonical);
-                if (seenLanguageKeys.contains(key)) {
-                    continue;
-                }
-                seenLanguageKeys.add(key);
                 language.setLanguageName(canonical);
-                Integer preservedScore = existingScores.get(key);
-                if (preservedScore != null && (language.getScore() == null || language.getScore() == 0)) {
-                    language.setScore(preservedScore);
+                desiredByKey.putIfAbsent(key, language);
+            }
+
+            boolean removedAny = false;
+            var it = current.getLanguages().iterator();
+            while (it.hasNext()) {
+                StudentLanguage existingLang = it.next();
+                String existingKey = existingLang.getLanguageName() == null
+                    ? ""
+                    : SupportedLanguages.stripAccentsLower(
+                        SupportedLanguages.normalize(existingLang.getLanguageName())
+                            .orElse(existingLang.getLanguageName())
+                    );
+                if (!desiredByKey.containsKey(existingKey)) {
+                    it.remove();
+                    existingLang.setStudent(null);
+                    removedAny = true;
                 }
-                current.addLanguage(language);
+            }
+            if (removedAny) {
+                entityManager.flush();
+            }
+
+            for (Map.Entry<String, StudentLanguage> entry : desiredByKey.entrySet()) {
+                String key = entry.getKey();
+                StudentLanguage incoming = entry.getValue();
+                StudentLanguage existing = existingByKey.get(key);
+                if (existing != null) {
+                    existing.setLanguageName(incoming.getLanguageName());
+                    if (incoming.getLevel() != null && !incoming.getLevel().isBlank()) {
+                        existing.setLevel(incoming.getLevel().trim());
+                    }
+                    if (incoming.getScore() != null && incoming.getScore() > 0) {
+                        existing.setScore(incoming.getScore());
+                    }
+                } else {
+                    if (incoming.getScore() == null) {
+                        incoming.setScore(0);
+                    }
+                    if (incoming.getLevel() == null || incoming.getLevel().isBlank()) {
+                        incoming.setLevel("Básico");
+                    }
+                    current.addLanguage(incoming);
+                }
             }
         }
 
@@ -386,15 +418,16 @@ public class StudentService {
                 ? List.of()
                 : s.getLanguages().stream().map(StudentLanguage::getLanguageName).toList();
             boolean isSelf = s.getId().equals(student.getId());
+            String displayName = isSelf ? "Eu" : s.getName();
             boolean matches = query.isEmpty()
+                || (displayName != null && displayName.toLowerCase(Locale.ROOT).contains(query))
                 || (s.getName() != null && s.getName().toLowerCase(Locale.ROOT).contains(query))
-                || (isSelf && s.getEmail() != null && s.getEmail().toLowerCase(Locale.ROOT).contains(query))
                 || langs.stream().anyMatch(l -> l.toLowerCase(Locale.ROOT).contains(query));
             if (matches) {
                 students.add(new MemberStudentDTO(
                     s.getId(),
-                    s.getName(),
-                    isSelf ? s.getEmail() : null,
+                    displayName,
+                    null,
                     s.getProfilePicture(),
                     s.getNormalizedGender(),
                     langs

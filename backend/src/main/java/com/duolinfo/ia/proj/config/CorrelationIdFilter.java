@@ -65,8 +65,8 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         if (telemetryService != null && isDiagnosticPath && !"OPTIONS".equalsIgnoreCase(method)) {
             telemetryService.onRequestStart();
         }
-        if (isDiagnosticPath && !"OPTIONS".equalsIgnoreCase(method)) {
-            LOGGER.info("HTTP Request: method={} uri={} remoteIp={} correlationId={}",
+        if (isDiagnosticPath && !"OPTIONS".equalsIgnoreCase(method) && LOGGER.isDebugEnabled()) {
+            LOGGER.debug("HTTP Request: method={} uri={} remoteIp={} correlationId={}",
                 method, uri, remoteIp, correlationId);
         }
 
@@ -87,8 +87,8 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
                 } else if (status >= 400) {
                     LOGGER.warn("HTTP Response [CLIENT ERROR]: method={} uri={} status={} durationMs={} correlationId={}",
                         method, uri, status, durationMs, correlationId);
-                } else {
-                    LOGGER.info("HTTP Response: method={} uri={} status={} durationMs={} correlationId={}",
+                } else if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("HTTP Response: method={} uri={} status={} durationMs={} correlationId={}",
                         method, uri, status, durationMs, correlationId);
                 }
             }

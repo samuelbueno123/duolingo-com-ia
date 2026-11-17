@@ -80,9 +80,9 @@ public class ClassTeacherAssignmentService {
 
             /*
              * Não permitimos colocar o novo professor em uma data
-             * anterior ao início da atribuição atual.
+             * anterior ao início da atribuição atual. Trocas no mesmo dia são permitidas.
              */
-            if (!date.isAfter(current.getStartDate())) {
+            if (date.isBefore(current.getStartDate())) {
                 throw new BusinessException(
                     "A data da nova atribuição deve ser posterior "
                     + "à data de início da atribuição atual."
@@ -90,9 +90,13 @@ public class ClassTeacherAssignmentService {
             }
 
             /*
-             * Encerra o professor anterior no dia anterior.
+             * Encerra o professor anterior (no dia anterior, ou no mesmo dia em troca imediata).
              */
-            current.setEndDate(date.minusDays(1));
+            current.setEndDate(
+                date.isAfter(current.getStartDate())
+                    ? date.minusDays(1)
+                    : date
+            );
 
             assignmentRepository.save(current);
         }

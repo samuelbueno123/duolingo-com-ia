@@ -18,6 +18,34 @@ public record LearningExerciseRequestDTO(
     String mediaUrl,
     LocalDate dueDate,
     @NotNull Long schoolClassId,
-    List<@Valid ExerciseQuestionRequestDTO> questions
+    List<@Valid ExerciseQuestionRequestDTO> questions,
+    String mascotHelpMessage
 ) {
+    public LearningExerciseRequestDTO(
+            String title,
+            String category,
+            String theme,
+            String languageName,
+            String proficiencyLevel,
+            String description,
+            String contentBody,
+            String mediaUrl,
+            LocalDate dueDate,
+            Long schoolClassId,
+            List<ExerciseQuestionRequestDTO> questions) {
+        this(
+            title,
+            category,
+            theme,
+            languageName,
+            proficiencyLevel,
+            description,
+            contentBody,
+            mediaUrl,
+            dueDate,
+            schoolClassId,
+            questions,
+            null
+        );
+    }
 }

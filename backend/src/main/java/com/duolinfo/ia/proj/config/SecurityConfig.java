@@ -138,6 +138,8 @@ public class SecurityConfig {
 
                 .requestMatchers(HttpMethod.POST, "/api/exercises", "/api/exercises/generate-ai", "/api/exercises/generate-options-ai", "/api/exercises/explain-ai")
                     .hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/exercises/*")
+                    .hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/exercises/submissions/**")
                     .hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/exercises/*/submissions")
@@ -150,6 +152,8 @@ public class SecurityConfig {
                 // Language learning modules
                 .requestMatchers("/api/srs/**")
                     .hasAnyRole("STUDENT", "ADMIN")
+                .requestMatchers("/api/ai/mascot/**")
+                    .authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/ai/explain-mistake")
                     .authenticated()
                 .requestMatchers("/api/ai/**")

@@ -248,6 +248,7 @@ public class LearningExerciseService {
         exercise.setDescription(clean(request.description()));
         exercise.setContentBody(clean(request.contentBody()));
         exercise.setMediaUrl(clean(request.mediaUrl()));
+        exercise.setMascotHelpMessage(clean(request.mascotHelpMessage()));
         exercise.setDueDate(request.dueDate());
         exercise.setSchoolClass(schoolClass);
         exercise.setTeacher(teacher);
@@ -255,6 +256,97 @@ public class LearningExerciseService {
         exercise.setCreatedAt(Instant.now());
         LearningExercise saved = exerciseRepository.save(exercise);
         notifyStudentsNewExercise(saved);
+        return toExerciseResponse(saved, true);
+    }
+
+    @Transactional
+    public LearningExerciseResponseDTO update(
+            Long id,
+            LearningExerciseRequestDTO request,
+            String email) {
+        Teacher teacher = findTeacher(email);
+        LearningExercise exercise = findExercise(id);
+
+        boolean canEdit = Objects.equals(teacher.getId(), exercise.getTeacher().getId())
+            || teacher.isSuperAdmin()
+            || (teacher.isInstitutionAdmin()
+                && teacher.getInstitution() != null
+                && exercise.getSchoolClass().getSchool() != null
+                && exercise.getSchoolClass().getSchool().getInstitution() != null
+                && Objects.equals(
+                    teacher.getInstitution().getId(),
+                    exercise.getSchoolClass().getSchool().getInstitution().getId()
+                ));
+        if (!canEdit) {
+            throw new BusinessException("Você não tem permissão para editar esta atividade.");
+        }
+
+        List<ExerciseQuestionRequestDTO> questions = request.questions();
+        if ((questions == null || questions.isEmpty())
+                && clean(request.contentBody()) == null
+                && clean(request.mediaUrl()) == null) {
+            throw new BusinessException(
+                "Informe o conteúdo teórico ou adicione ao menos uma questão."
+            );
+        }
+        if (request.dueDate() != null
+                && !Objects.equals(request.dueDate(), exercise.getDueDate())
+                && request.dueDate().isBefore(LocalDate.now())) {
+            throw new BusinessException("A data de entrega não pode ser anterior à data atual.");
+        }
+
+        SchoolClass schoolClass = schoolClassRepository.findById(request.schoolClassId())
+            .orElseThrow(() -> new ResourceNotFoundException("Turma não encontrada."));
+        if (!teacher.isSuperAdmin()
+                && (schoolClass.getSchool() == null
+                    || teacher.getInstitution() == null
+                    || !Objects.equals(
+                        schoolClass.getSchool().getInstitution().getId(),
+                        teacher.getInstitution().getId()
+                    ))) {
+            throw new BusinessException(
+                "Você só pode mover exercícios para turmas da sua instituição."
+            );
+        }
+        boolean assigned = teacher.isSuperAdmin()
+            || teacher.isInstitutionAdmin()
+            || assignmentRepository.findByTeacherId(teacher.getId())
+                .stream()
+                .anyMatch(assignment -> assignment.getEndDate() == null
+                    && Objects.equals(
+                        assignment.getSchoolClass().getId(), schoolClass.getId()
+                    ));
+        if (!assigned) {
+            throw new BusinessException(
+                "Você só pode atribuir atividades a turmas vinculadas ao seu perfil."
+            );
+        }
+
+        String classLang = SupportedLanguages.normalizeOrDefault(
+            schoolClass.getLanguageName(),
+            SupportedLanguages.inferFromClassNameOrDefault(schoolClass.getName())
+        );
+        String exerciseLang = SupportedLanguages.normalizeOrDefault(request.languageName(), classLang);
+        if (!SupportedLanguages.matches(exerciseLang, classLang)) {
+            throw new BusinessException(
+                "O idioma do exercício (" + exerciseLang + ") deve coincidir com o idioma da turma (" + classLang + ")."
+            );
+        }
+
+        exercise.setTitle(request.title().trim());
+        exercise.setCategory(clean(request.category()));
+        exercise.setTheme(clean(request.theme()));
+        exercise.setLanguageName(exerciseLang);
+        exercise.setProficiencyLevel(request.proficiencyLevel().trim());
+        exercise.setDescription(clean(request.description()));
+        exercise.setContentBody(clean(request.contentBody()));
+        exercise.setMediaUrl(clean(request.mediaUrl()));
+        exercise.setMascotHelpMessage(clean(request.mascotHelpMessage()));
+        exercise.setDueDate(request.dueDate());
+        exercise.setSchoolClass(schoolClass);
+        exercise.setQuestionsJson(writeJson(questions == null ? List.of() : questions));
+
+        LearningExercise saved = exerciseRepository.save(exercise);
         return toExerciseResponse(saved, true);
     }
 
@@ -294,11 +386,14 @@ public class LearningExerciseService {
             ? request.newTitle().trim()
             : source.getTitle() + " (Cópia)";
         clone.setTitle(title);
+        clone.setCategory(source.getCategory());
+        clone.setTheme(source.getTheme());
         clone.setLanguageName(sourceLang);
         clone.setProficiencyLevel(source.getProficiencyLevel());
         clone.setDescription(source.getDescription());
         clone.setContentBody(source.getContentBody());
         clone.setMediaUrl(source.getMediaUrl());
+        clone.setMascotHelpMessage(source.getMascotHelpMessage());
         clone.setDueDate(request.newDueDate() != null ? request.newDueDate() : source.getDueDate());
         clone.setSchoolClass(targetClass);
         clone.setTeacher(teacher);
@@ -961,7 +1056,8 @@ public class LearningExerciseService {
             exercise.getTeacher().getId(),
             exercise.getTeacher().getName(),
             exercise.getCreatedAt(),
-            questions
+            questions,
+            exercise.getMascotHelpMessage()
         );
     }
 

@@ -245,4 +245,121 @@ class LearningExerciseServiceTest {
         assertTrue(studentLang.getScore() > 100);
         verify(studentRepository).save(student);
     }
+
+    @Test
+    void create_update_andClone_persistAndReturnMascotHelpMessage() {
+        Institution inst = new Institution();
+        inst.setId(10L);
+
+        Teacher teacher = new Teacher();
+        teacher.setId(7L);
+        teacher.setEmail("prof@escola.com");
+        teacher.setName("Prof. Maria");
+        teacher.setInstitution(inst);
+
+        School school = new School();
+        school.setId(20L);
+        school.setInstitution(inst);
+
+        SchoolClass classA = new SchoolClass();
+        classA.setId(100L);
+        classA.setName("Inglês A1 - Turma 1");
+        classA.setLanguageName("Inglês");
+        classA.setSchool(school);
+
+        SchoolClass classB = new SchoolClass();
+        classB.setId(200L);
+        classB.setName("Inglês A1 - Turma 2");
+        classB.setLanguageName("Inglês");
+        classB.setSchool(school);
+
+        ClassTeacherAssignment assignA = new ClassTeacherAssignment();
+        assignA.setTeacher(teacher);
+        assignA.setSchoolClass(classA);
+        ClassTeacherAssignment assignB = new ClassTeacherAssignment();
+        assignB.setTeacher(teacher);
+        assignB.setSchoolClass(classB);
+
+        when(teacherRepository.findByEmailIgnoreCase("prof@escola.com")).thenReturn(Optional.of(teacher));
+        when(teacherRepository.findById(7L)).thenReturn(Optional.of(teacher));
+        when(schoolClassRepository.findById(100L)).thenReturn(Optional.of(classA));
+        when(schoolClassRepository.findById(200L)).thenReturn(Optional.of(classB));
+        when(assignmentRepository.findByTeacherId(7L)).thenReturn(List.of(assignA, assignB));
+        when(enrollmentRepository.findBySchoolClassIdAndStatusOrderByEnrollmentDateAsc(100L, EnrollmentStatus.ACTIVE))
+            .thenReturn(List.of());
+        when(enrollmentRepository.findBySchoolClassIdAndStatusOrderByEnrollmentDateAsc(200L, EnrollmentStatus.ACTIVE))
+            .thenReturn(List.of());
+        when(exerciseRepository.save(any(LearningExercise.class))).thenAnswer(inv -> {
+            LearningExercise ex = inv.getArgument(0);
+            if (ex.getId() == null) ex.setId(55L);
+            return ex;
+        });
+
+        ExerciseQuestionRequestDTO q = new ExerciseQuestionRequestDTO(
+            "Múltipla Escolha",
+            "Select the greeting",
+            List.of("Hello", "Book"),
+            "Hello",
+            "Hello"
+        );
+
+        LearningExerciseRequestDTO createReq = new LearningExerciseRequestDTO(
+            "Saudações Básicas",
+            "Vocabulário",
+            "Cumprimentos",
+            "Inglês",
+            "A1",
+            "Prática inicial",
+            null,
+            null,
+            LocalDate.now().plusDays(3),
+            100L,
+            List.of(q),
+            "   Dica do professor: lembre-se de observar o contexto formal!   "
+        );
+
+        LearningExerciseResponseDTO created = exerciseService.create(createReq, "prof@escola.com");
+        assertEquals("Dica do professor: lembre-se de observar o contexto formal!", created.mascotHelpMessage());
+
+        LearningExercise persisted = new LearningExercise();
+        persisted.setId(55L);
+        persisted.setTitle(created.title());
+        persisted.setCategory(created.category());
+        persisted.setTheme(created.theme());
+        persisted.setLanguageName(created.languageName());
+        persisted.setProficiencyLevel(created.proficiencyLevel());
+        persisted.setMascotHelpMessage(created.mascotHelpMessage());
+        persisted.setSchoolClass(classA);
+        persisted.setTeacher(teacher);
+        persisted.setQuestionsJson("[{\"style\":\"Múltipla Escolha\",\"question\":\"Select the greeting\",\"options\":[\"Hello\",\"Book\"],\"correctAnswer\":\"Hello\",\"expectedAnswer\":\"Hello\"}]");
+        when(exerciseRepository.findById(55L)).thenReturn(Optional.of(persisted));
+
+        LearningExerciseRequestDTO updateReq = new LearningExerciseRequestDTO(
+            "Saudações Atualizadas",
+            "Vocabulário",
+            "Cumprimentos",
+            "Inglês",
+            "A1",
+            "Prática revisada",
+            null,
+            null,
+            LocalDate.now().plusDays(5),
+            100L,
+            List.of(q),
+            "Nova dica: foque na diferença entre Hello e Hi."
+        );
+
+        LearningExerciseResponseDTO updated = exerciseService.update(55L, updateReq, "prof@escola.com");
+        assertEquals("Saudações Atualizadas", updated.title());
+        assertEquals("Nova dica: foque na diferença entre Hello e Hi.", updated.mascotHelpMessage());
+
+        var cloned = exerciseService.cloneExercise(
+            55L,
+            new com.duolinfo.ia.proj.dto.request.CloneExerciseRequestDTO(200L, null, "Cópia Turma 2"),
+            "prof@escola.com"
+        );
+        assertEquals("Nova dica: foque na diferença entre Hello e Hi.", cloned.mascotHelpMessage());
+        assertEquals("Vocabulário", cloned.category());
+        assertEquals("Cumprimentos", cloned.theme());
+    }
 }

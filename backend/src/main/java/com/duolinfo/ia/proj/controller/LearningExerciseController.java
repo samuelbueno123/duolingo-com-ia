@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -122,6 +123,16 @@ public class LearningExerciseController {
             @Valid @RequestBody LearningExerciseRequestDTO request,
             Principal principal) {
         return exerciseService.create(request, principal.getName());
+    }
+
+    @PutMapping("/{id}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
+    @Operation(summary = "Atualiza uma atividade existente, incluindo a ajuda do mascote")
+    public LearningExerciseResponseDTO update(
+            @PathVariable Long id,
+            @Valid @RequestBody LearningExerciseRequestDTO request,
+            Principal principal) {
+        return exerciseService.update(id, request, principal.getName());
     }
 
     @PostMapping("/{id}/clone")

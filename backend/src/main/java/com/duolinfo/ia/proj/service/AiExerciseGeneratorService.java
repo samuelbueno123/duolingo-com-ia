@@ -149,13 +149,36 @@ public class AiExerciseGeneratorService {
             """.formatted(questionPrompt, answer, language != null ? language : "Inglês");
 
         try {
-            return callProvider(prompt).trim();
+            return callProvider(prompt, false).trim();
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Falha ao gerar explicação com IA: " + e.getMessage());
         }
     }
 
+    public String generateAssistantText(String promptText) {
+        if (!isConfigured()) {
+            throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Credencial de IA não configurada."
+            );
+        }
+        try {
+            return callProvider(promptText, false).trim();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_GATEWAY,
+                "Falha ao comunicar com o provedor de IA configurado: " + e.getMessage()
+            );
+        }
+    }
+
     private String callProvider(String promptText) throws Exception {
+        return callProvider(promptText, true);
+    }
+
+    private String callProvider(String promptText, boolean jsonMode) throws Exception {
         String baseUrl = aiProviderUrl != null ? aiProviderUrl.trim() : "";
         boolean isGemini = baseUrl.contains("generativelanguage.googleapis.com");
 
@@ -174,6 +197,10 @@ public class AiExerciseGeneratorService {
                 modelsToTry.add("gemini-flash-latest");
             }
 
+            Map<String, Object> generationConfig = jsonMode
+                ? Map.of("temperature", 0.4, "responseMimeType", "application/json")
+                : Map.of("temperature", 0.4);
+
             Exception lastException = null;
             for (String model : modelsToTry) {
                 try {
@@ -182,10 +209,7 @@ public class AiExerciseGeneratorService {
                         "contents", List.of(
                             Map.of("parts", List.of(Map.of("text", promptText)))
                         ),
-                        "generationConfig", Map.of(
-                            "temperature", 0.4,
-                            "responseMimeType", "application/json"
-                        )
+                        "generationConfig", generationConfig
                     );
                     HttpRequest httpRequest = HttpRequest.newBuilder()
                             .uri(URI.create(url))

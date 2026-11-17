@@ -59,6 +59,9 @@ public class LearningExercise {
     @Column(name = "media_url", length = 2048)
     private String mediaUrl;
 
+    @Column(name = "mascot_help_message", columnDefinition = "TEXT")
+    private String mascotHelpMessage;
+
     @Column(name = "due_date")
     private LocalDate dueDate;
 

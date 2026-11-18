@@ -55,6 +55,9 @@ public class TeacherService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.duolinfo.ia.proj.config.UserAuthCache userAuthCache;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SseEmitterService sseEmitterService;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -267,7 +270,19 @@ public class TeacherService {
         notification.setReferenceType(TEACHER_REQUEST_REFERENCE);
         notification.setReferenceId(teacher.getId());
         notification.setInstitutionId(institution != null ? institution.getId() : null);
-        notificationRepository.save(notification);
+        AdminNotification saved = notificationRepository.save(notification);
+        if (sseEmitterService != null) {
+            try {
+                Map<String, Object> data = new java.util.HashMap<>();
+                data.put("notificationId", saved.getId());
+                data.put("type", saved.getType());
+                data.put("title", saved.getTitle());
+                data.put("message", saved.getMessage());
+                data.put("institutionId", saved.getInstitutionId());
+                sseEmitterService.sendToRole("ADMIN", "NOTIFICATION_ADDED", data);
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     @Transactional
@@ -386,6 +401,15 @@ public class TeacherService {
                 notification.setRead(true);
                 notificationRepository.save(notification);
             });
+        if (sseEmitterService != null) {
+            try {
+                sseEmitterService.sendToRole("ADMIN", "NOTIFICATION_UPDATED", Map.of(
+                    "referenceType", TEACHER_REQUEST_REFERENCE,
+                    "referenceId", id
+                ));
+            } catch (Exception ignored) {
+            }
+        }
         return initializeDetails(saved);
     }
 

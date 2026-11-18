@@ -82,7 +82,9 @@ public class SpacedRepetitionController {
 
     @GetMapping("/stats")
     @Operation(summary = "Retorna estatísticas gerais de retenção e progresso da repetição espaçada")
-    public SpacedReviewSessionSummaryDTO getStats(Authentication authentication) {
-        return srsService.getStats(authentication.getName());
+    public SpacedReviewSessionSummaryDTO getStats(
+            @RequestParam(required = false) String language,
+            Authentication authentication) {
+        return srsService.getStats(authentication.getName(), language);
     }
 }

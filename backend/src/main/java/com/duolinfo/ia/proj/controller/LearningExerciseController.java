@@ -172,6 +172,23 @@ public class LearningExerciseController {
         return exerciseService.findSubmissions(principal.getName());
     }
 
+    @GetMapping("/rankings")
+    @Operation(summary = "Ranking multi-escopo (alunos/turmas/escolas/professores em turma, escola e aplicativo)")
+    public List<LearningRankingEntryResponseDTO> scopedRanking(
+            @RequestParam(defaultValue = "app_students") String scope,
+            @RequestParam(defaultValue = "week") String period,
+            @RequestParam(required = false) Long schoolClassId,
+            @RequestParam(required = false) Long institutionId,
+            Principal principal) {
+        return exerciseService.findScopedRanking(
+            scope,
+            period,
+            schoolClassId,
+            institutionId,
+            principal != null ? principal.getName() : null
+        );
+    }
+
     @GetMapping("/rankings/individual")
     @Operation(summary = "Ranking individual baseado em XP das entregas persistidas")
     public List<LearningRankingEntryResponseDTO> individualRanking(

@@ -28,6 +28,7 @@ import jakarta.persistence.criteria.Predicate;
 public class AuditLogService {
 
     private static final Logger log = LoggerFactory.getLogger(AuditLogService.class);
+    private static final Logger securityAuditFileLog = LoggerFactory.getLogger("com.duolinfo.ia.proj.SECURITY_AUDIT");
 
     private final AuditLogRepository auditLogRepository;
 
@@ -65,13 +66,40 @@ public class AuditLogService {
                 .build();
 
             AuditLog saved = auditLogRepository.save(auditLog);
-            log.info("[AUDIT-RECORDED] id={} action={} actor={} severity={} result={}",
-                saved.getId(), saved.getAction(), saved.getActorEmail(), saved.getSeverity(), saved.getResult());
+            String safeDetails = sanitizeLogValue(saved.getDetails());
+            String auditMessage = String.format(
+                "[AUDIT-RECORDED] id=%s category=%s action=%s actor=%s role=%s target=%s:%s result=%s ip=%s corr=%s details=%s",
+                saved.getId(),
+                saved.getCategory(),
+                saved.getAction(),
+                saved.getActorEmail(),
+                saved.getActorRole(),
+                saved.getTargetEntity() != null ? saved.getTargetEntity() : "-",
+                saved.getTargetId() != null ? saved.getTargetId() : "-",
+                saved.getResult(),
+                saved.getClientIp() != null ? saved.getClientIp() : "-",
+                saved.getCorrelationId() != null ? saved.getCorrelationId() : "-",
+                safeDetails
+            );
+            if ("ERROR".equalsIgnoreCase(saved.getSeverity())) {
+                securityAuditFileLog.error(auditMessage);
+            } else if ("WARN".equalsIgnoreCase(saved.getSeverity())) {
+                securityAuditFileLog.warn(auditMessage);
+            } else {
+                securityAuditFileLog.info(auditMessage);
+            }
             return saved;
         } catch (Exception e) {
             log.error("[AUDIT-FAILED] Erro ao gravar registro de auditoria: {}", e.getMessage(), e);
             return null;
         }
+    }
+
+    private static String sanitizeLogValue(String value) {
+        if (value == null || value.isBlank()) {
+            return "-";
+        }
+        return value.replace('\r', ' ').replace('\n', ' ').trim();
     }
 
     @Transactional(readOnly = true)

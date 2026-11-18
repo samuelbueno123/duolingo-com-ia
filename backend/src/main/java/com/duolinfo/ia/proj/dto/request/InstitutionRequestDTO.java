@@ -42,6 +42,23 @@ public record InstitutionRequestDTO(
     String description,
 
     @Schema(example = "true")
-    Boolean active
+    Boolean active,
+
+    @Schema(description = "URL ou Data URI da foto/brasão da instituição")
+    String pictureUrl
 ) {
+    public InstitutionRequestDTO(
+            String name,
+            String code,
+            String email,
+            String phone,
+            String website,
+            String city,
+            String state,
+            String country,
+            String address,
+            String description,
+            Boolean active) {
+        this(name, code, email, phone, website, city, state, country, address, description, active, null);
+    }
 }

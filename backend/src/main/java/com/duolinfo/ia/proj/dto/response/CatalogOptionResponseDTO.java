@@ -4,6 +4,12 @@ public record CatalogOptionResponseDTO(
     Long id,
     String catalogType,
     String value,
-    boolean active
+    boolean active,
+    String flagMode,
+    String flagCode,
+    String flagUrl
 ) {
+    public CatalogOptionResponseDTO(Long id, String catalogType, String value, boolean active) {
+        this(id, catalogType, value, active, "AUTO", null, null);
+    }
 }

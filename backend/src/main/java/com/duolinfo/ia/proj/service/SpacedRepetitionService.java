@@ -54,20 +54,29 @@ public class SpacedRepetitionService {
             : itemRepository.findDueItems(student.getId(), today);
 
         if (dueItems.isEmpty()) {
-            // Seed starter vocabulary if completely empty for this student
-            long total = itemRepository.countByStudent_Id(student.getId());
-            if (total == 0) {
-                String defaultLang = normalizedLang;
-                if (defaultLang == null && student.getLanguages() != null && !student.getLanguages().isEmpty()) {
-                    defaultLang = SupportedLanguages.normalizeOrDefault(
-                        student.getLanguages().get(0).getLanguageName(),
-                        SupportedLanguages.DEFAULT
+            if (normalizedLang != null) {
+                List<SpacedReviewItem> existingInLang =
+                    itemRepository.findByStudent_IdAndLanguageNameIgnoreCaseOrderByDueDateAsc(
+                        student.getId(),
+                        normalizedLang
                     );
+                if (existingInLang.isEmpty()) {
+                    seedStarterVocabulary(student, normalizedLang);
+                    dueItems = itemRepository.findDueItemsByLanguage(student.getId(), normalizedLang, today);
                 }
-                seedStarterVocabulary(student, defaultLang != null ? defaultLang : SupportedLanguages.DEFAULT);
-                dueItems = (normalizedLang != null)
-                    ? itemRepository.findDueItemsByLanguage(student.getId(), normalizedLang, today)
-                    : itemRepository.findDueItems(student.getId(), today);
+            } else if (itemRepository.countByStudent_Id(student.getId()) == 0) {
+                if (student.getLanguages() != null && !student.getLanguages().isEmpty()) {
+                    for (StudentLanguage sl : student.getLanguages()) {
+                        String lang = SupportedLanguages.normalizeOrDefault(
+                            sl.getLanguageName(),
+                            SupportedLanguages.DEFAULT
+                        );
+                        seedStarterVocabulary(student, lang);
+                    }
+                } else {
+                    seedStarterVocabulary(student, SupportedLanguages.DEFAULT);
+                }
+                dueItems = itemRepository.findDueItems(student.getId(), today);
             }
         }
 
@@ -194,10 +203,20 @@ public class SpacedRepetitionService {
 
     @Transactional(readOnly = true)
     public SpacedReviewSessionSummaryDTO getStats(String email) {
+        return getStats(email, null);
+    }
+
+    @Transactional(readOnly = true)
+    public SpacedReviewSessionSummaryDTO getStats(String email, String languageName) {
         Student student = requireStudent(email);
         LocalDate today = LocalDate.now();
+        String normalizedLang = (languageName != null && !languageName.isBlank())
+            ? SupportedLanguages.normalizeOrThrow(languageName)
+            : null;
 
-        List<SpacedReviewItem> all = itemRepository.findByStudent_IdOrderByDueDateAsc(student.getId());
+        List<SpacedReviewItem> all = (normalizedLang != null)
+            ? itemRepository.findByStudent_IdAndLanguageNameIgnoreCaseOrderByDueDateAsc(student.getId(), normalizedLang)
+            : itemRepository.findByStudent_IdOrderByDueDateAsc(student.getId());
         long totalCards = all.size();
         long dueToday = all.stream().filter(i -> !i.getDueDate().isAfter(today)).count();
         long completedToday = all.stream().filter(i -> i.getLastReviewedAt() != null
@@ -258,24 +277,32 @@ public class SpacedRepetitionService {
                 starter.add(buildItem(student, lang, "acontecer", "acontecer, ocorrer", "¿Qué va a acontecer ahora?", "O que vai acontecer agora?", "B1", "verbo"));
             }
             case "Francês" -> {
+                starter.add(buildItem(student, lang, "bonjour", "bom dia / olá", "Bonjour, comment allez-vous aujourd'hui ?", "Bom dia, como você está hoje?", "A1", "cumprimento"));
+                starter.add(buildItem(student, lang, "merci beaucoup", "muito obrigado(a)", "Merci beaucoup pour votre aide précieuse.", "Muito obrigado pela sua ajuda valiosa.", "A1", "expressão"));
                 starter.add(buildItem(student, lang, "cependant", "no entanto, porém", "Il fait froid, cependant le soleil brille.", "Está frio, no entanto o sol brilha.", "B1", "conector"));
                 starter.add(buildItem(student, lang, "quotidien", "cotidiano", "Dans la vie quotidienne, c'est utile.", "Na vida cotidiana, isso é útil.", "A2", "adjetivo"));
                 starter.add(buildItem(student, lang, "avoir hâte de", "estar ansioso para", "J'ai hâte de te revoir.", "Estou ansioso para te rever.", "B1", "expressão"));
             }
             case "Alemão" -> {
+                starter.add(buildItem(student, lang, "entschuldigung", "com licença / desculpe", "Entschuldigung, wo ist der Bahnhof?", "Com licença, onde fica a estação?", "A1", "expressão"));
                 starter.add(buildItem(student, lang, "zuverlässig", "confiável", "Er ist ein zuverlässiger Kollege.", "Ele é um colega confiável.", "B1", "adjetivo"));
                 starter.add(buildItem(student, lang, "jedoch", "no entanto, porém", "Es regnet, jedoch gehen wir spazieren.", "Está chovendo, porém vamos caminhar.", "B1", "conector"));
                 starter.add(buildItem(student, lang, "der Fortschritt", "o progresso", "Tägliches Üben bringt großen Fortschritt.", "A prática diária traz grande progresso.", "A2", "substantivo"));
+                starter.add(buildItem(student, lang, "eine Entscheidung treffen", "tomar uma decisão", "Wir müssen heute eine klare Entscheidung treffen.", "Precisamos tomar uma decisão clara hoje.", "B2", "expressão"));
             }
             case "Italiano" -> {
+                starter.add(buildItem(student, lang, "buongiorno", "bom dia", "Buongiorno! Come posso aiutarla oggi?", "Bom dia! Como posso ajudá-lo hoje?", "A1", "cumprimento"));
                 starter.add(buildItem(student, lang, "tuttavia", "contudo, porém", "È tardi, tuttavia voglio finire il libro.", "Está tarde, porém quero terminar o livro.", "B1", "conector"));
                 starter.add(buildItem(student, lang, "quotidiano", "cotidiano", "Fa parte della nostra vita quotidiana.", "Faz parte da nossa vida cotidiana.", "A2", "adjetivo"));
+                starter.add(buildItem(student, lang, "avere fretta", "estar com pressa", "Scusami, oggi ho molta fretta!", "Desculpe-me, hoje estou com muita pressa!", "A2", "expressão"));
                 starter.add(buildItem(student, lang, "non vedo l'ora", "mal posso esperar", "Non vedo l'ora di iniziare il corso!", "Mal posso esperar para começar o curso!", "B1", "expressão"));
             }
             case "Japonês" -> {
                 starter.add(buildItem(student, lang, "おはようございます", "bom dia (formal)", "先生、おはようございます。", "Bom dia, professor(a).", "A1", "cumprimento"));
                 starter.add(buildItem(student, lang, "ありがとう", "obrigado(a)", "手伝ってくれてありがとう。", "Obrigado(a) por me ajudar.", "A1", "expressão"));
                 starter.add(buildItem(student, lang, "毎日 (まいにち)", "todos os dias", "毎日日本語を勉強しています。", "Estudo japonês todos os dias.", "A2", "vocabulário"));
+                starter.add(buildItem(student, lang, "駅 (えき)", "estação de trem", "駅はここから近いですか。", "A estação fica perto daqui?", "B1", "substantivo"));
+                starter.add(buildItem(student, lang, "しかし", "contudo, porém", "難しいです、しかし面白いです。", "É difícil, porém é interessante.", "B2", "conector"));
             }
             default -> {
                 starter.add(buildItem(student, lang, "overwhelmed", "sobrecarregado(a)", "She felt overwhelmed by the amount of work.", "Ela se sentiu sobrecarregada com a quantidade de trabalho.", "B1", "adjetivo"));

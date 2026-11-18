@@ -67,6 +67,9 @@ public class Institution {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "picture_url", length = 2048)
+    private String pictureUrl;
+
     @Builder.Default
     @Column(nullable = false)
     private Boolean active = true;

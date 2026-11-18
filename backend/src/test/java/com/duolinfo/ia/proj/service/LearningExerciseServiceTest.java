@@ -362,4 +362,86 @@ class LearningExerciseServiceTest {
         assertEquals("Vocabulário", cloned.category());
         assertEquals("Cumprimentos", cloned.theme());
     }
+
+    @Test
+    void createPreservesPerQuestionMascotHelpAndNotifiesStudents() {
+        Institution inst = new Institution();
+        inst.setId(5L);
+
+        School school = new School();
+        school.setId(6L);
+        school.setInstitution(inst);
+
+        Teacher teacher = new Teacher();
+        teacher.setId(11L);
+        teacher.setName("Prof Dicas");
+        teacher.setEmail("profdicas@escola.com");
+        teacher.setInstitution(inst);
+        teacher.setApproved(true);
+
+        SchoolClass schoolClass = new SchoolClass();
+        schoolClass.setId(300L);
+        schoolClass.setName("Espanhol B1");
+        schoolClass.setLanguageName("Espanhol");
+        schoolClass.setSchool(school);
+        schoolClass.setInstitution(inst);
+
+        Student student = new Student();
+        student.setId(44L);
+        student.setName("Aluno Notif");
+        Enrollment enrollment = new Enrollment();
+        enrollment.setStudent(student);
+        enrollment.setSchoolClass(schoolClass);
+        enrollment.setStatus(EnrollmentStatus.ACTIVE);
+
+        ClassTeacherAssignment cta = new ClassTeacherAssignment();
+        cta.setTeacher(teacher);
+        cta.setSchoolClass(schoolClass);
+
+        StudentNotificationService notifService = mock(StudentNotificationService.class);
+        exerciseService.setStudentNotificationService(notifService);
+
+        when(teacherRepository.findByEmailIgnoreCase("profdicas@escola.com")).thenReturn(Optional.of(teacher));
+        when(schoolClassRepository.findById(300L)).thenReturn(Optional.of(schoolClass));
+        when(assignmentRepository.findByTeacherId(11L)).thenReturn(List.of(cta));
+        when(enrollmentRepository.findBySchoolClassIdAndStatusOrderByEnrollmentDateAsc(300L, EnrollmentStatus.ACTIVE))
+            .thenReturn(List.of(enrollment));
+        when(exerciseRepository.save(any(LearningExercise.class))).thenAnswer(inv -> {
+            LearningExercise ex = inv.getArgument(0);
+            if (ex.getId() == null) ex.setId(77L);
+            return ex;
+        });
+
+        List<ExerciseQuestionRequestDTO> questions = List.of(
+            new ExerciseQuestionRequestDTO("Objetiva", "Q1", List.of("A", "B"), "A", "A", "Dica específica Q1"),
+            new ExerciseQuestionRequestDTO("Objetiva", "Q2", List.of("C", "D"), "D", "D", "Dica específica Q2")
+        );
+
+        LearningExerciseRequestDTO req = new LearningExerciseRequestDTO(
+            "Dicas por Questão",
+            "Gramática",
+            "Verbos",
+            "Espanhol",
+            "Intermediário",
+            null,
+            null,
+            null,
+            LocalDate.now().plusDays(2),
+            300L,
+            questions,
+            null
+        );
+
+        LearningExerciseResponseDTO created = exerciseService.create(req, "profdicas@escola.com");
+        assertEquals(2, created.questions().size());
+        assertEquals("Dica específica Q1", created.questions().get(0).mascotHelpMessage());
+        assertEquals("Dica específica Q2", created.questions().get(1).mascotHelpMessage());
+        verify(notifService).notifyStudent(
+            org.mockito.ArgumentMatchers.eq(44L),
+            org.mockito.ArgumentMatchers.eq("Novo exercício publicado"),
+            org.mockito.ArgumentMatchers.contains("Dicas por Questão"),
+            org.mockito.ArgumentMatchers.eq("NEW_EXERCISE"),
+            org.mockito.ArgumentMatchers.eq("/exercises")
+        );
+    }
 }

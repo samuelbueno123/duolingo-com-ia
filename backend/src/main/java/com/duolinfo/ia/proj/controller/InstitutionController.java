@@ -157,6 +157,30 @@ public class InstitutionController {
         );
     }
 
+    @RequestMapping(
+        value = "/{id}/picture",
+        method = {
+            org.springframework.web.bind.annotation.RequestMethod.PUT,
+            org.springframework.web.bind.annotation.RequestMethod.PATCH
+        }
+    )
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @Operation(summary = "Atualiza ou remove a foto/brasão da instituição (Professor aprovado da instituição ou Admin)")
+    public InstitutionResponseDTO updatePicture(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> body) {
+        if (accessControlService != null) {
+            accessControlService.assertCanUpdateInstitutionPicture(id);
+        }
+        String rawPicture = body == null ? null
+            : body.getOrDefault("pictureUrl",
+                body.getOrDefault("profilePicture",
+                    body.get("picture")));
+        return DtoMapper.toInstitutionResponse(
+            institutionService.updatePicture(id, rawPicture)
+        );
+    }
+
     @PatchMapping("/{id}/activate")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Ativa instituição")

@@ -68,10 +68,15 @@ public class SecurityConfig {
 
                 .requestMatchers(HttpMethod.GET,
                     "/api/catalog/languages",
+                    "/api/catalog/language-flags",
                     "/api/catalog/proficiency-levels").permitAll()
                 .requestMatchers(HttpMethod.GET,
                     "/api/institutions",
                     "/api/institutions/**").permitAll()
+                .requestMatchers(HttpMethod.PUT, "/api/institutions/*/picture")
+                    .hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/institutions/*/picture")
+                    .hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/media/profile-pictures/**")
                     .permitAll()
                 .requestMatchers(HttpMethod.GET,
@@ -128,8 +133,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/enrollments/**")
                     .hasAnyRole("TEACHER", "ADMIN")
 
+                .requestMatchers(HttpMethod.GET, "/api/class-teacher-assignments/**")
+                    .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers("/api/class-teacher-assignments/**")
-                    .hasAnyRole("TEACHER", "ADMIN")
+                    .hasRole("ADMIN")
 
                 .requestMatchers(HttpMethod.GET, "/api/achievements/**")
                     .hasAnyRole("STUDENT", "TEACHER", "ADMIN")

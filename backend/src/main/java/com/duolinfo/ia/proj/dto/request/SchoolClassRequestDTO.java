@@ -41,7 +41,10 @@ public record SchoolClassRequestDTO(
         description = "Idioma da turma (um dos 6 idiomas oficiais da plataforma)",
         example = "Inglês"
     )
-    String languageName
+    String languageName,
+
+    @Schema(description = "URL ou Data URI da foto/ícone da turma")
+    String pictureUrl
 ) {
     public SchoolClassRequestDTO(
             String name,
@@ -50,6 +53,17 @@ public record SchoolClassRequestDTO(
             String gradeLevel,
             Long schoolId,
             Boolean active) {
-        this(name, schoolYear, shift, gradeLevel, schoolId, active, null);
+        this(name, schoolYear, shift, gradeLevel, schoolId, active, null, null);
+    }
+
+    public SchoolClassRequestDTO(
+            String name,
+            String schoolYear,
+            String shift,
+            String gradeLevel,
+            Long schoolId,
+            Boolean active,
+            String languageName) {
+        this(name, schoolYear, shift, gradeLevel, schoolId, active, languageName, null);
     }
 }

@@ -10,5 +10,17 @@ public record DiagnosticQuestionDTO(
     String category, // "Gramática", "Vocabulário", "Leitura"
     String prompt,
     List<String> options,
-    @JsonIgnore int correctIndex
-) {}
+    @JsonIgnore int correctIndex,
+    String mascotHelpMessage
+) {
+    public DiagnosticQuestionDTO(
+        int id,
+        String cefrLevel,
+        String category,
+        String prompt,
+        List<String> options,
+        int correctIndex
+    ) {
+        this(id, cefrLevel, category, prompt, options, correctIndex, null);
+    }
+}

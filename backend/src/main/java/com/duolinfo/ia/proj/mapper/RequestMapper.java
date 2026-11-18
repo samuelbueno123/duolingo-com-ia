@@ -210,6 +210,7 @@ public final class RequestMapper {
         institution.setCountry(request.country());
         institution.setAddress(request.address());
         institution.setDescription(request.description());
+        institution.setPictureUrl(request.pictureUrl());
         if (request.active() != null) {
             institution.setActive(request.active());
         }
@@ -229,6 +230,7 @@ public final class RequestMapper {
         schoolClass.setSchoolYear(request.schoolYear());
         schoolClass.setShift(request.shift());
         schoolClass.setGradeLevel(request.gradeLevel());
+        schoolClass.setPictureUrl(request.pictureUrl());
         String inferredDefault = SupportedLanguages.inferFromClassNameOrDefault(request.name());
         schoolClass.setLanguageName(
             SupportedLanguages.normalizeOrDefault(request.languageName(), inferredDefault)

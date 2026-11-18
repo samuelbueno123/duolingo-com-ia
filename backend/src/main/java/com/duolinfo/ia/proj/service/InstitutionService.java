@@ -2,6 +2,7 @@ package com.duolinfo.ia.proj.service;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,18 @@ public class InstitutionService {
     private final SchoolRepository schoolRepository;
     private final TeacherRepository teacherRepository;
     private final StudentRepository studentRepository;
+
+    @Autowired(required = false)
+    private ProfilePictureStorageService profilePictureStorageService;
+
+    private String normalizePictureIfProvided(String rawPicture) {
+        if (rawPicture == null || rawPicture.isBlank()) {
+            return null;
+        }
+        return profilePictureStorageService != null
+            ? profilePictureStorageService.store(rawPicture)
+            : rawPicture.trim();
+    }
 
     @Transactional
     public Institution create(Institution institution) {
@@ -50,6 +63,10 @@ public class InstitutionService {
                 "Já existe uma instituição com o telefone: "
                     + institution.getPhone()
             );
+        }
+
+        if (institution.getPictureUrl() != null && !institution.getPictureUrl().isBlank()) {
+            institution.setPictureUrl(normalizePictureIfProvided(institution.getPictureUrl()));
         }
 
         return institutionRepository.save(institution);
@@ -156,11 +173,21 @@ public class InstitutionService {
         institution.setCountry(data.getCountry());
         institution.setAddress(data.getAddress());
         institution.setDescription(data.getDescription());
+        if (data.getPictureUrl() != null) {
+            institution.setPictureUrl(normalizePictureIfProvided(data.getPictureUrl()));
+        }
 
         if (data.getActive() != null) {
             institution.setActive(data.getActive());
         }
 
+        return institutionRepository.save(institution);
+    }
+
+    @Transactional
+    public Institution updatePicture(Long id, String rawPicture) {
+        Institution institution = findById(id);
+        institution.setPictureUrl(normalizePictureIfProvided(rawPicture));
         return institutionRepository.save(institution);
     }
 

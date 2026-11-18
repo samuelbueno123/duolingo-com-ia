@@ -70,6 +70,7 @@ import com.duolinfo.ia.proj.repository.StudentRepository;
 import com.duolinfo.ia.proj.repository.TeacherDocumentRepository;
 import com.duolinfo.ia.proj.repository.TeacherRepository;
 import com.duolinfo.ia.proj.repository.UserRepository;
+import com.duolinfo.ia.proj.util.CatalogFlagResolver;
 import com.duolinfo.ia.proj.util.SupportedLanguages;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
@@ -958,7 +959,41 @@ public class AdminService {
         sysStats.put("jvmUsedMemoryMb", usedMb);
         sysStats.put("jvmFreeMemoryMb", freeMb);
         sysStats.put("memoryUsedPercent", Math.round(usedPct * 10.0) / 10.0);
-        sysStats.put("availableProcessors", rt.availableProcessors());
+        int processors = rt.availableProcessors();
+        double systemCpuPct = 0.0;
+        double processCpuPct = 0.0;
+        long hostTotalMemMb = 0L;
+        long hostFreeMemMb = 0L;
+        double hostMemUsedPct = 0.0;
+        var osBean = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
+        if (osBean instanceof com.sun.management.OperatingSystemMXBean sunOs) {
+            double rawCpu = sunOs.getCpuLoad();
+            if (rawCpu >= 0.0 && !Double.isNaN(rawCpu)) {
+                systemCpuPct = Math.min(100.0, Math.max(0.0, Math.round(rawCpu * 1000.0) / 10.0));
+            }
+            double rawProc = sunOs.getProcessCpuLoad();
+            if (rawProc >= 0.0 && !Double.isNaN(rawProc)) {
+                processCpuPct = Math.min(100.0, Math.max(0.0, Math.round(rawProc * 1000.0) / 10.0));
+            }
+            long totalBytes = sunOs.getTotalMemorySize();
+            long freeBytes = sunOs.getFreeMemorySize();
+            if (totalBytes > 0) {
+                hostTotalMemMb = totalBytes / (1024 * 1024);
+                hostFreeMemMb = Math.max(0L, freeBytes / (1024 * 1024));
+                long usedBytes = Math.max(0L, totalBytes - Math.max(0L, freeBytes));
+                hostMemUsedPct = Math.round(((usedBytes * 100.0) / totalBytes) * 10.0) / 10.0;
+            }
+        }
+        var threadBean = java.lang.management.ManagementFactory.getThreadMXBean();
+        sysStats.put("availableProcessors", processors);
+        sysStats.put("logicalProcessors", processors);
+        sysStats.put("systemCpuPercent", systemCpuPct);
+        sysStats.put("processCpuPercent", processCpuPct);
+        sysStats.put("jvmActiveThreads", threadBean.getThreadCount());
+        sysStats.put("peakThreadCount", threadBean.getPeakThreadCount());
+        sysStats.put("hostTotalMemoryMb", hostTotalMemMb);
+        sysStats.put("hostFreeMemoryMb", hostFreeMemMb);
+        sysStats.put("hostMemoryUsedPercent", hostMemUsedPct);
         sysStats.put("uptimeSeconds", uptimeSec);
 
         Map<String, Object> appStats = new LinkedHashMap<>();
@@ -1169,27 +1204,26 @@ public class AdminService {
             options = catalogOptionRepository.findByOrderByCatalogTypeAscValueAsc();
         }
         return options.stream()
-            .filter(o -> !"LANGUAGE".equalsIgnoreCase(o.getCatalogType()) || SupportedLanguages.isSupported(o.getValue()))
-            .map(o -> new CatalogOptionResponseDTO(o.getId(), o.getCatalogType(), o.getValue(), o.isActive()))
+            .map(this::toCatalogDto)
             .toList();
     }
 
     @Transactional
     public CatalogOptionResponseDTO createCatalogOption(CatalogOptionRequestDTO request, String adminEmail) {
         requireSuperAdmin(adminEmail);
-        String type = request.catalogType().trim().toUpperCase();
+        String rawType = request.catalogType().trim().toUpperCase();
+        boolean isLanguage = "LANGUAGE".equals(rawType);
+        String type = isLanguage ? "LANGUAGE" : rawType;
         String val = request.value().trim();
-        if ("LANGUAGE".equals(type)) {
-            val = SupportedLanguages.normalize(val).orElseThrow(() -> badRequest(
-                "Apenas os 6 idiomas oficiais são permitidos na plataforma ("
-                    + String.join(", ", SupportedLanguages.ALL) + ")."
-            ));
+        if (isLanguage) {
+            val = SupportedLanguages.normalize(val).orElse(val);
         }
         if (catalogOptionRepository.existsByCatalogTypeIgnoreCaseAndValueIgnoreCase(type, val)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta opção já está cadastrada no catálogo.");
         }
-        CatalogOption opt = new CatalogOption(type, val);
+        CatalogOption opt = new CatalogOption(isLanguage ? "language" : type, val);
         opt.setActive(request.active());
+        applyFlagMetadata(opt, isLanguage, val, request);
         CatalogOption saved = catalogOptionRepository.save(opt);
 
         evictCatalogCache();
@@ -1206,9 +1240,63 @@ public class AdminService {
             "127.0.0.1",
             null,
             "Opção de catálogo criada: tipo=" + type + ", valor=" + val
+                + (isLanguage ? ", bandeira=" + saved.getFlagMode() + ":" + saved.getFlagCode() : "")
         );
 
-        return new CatalogOptionResponseDTO(saved.getId(), saved.getCatalogType(), saved.getValue(), saved.isActive());
+        return toCatalogDto(saved);
+    }
+
+    @Transactional
+    public CatalogOptionResponseDTO updateCatalogOption(
+            Long id,
+            CatalogOptionRequestDTO request,
+            String adminEmail) {
+        requireSuperAdmin(adminEmail);
+        CatalogOption opt = catalogOptionRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Opção de catálogo não encontrada."));
+
+        boolean wasCoreLanguage = "LANGUAGE".equalsIgnoreCase(opt.getCatalogType())
+            && SupportedLanguages.isSupported(opt.getValue());
+
+        if (wasCoreLanguage) {
+            applyFlagMetadata(opt, true, opt.getValue(), request);
+        } else {
+            String rawType = request.catalogType().trim().toUpperCase();
+            boolean isLanguage = "LANGUAGE".equals(rawType);
+            String targetType = isLanguage ? "language" : rawType;
+            String val = request.value().trim();
+            if (isLanguage) {
+                val = SupportedLanguages.normalize(val).orElse(val);
+            }
+            if (!val.equalsIgnoreCase(opt.getValue())
+                    && catalogOptionRepository.existsByCatalogTypeIgnoreCaseAndValueIgnoreCase(targetType, val)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta opção já está cadastrada no catálogo.");
+            }
+            opt.setCatalogType(targetType);
+            opt.setValue(val);
+            opt.setActive(request.active());
+            applyFlagMetadata(opt, isLanguage, val, request);
+        }
+
+        CatalogOption saved = catalogOptionRepository.save(opt);
+        evictCatalogCache();
+
+        auditLogService.recordEvent(
+            "CATALOG",
+            "INFO",
+            "CATALOG_OPTION_UPDATED",
+            adminEmail,
+            "SUPER_ADMIN",
+            "CatalogOption",
+            String.valueOf(saved.getId()),
+            "SUCCESS",
+            "127.0.0.1",
+            null,
+            "Opção de catálogo atualizada: " + saved.getValue()
+                + " (flagMode=" + saved.getFlagMode() + ", flagCode=" + saved.getFlagCode() + ")"
+        );
+
+        return toCatalogDto(saved);
     }
 
     @Transactional
@@ -1238,7 +1326,57 @@ public class AdminService {
             "Opção de catálogo " + saved.getValue() + " alterada para active=" + saved.isActive()
         );
 
-        return new CatalogOptionResponseDTO(saved.getId(), saved.getCatalogType(), saved.getValue(), saved.isActive());
+        return toCatalogDto(saved);
+    }
+
+    private void applyFlagMetadata(
+            CatalogOption opt,
+            boolean isLanguage,
+            String languageName,
+            CatalogOptionRequestDTO request) {
+        if (!isLanguage) {
+            opt.setFlagMode("AUTO");
+            opt.setFlagCode(null);
+            opt.setFlagUrl(null);
+            return;
+        }
+        String mode = CatalogFlagResolver.normalizeFlagMode(request.flagMode());
+        opt.setFlagMode(mode);
+        if ("MANUAL".equals(mode)) {
+            String manualCode = CatalogFlagResolver.normalizeManualFlagCode(request.flagCode());
+            String manualUrl = CatalogFlagResolver.sanitizeFlagUrl(request.flagUrl());
+            if (request.flagUrl() != null && !request.flagUrl().isBlank() && manualUrl == null) {
+                throw badRequest("URL da bandeira inválida. Use apenas links http:// ou https://.");
+            }
+            if ((manualCode == null || manualCode.isBlank()) && (manualUrl == null || manualUrl.isBlank())) {
+                throw badRequest("No modo Manual, selecione/informe um código ou bandeira personalizada (ou URL).");
+            }
+            opt.setFlagCode(manualCode != null ? manualCode : "custom");
+            opt.setFlagUrl(manualUrl);
+        } else {
+            opt.setFlagCode(CatalogFlagResolver.resolveAutoFlagCode(languageName));
+            opt.setFlagUrl(null);
+        }
+    }
+
+    private CatalogOptionResponseDTO toCatalogDto(CatalogOption o) {
+        boolean isLang = "LANGUAGE".equalsIgnoreCase(o.getCatalogType());
+        String mode = CatalogFlagResolver.normalizeFlagMode(o.getFlagMode());
+        String code = o.getFlagCode();
+        if (isLang && ("AUTO".equals(mode) || code == null || code.isBlank())) {
+            code = (code != null && !code.isBlank())
+                ? code
+                : CatalogFlagResolver.resolveAutoFlagCode(o.getValue());
+        }
+        return new CatalogOptionResponseDTO(
+            o.getId(),
+            o.getCatalogType(),
+            o.getValue(),
+            o.isActive(),
+            mode,
+            code,
+            o.getFlagUrl()
+        );
     }
 
     @Transactional

@@ -3,8 +3,12 @@ package com.duolinfo.ia.proj.service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,12 +63,8 @@ public class PronunciationService {
 
     @EventListener(ApplicationReadyEvent.class)
     public void seedInitialChallenges() {
-        if (challengeRepository.count() > 0) {
-            return;
-        }
-
         List<PronunciationChallenge> initialChallenges = List.of(
-            // Inglês - A1
+            // Inglês - A1..B2
             PronunciationChallenge.builder()
                 .language("Inglês")
                 .cefrLevel("A1")
@@ -87,7 +87,6 @@ public class PronunciationService {
                 .difficultyScore(1)
                 .build(),
 
-            // Inglês - A2
             PronunciationChallenge.builder()
                 .language("Inglês")
                 .cefrLevel("A2")
@@ -99,7 +98,6 @@ public class PronunciationService {
                 .difficultyScore(2)
                 .build(),
 
-            // Inglês - B1
             PronunciationChallenge.builder()
                 .language("Inglês")
                 .cefrLevel("B1")
@@ -111,7 +109,6 @@ public class PronunciationService {
                 .difficultyScore(3)
                 .build(),
 
-            // Inglês - B2
             PronunciationChallenge.builder()
                 .language("Inglês")
                 .cefrLevel("B2")
@@ -123,7 +120,7 @@ public class PronunciationService {
                 .difficultyScore(4)
                 .build(),
 
-            // Espanhol - A1
+            // Espanhol - A1..B2
             PronunciationChallenge.builder()
                 .language("Espanhol")
                 .cefrLevel("A1")
@@ -135,7 +132,17 @@ public class PronunciationService {
                 .difficultyScore(1)
                 .build(),
 
-            // Espanhol - B1
+            PronunciationChallenge.builder()
+                .language("Espanhol")
+                .cefrLevel("A2")
+                .category("Cultura e Lazer")
+                .phraseText("Ayer visitamos el museo de arte moderno con unos amigos.")
+                .phoneticGuide("/aˈʝeɾ βisiˈtamos el muˈseo ðe ˈaɾte moˈðeɾno kon ˈunos aˈmiɣos/")
+                .translation("Ontem visitamos o museu de arte moderna com alguns amigos.")
+                .phoneticTips("Mantenha as cinco vogais do espanhol sempre curtas e bem abertas, sem nasalizar.")
+                .difficultyScore(2)
+                .build(),
+
             PronunciationChallenge.builder()
                 .language("Espanhol")
                 .cefrLevel("B1")
@@ -145,11 +152,219 @@ public class PronunciationService {
                 .translation("Tomara que tenhamos tempo para visitar o centro histórico da cidade.")
                 .phoneticTips("O som da letra 'j' em 'Ojalá' é emitido na garganta, como um 'r' forte em português.")
                 .difficultyScore(3)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Espanhol")
+                .cefrLevel("B2")
+                .category("Comunicação Profissional")
+                .phraseText("Es fundamental que desarrollemos estrategias sostenibles a largo plazo.")
+                .phoneticGuide("/es fundamenˈtal ke desaɾoˈʝemos estɾaˈtexjas sosteˈniβles a ˈlaɾɣo ˈplaso/")
+                .translation("É fundamental que desenvolvamos estratégias sustentáveis a longo prazo.")
+                .phoneticTips("Vibre o 'rr' múltiplo em 'desarrollemos' e marque o ritmo claro entre as sílabas.")
+                .difficultyScore(4)
+                .build(),
+
+            // Francês - A1..B2
+            PronunciationChallenge.builder()
+                .language("Francês")
+                .cefrLevel("A1")
+                .category("Cumprimentos")
+                .phraseText("Bonjour, je m'appelle Lucas et j'habite au Brésil.")
+                .phoneticGuide("/bɔ̃ʒuʁ ʒə mapɛl lyka e ʒabit o bʁezil/")
+                .translation("Bom dia, eu me chamo Lucas e moro no Brasil.")
+                .phoneticTips("O 'u' em 'Lucas' se pronuncia fazendo biquinho com os lábios como se fosse falar 'i'; o 'r' é suave na garganta.")
+                .difficultyScore(1)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Francês")
+                .cefrLevel("A2")
+                .category("Café e Bistrô")
+                .phraseText("Je voudrais un croissant chaud et un café au lait, s'il vous plaît.")
+                .phoneticGuide("/ʒə vudʁɛ œ̃ kʁwasɑ̃ ʃo e œ̃ kafe o lɛ sil vu plɛ/")
+                .translation("Eu gostaria de um croissant quentinho e um café com leite, por favor.")
+                .phoneticTips("Em 'voudrais' e 'lait', o conjunto 'ai' tem som de 'é' aberto; não pronuncie o 't' ou 's' final.")
+                .difficultyScore(2)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Francês")
+                .cefrLevel("B1")
+                .category("Viagens e Transportes")
+                .phraseText("Nous allons prendre le train à grande vitesse demain matin.")
+                .phoneticGuide("/nu zalɔ̃ pʁɑ̃dʁ lə tʁɛ̃ a ɡʁɑ̃d vitɛs dəmɛ̃ matɛ̃/")
+                .translation("Nós vamos pegar o trem de alta velocidade amanhã de manhã.")
+                .phoneticTips("Faça a liaison entre 'nous' e 'allons' (/nuzalɔ̃/) unindo o 's' com som de 'z' à vogal seguinte.")
+                .difficultyScore(3)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Francês")
+                .cefrLevel("B2")
+                .category("Expressão Profissional")
+                .phraseText("Bien que ce projet soit ambitieux, notre équipe relèvera ce défi ensemble.")
+                .phoneticGuide("/bjɛ̃ kə sə pʁɔʒɛ swa ɑ̃bisjø nɔtʁ ekijp ʁəlɛvʁa sə defi ɑ̃sɑ̃bl/")
+                .translation("Embora este projeto seja ambicioso, nossa equipe vencerá esse desafio unida.")
+                .phoneticTips("Capriche nas vogais nasais em 'bien', 'ambitieux' e 'ensemble' sem encostar a língua no palato.")
+                .difficultyScore(4)
+                .build(),
+
+            // Alemão - A1..B2
+            PronunciationChallenge.builder()
+                .language("Alemão")
+                .cefrLevel("A1")
+                .category("Apresentação Pessoal")
+                .phraseText("Guten Tag, ich komme aus Brasilien und lerne Deutsch.")
+                .phoneticGuide("/ˈɡuːtn̩ taːk ɪç ˈkɔmə aʊ̯s bʁaˈziːli̯ən ʊnt ˈlɛʁnə dɔɪ̯tʃ/")
+                .translation("Boa tarde, eu venho do Brasil e estou aprendendo alemão.")
+                .phoneticTips("Em 'ich', o 'ch' tem som suave de ar passando pelo palato; em 'Deutsch', 'eu' soa como 'ói'.")
+                .difficultyScore(1)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Alemão")
+                .cefrLevel("A2")
+                .category("Cidade e Transportes")
+                .phraseText("Entschuldigung, wie komme ich bitte zum Hauptbahnhof?")
+                .phoneticGuide("/ɛntˈʃʊldɪɡʊŋ viː ˈkɔmə ɪç ˈbɪtə t͡sʊm ˈhaʊ̯ptbaːnhoːf/")
+                .translation("Com licença, como chego à estação central, por favor?")
+                .phoneticTips("Pronuncie 'sch' como 'ch' em 'chave' e lembre que o 'z' em 'zum' tem som firme de 'ts'.")
+                .difficultyScore(2)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Alemão")
+                .cefrLevel("B1")
+                .category("Convivência e Planos")
+                .phraseText("Ich freue mich darauf, nächste Woche neue Kollegen kennenzulernen.")
+                .phoneticGuide("/ɪç ˈfʁɔɪ̯ə mɪç daˈʁaʊ̯f ˈnɛːçstə ˈvɔxə ˈnɔɪ̯ə kɔˈleːɡn̩ ˈkɛnənt͡suˌlɛʁnən/")
+                .translation("Estou feliz por conhecer novos colegas na próxima semana.")
+                .phoneticTips("Diferencie 'ch' suave após 'ä/e' em 'nächste' do 'ch' gutural após 'o' em 'Woche'.")
+                .difficultyScore(3)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Alemão")
+                .cefrLevel("B2")
+                .category("Ambiente Corporativo")
+                .phraseText("Obwohl die Aufgabe anspruchsvoll ist, finden wir gemeinsam eine gute Lösung.")
+                .phoneticGuide("/ɔpˈvoːl diː ˈaʊ̯fɡaːbə ˈanʃpʁʊxsfɔl ɪst ˈfɪndn̩ viːɐ̯ ɡəˈmaɪ̯nzaːm ˈaɪ̯nə ˈɡuːtə ˈløːzʊŋ/")
+                .translation("Embora a tarefa seja exigente, encontraremos juntos uma boa solução.")
+                .phoneticTips("Para o 'ö' em 'Lösung', arredonde os lábios para dizer 'ô' enquanto articula a vogal 'ê'.")
+                .difficultyScore(4)
+                .build(),
+
+            // Italiano - A1..B2
+            PronunciationChallenge.builder()
+                .language("Italiano")
+                .cefrLevel("A1")
+                .category("Cumprimentos")
+                .phraseText("Buongiorno! Piacere di conoscerti, come stai oggi?")
+                .phoneticGuide("/bwɔnˈdʒorno pjaˈtʃeːre di koˈnoʃʃerti ˈkoːme ˈstai ˈɔddʒi/")
+                .translation("Bom dia! Prazer em conhecê-lo, como você está hoje?")
+                .phoneticTips("Articule claramente 'gi' e 'ce' com som de 'dj' e 'tch'; em 'oggi', prolongue levemente o duplo 'gg'.")
+                .difficultyScore(1)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Italiano")
+                .cefrLevel("A2")
+                .category("Gastronomia")
+                .phraseText("Vorrei ordinare un caffè espresso e una pizza margherita, per favore.")
+                .phoneticGuide("/vorˈrɛi ordiˈnaːre un kafˈfɛ esˈprɛsso e ˈuːna ˈpittsa marɡeˈriːta per faˈvoːre/")
+                .translation("Eu gostaria de pedir um café expresso e uma pizza margherita, por favor.")
+                .phoneticTips("Marque as consoantes duplas em 'vorrei', 'caffè' e 'pizza' ('pít-tsa'); em 'margherita', 'gh' tem som duro de 'g'.")
+                .difficultyScore(2)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Italiano")
+                .cefrLevel("B1")
+                .category("Viagens pela Itália")
+                .phraseText("Domani mattina prenderemo il treno veloce da Roma a Firenze.")
+                .phoneticGuide("/doˈmaːni matˈtiːna prendeˈreːmo il ˈtreːno veˈloːtʃe da ˈroːma a fiˈrɛntse/")
+                .translation("Amanhã de manhã pegaremos o trem rápido de Roma para Florença.")
+                .phoneticTips("Em 'Firenze', o 'z' é pronunciado como 'ts', enquanto o 'c' em 'veloce' soa como 'tch'.")
+                .difficultyScore(3)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Italiano")
+                .cefrLevel("B2")
+                .category("Opiniões e Cultura")
+                .phraseText("Penso che questa esperienza sia davvero straordinaria per la nostra crescita.")
+                .phoneticGuide("/ˈpɛnso ke ˈkwesta espeˈrjɛntsa ˈsiːa davˈveːro straordiˈnaːrja per la ˈnɔstra ˈkreʃʃita/")
+                .translation("Penso que esta experiência seja realmente extraordinária para o nosso crescimento.")
+                .phoneticTips("Em 'che', o dígrafo 'ch' sempre soa como 'k'; em 'crescita', 'sc' antes de 'i' tem som de 'ch'.")
+                .difficultyScore(4)
+                .build(),
+
+            // Japonês - A1..B2
+            PronunciationChallenge.builder()
+                .language("Japonês")
+                .cefrLevel("A1")
+                .category("Cumprimentos")
+                .phraseText("おはようございます はじめまして")
+                .phoneticGuide("/o-ha-yō go-za-i-ma-su | ha-ji-me-ma-shi-te/")
+                .translation("Bom dia! Muito prazer em conhecê-lo(a).")
+                .phoneticTips("Mantenha cada sílaba (mora) com ritmo uniforme e reduza discretamente o som de 'u' no final de 'gozaimasu'.")
+                .difficultyScore(1)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Japonês")
+                .cefrLevel("A2")
+                .category("Café e Pedidos")
+                .phraseText("すみません コーヒーを ください")
+                .phoneticGuide("/su-mi-ma-se-n | kō-hī o ku-da-sa-i/")
+                .translation("Com licença, um café, por favor.")
+                .phoneticTips("Alongue bem as duas vogais em 'kōhī' (ko-o-hi-i) e pronuncie 'を' suavemente como 'o'.")
+                .difficultyScore(2)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Japonês")
+                .cefrLevel("B1")
+                .category("Transporte e Cidade")
+                .phraseText("すみません 駅は どこですか")
+                .phoneticGuide("/su-mi-ma-se-n | e-ki wa do-ko de-su ka/")
+                .translation("Com licença, onde fica a estação de trem?")
+                .phoneticTips("Como partícula de tópico, 'は' lê-se 'wa' e não 'ha'; eleve levemente a entonação no 'ka' final de pergunta.")
+                .difficultyScore(3)
+                .build(),
+
+            PronunciationChallenge.builder()
+                .language("Japonês")
+                .cefrLevel("B2")
+                .category("Cortesia Profissional")
+                .phraseText("いつも お世話に なっております")
+                .phoneticGuide("/i-tsu-mo o-se-wa ni na-t-te o-ri-ma-su/")
+                .translation("Agradeço sempre pelo seu apoio e colaboração.")
+                .phoneticTips("Em 'natte', faça uma pequena retenção antes do 't' (sokuon 'っ') para marcar a consoante dupla.")
+                .difficultyScore(4)
                 .build()
         );
 
-        challengeRepository.saveAll(initialChallenges);
-        log.info("Inicializados {} desafios de pronúncia padrão no banco de dados.", initialChallenges.size());
+        Map<String, Set<String>> existingByLanguage = new HashMap<>();
+        List<PronunciationChallenge> toInsert = new ArrayList<>();
+        for (PronunciationChallenge candidate : initialChallenges) {
+            String lang = candidate.getLanguage();
+            Set<String> existingPhrases = existingByLanguage.computeIfAbsent(lang, key ->
+                challengeRepository.findByLanguageIgnoreCase(key).stream()
+                    .map(c -> c.getPhraseText() != null ? c.getPhraseText().trim().toLowerCase(Locale.ROOT) : "")
+                    .collect(Collectors.toSet())
+            );
+            String normalizedPhrase = candidate.getPhraseText().trim().toLowerCase(Locale.ROOT);
+            if (existingPhrases.add(normalizedPhrase)) {
+                toInsert.add(candidate);
+            }
+        }
+
+        if (!toInsert.isEmpty()) {
+            challengeRepository.saveAll(toInsert);
+            log.info("Inicializados {} desafios de pronúncia nos 6 idiomas suportados.", toInsert.size());
+        }
     }
 
     public List<PronunciationChallengeDTO> getChallenges(String language, String cefrLevel) {
@@ -367,7 +582,7 @@ public class PronunciationService {
 
     private String[] cleanWords(String phrase) {
         if (phrase == null) return new String[0];
-        String clean = phrase.replaceAll("[^a-zA-ZáàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\\s]", "").toLowerCase(Locale.ROOT);
+        String clean = phrase.replaceAll("[^\\p{L}\\p{N}\\s]", " ").trim().toLowerCase(Locale.ROOT);
         return Arrays.stream(clean.split("\\s+"))
                 .filter(w -> !w.isBlank())
                 .toArray(String[]::new);

@@ -199,4 +199,60 @@ class ClassTeacherAssignmentAndInstitutionServiceTest {
         BusinessException exStudents = assertThrows(BusinessException.class, () -> institutionService.delete(5L));
         assertTrue(exStudents.getMessage().contains("possui estudantes cadastrados"));
     }
+
+    @Test
+    void addTeacherToClass_allowsCoTeacherWithoutEndingExistingAndRejectsDuplicates() {
+        Institution inst = new Institution();
+        inst.setId(1L);
+
+        School school = new School();
+        school.setId(2L);
+        school.setInstitution(inst);
+
+        SchoolClass sc = new SchoolClass();
+        sc.setId(10L);
+        sc.setSchool(school);
+
+        Teacher teacher1 = new Teacher();
+        teacher1.setId(20L);
+        teacher1.setName("Prof A");
+        teacher1.setInstitution(inst);
+
+        Teacher teacher2 = new Teacher();
+        teacher2.setId(30L);
+        teacher2.setName("Prof B");
+        teacher2.setInstitution(inst);
+
+        ClassTeacherAssignment active1 = ClassTeacherAssignment.builder()
+            .id(1L)
+            .schoolClass(sc)
+            .teacher(teacher1)
+            .startDate(LocalDate.of(2026, 2, 1))
+            .build();
+
+        when(schoolClassRepository.findById(10L)).thenReturn(Optional.of(sc));
+        when(teacherRepository.findById(30L)).thenReturn(Optional.of(teacher2));
+        when(teacherRepository.findById(20L)).thenReturn(Optional.of(teacher1));
+        when(assignmentRepository.findAllBySchoolClassIdAndEndDateIsNullOrderByStartDateAsc(10L))
+            .thenReturn(List.of(active1));
+        when(assignmentRepository.existsBySchoolClassIdAndTeacherIdAndEndDateIsNull(10L, 30L))
+            .thenReturn(false);
+        when(assignmentRepository.existsBySchoolClassIdAndTeacherIdAndEndDateIsNull(10L, 20L))
+            .thenReturn(true);
+        when(assignmentRepository.save(any(ClassTeacherAssignment.class)))
+            .thenAnswer(inv -> inv.getArgument(0));
+
+        ClassTeacherAssignment added = assignmentService.addTeacherToClass(
+            10L, 30L, LocalDate.of(2026, 3, 1), "Professor Co-docente"
+        );
+        assertEquals(30L, added.getTeacher().getId());
+        assertEquals(null, added.getEndDate());
+        assertEquals(null, active1.getEndDate());
+
+        BusinessException dup = assertThrows(
+            BusinessException.class,
+            () -> assignmentService.addTeacherToClass(10L, 20L, LocalDate.now(), "Duplicado")
+        );
+        assertTrue(dup.getMessage().contains("já está atribuído"));
+    }
 }

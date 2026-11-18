@@ -19,6 +19,7 @@ import com.duolinfo.ia.proj.repository.CatalogOptionRepository;
 import com.duolinfo.ia.proj.repository.InstitutionRepository;
 import com.duolinfo.ia.proj.repository.UserRepository;
 import com.duolinfo.ia.proj.service.InstitutionService;
+import com.duolinfo.ia.proj.util.CatalogFlagResolver;
 import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 @Configuration
@@ -55,7 +56,19 @@ public class CatalogDataInitializer {
         for (CatalogOption opt : existing) {
             var normalized = SupportedLanguages.normalize(opt.getValue());
             if (normalized.isEmpty()) {
-                repository.delete(opt);
+                boolean customChanged = false;
+                if (opt.getFlagMode() == null || opt.getFlagMode().isBlank()) {
+                    opt.setFlagMode("AUTO");
+                    customChanged = true;
+                }
+                if ("AUTO".equalsIgnoreCase(opt.getFlagMode())
+                        && (opt.getFlagCode() == null || opt.getFlagCode().isBlank())) {
+                    opt.setFlagCode(CatalogFlagResolver.resolveAutoFlagCode(opt.getValue()));
+                    customChanged = true;
+                }
+                if (customChanged) {
+                    repository.save(opt);
+                }
             } else {
                 String canonical = normalized.get();
                 boolean duplicateExists = !canonical.equals(opt.getValue())
@@ -74,6 +87,15 @@ public class CatalogDataInitializer {
                     }
                     if (!opt.isActive()) {
                         opt.setActive(true);
+                        changed = true;
+                    }
+                    if (opt.getFlagMode() == null || opt.getFlagMode().isBlank()) {
+                        opt.setFlagMode("AUTO");
+                        changed = true;
+                    }
+                    if ("AUTO".equalsIgnoreCase(opt.getFlagMode())
+                            && (opt.getFlagCode() == null || opt.getFlagCode().isBlank())) {
+                        opt.setFlagCode(CatalogFlagResolver.resolveAutoFlagCode(canonical));
                         changed = true;
                     }
                     if (changed) {
@@ -292,7 +314,14 @@ public class CatalogDataInitializer {
             List<String> values) {
         values.stream()
             .filter(value -> !repository.existsByCatalogTypeAndValue(type, value))
-            .map(value -> new CatalogOption(type, value))
+            .map(value -> {
+                CatalogOption opt = new CatalogOption(type, value);
+                if ("language".equalsIgnoreCase(type)) {
+                    opt.setFlagMode("AUTO");
+                    opt.setFlagCode(CatalogFlagResolver.resolveAutoFlagCode(value));
+                }
+                return opt;
+            })
             .forEach(repository::save);
     }
 }

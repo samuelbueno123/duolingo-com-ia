@@ -93,7 +93,7 @@ public class InstitutionRequestService {
         notification.setReferenceType(REQUEST_REFERENCE);
         notification.setReferenceId(savedRequest.getId());
         AdminNotification savedNotification = notificationRepository.save(notification);
-        notifyAdminNotification(savedNotification);
+        notifyAdminNotification(savedNotification, "NOTIFICATION_ADDED");
 
         return toRequestResponse(savedRequest);
     }
@@ -125,7 +125,9 @@ public class InstitutionRequestService {
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND, "Notificação não encontrada."));
         notification.setRead(true);
-        return toNotificationResponse(notificationRepository.save(notification));
+        AdminNotification saved = notificationRepository.save(notification);
+        notifyAdminNotification(saved, "NOTIFICATION_UPDATED");
+        return toNotificationResponse(saved);
     }
 
     @Transactional
@@ -171,7 +173,7 @@ public class InstitutionRequestService {
             .forEach(notification -> {
                 notification.setRead(true);
                 AdminNotification savedNotification = notificationRepository.save(notification);
-        notifyAdminNotification(savedNotification);
+                notifyAdminNotification(savedNotification, "NOTIFICATION_UPDATED");
             });
         return toRequestResponse(request);
     }
@@ -232,7 +234,7 @@ public class InstitutionRequestService {
             .forEach(notification -> {
                 notification.setRead(true);
                 AdminNotification savedNotification = notificationRepository.save(notification);
-        notifyAdminNotification(savedNotification);
+                notifyAdminNotification(savedNotification, "NOTIFICATION_UPDATED");
             });
         return DtoMapper.toTeacherResponse(saved);
     }
@@ -282,7 +284,7 @@ public class InstitutionRequestService {
                 notification.setReferenceId(teacher.getId());
                 notification.setInstitutionId(teacher.getInstitution() != null ? teacher.getInstitution().getId() : null);
                 AdminNotification savedNotification = notificationRepository.save(notification);
-        notifyAdminNotification(savedNotification);
+        notifyAdminNotification(savedNotification, "NOTIFICATION_ADDED");
             }
         }
     }
@@ -372,7 +374,7 @@ public class InstitutionRequestService {
             request.getCreatedAt());
     }
 
-    private void notifyAdminNotification(AdminNotification notification) {
+    private void notifyAdminNotification(AdminNotification notification, String eventName) {
         if (notification == null || sseEmitterService == null) return;
         try {
             java.util.Map<String, Object> data = new java.util.HashMap<>();
@@ -381,7 +383,7 @@ public class InstitutionRequestService {
             data.put("title", notification.getTitle());
             data.put("message", notification.getMessage());
             data.put("institutionId", notification.getInstitutionId());
-            sseEmitterService.sendToRole("ADMIN", "NOTIFICATION_ADDED", data);
+            sseEmitterService.sendToRole("ADMIN", eventName != null ? eventName : "NOTIFICATION_ADDED", data);
         } catch (Exception ignored) {
         }
     }

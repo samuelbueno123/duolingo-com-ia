@@ -40,3 +40,7 @@ build/
 *.rar
 *credenciais*
 client_secret*.json
+
+### Runtime Logs ###
+logs/
+backend/logs/

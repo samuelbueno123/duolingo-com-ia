@@ -31,6 +31,22 @@ public record StudentResponseDTO(
 
     Long institutionId,
 
-    String institutionName
+    String institutionName,
+
+    String institutionPictureUrl
 ) {
+    public StudentResponseDTO(
+            Long id,
+            String name,
+            String email,
+            String googleId,
+            List<String> languages,
+            Map<String, String> languageLevels,
+            Map<String, Integer> languageScores,
+            String gender,
+            Long institutionId,
+            String institutionName) {
+        this(id, name, email, googleId, languages, languageLevels, languageScores,
+                gender, institutionId, institutionName, null);
+    }
 }

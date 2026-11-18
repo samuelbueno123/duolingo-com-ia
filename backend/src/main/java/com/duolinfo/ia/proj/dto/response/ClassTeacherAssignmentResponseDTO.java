@@ -21,6 +21,19 @@ public record ClassTeacherAssignmentResponseDTO(
 
     LocalDate endDate,
 
-    String reason
+    String reason,
+
+    String schoolClassPictureUrl
 ) {
+    public ClassTeacherAssignmentResponseDTO(
+            Long id,
+            Long schoolClassId,
+            String schoolClassName,
+            Long teacherId,
+            String teacherName,
+            LocalDate startDate,
+            LocalDate endDate,
+            String reason) {
+        this(id, schoolClassId, schoolClassName, teacherId, teacherName, startDate, endDate, reason, null);
+    }
 }

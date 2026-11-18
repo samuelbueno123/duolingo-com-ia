@@ -12,6 +12,18 @@ public record CatalogOptionRequestDTO(
     @Size(max = 100)
     String value,
 
-    boolean active
+    boolean active,
+
+    @Size(max = 20)
+    String flagMode,
+
+    @Size(max = 32)
+    String flagCode,
+
+    @Size(max = 500)
+    String flagUrl
 ) {
+    public CatalogOptionRequestDTO(String catalogType, String value, boolean active) {
+        this(catalogType, value, active, null, null, null);
+    }
 }

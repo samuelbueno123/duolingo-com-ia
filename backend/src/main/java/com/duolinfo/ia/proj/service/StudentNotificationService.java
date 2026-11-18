@@ -79,6 +79,12 @@ public class StudentNotificationService {
 
         notif.setRead(true);
         notif = notificationRepository.save(notif);
+        if (sseEmitterService != null) {
+            sseEmitterService.sendToUser(studentId, "NOTIFICATION_UPDATED", Map.of(
+                "studentId", studentId,
+                "notificationId", notificationId
+            ));
+        }
         return mapToDTO(notif);
     }
 
@@ -91,6 +97,12 @@ public class StudentNotificationService {
             }
         }
         notificationRepository.saveAll(list);
+        if (sseEmitterService != null) {
+            sseEmitterService.sendToUser(studentId, "NOTIFICATION_UPDATED", Map.of(
+                "studentId", studentId,
+                "allRead", true
+            ));
+        }
     }
 
     private StudentNotificationResponseDTO mapToDTO(StudentNotification n) {

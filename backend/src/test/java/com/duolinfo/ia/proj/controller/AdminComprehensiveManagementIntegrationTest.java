@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -130,34 +131,94 @@ public class AdminComprehensiveManagementIntegrationTest {
 
     @Test
     @WithMockUser(username = "admin@duolingo.com", roles = {"ADMIN"})
-    @DisplayName("Admin: Gerenciamento de catálogo impõe os 6 idiomas oficiais e gerencia proficiências (/api/admin/catalog)")
+    @DisplayName("Admin: Gerenciamento de catálogo cria idiomas com bandeira automática/manual, protege os 6 oficiais base e gerencia proficiências")
     void testCatalogManagementFlow() throws Exception {
-        // Rejeita idiomas fora dos 6 oficiais da plataforma
-        String unsupportedPayload = """
+        // Criação de idioma com bandeira automática (Coreano -> kr)
+        String autoLangPayload = """
             {
                 "catalogType": "LANGUAGE",
-                "value": "Esperanto",
-                "active": true
+                "value": "Coreano",
+                "active": true,
+                "flagMode": "AUTO"
+            }
+        """;
+
+        String createdAutoJson = mockMvc.perform(post("/api/admin/catalog")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(autoLangPayload))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.value", is("Coreano")))
+            .andExpect(jsonPath("$.flagMode", is("AUTO")))
+            .andExpect(jsonPath("$.flagCode", is("kr")))
+            .andReturn().getResponse().getContentAsString();
+
+        // Criação de idioma com bandeira manual (Português -> bandeira PT manual)
+        String manualLangPayload = """
+            {
+                "catalogType": "LANGUAGE",
+                "value": "Português",
+                "active": true,
+                "flagMode": "MANUAL",
+                "flagCode": "pt"
             }
         """;
 
         mockMvc.perform(post("/api/admin/catalog")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(unsupportedPayload))
-            .andExpect(status().isBadRequest());
+                .content(manualLangPayload))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.value", is("Português")))
+            .andExpect(jsonPath("$.flagMode", is("MANUAL")))
+            .andExpect(jsonPath("$.flagCode", is("pt")));
 
-        // Protege os 6 idiomas estruturais contra desativação ou remoção
-        Long coreEnglishId = catalogOptionRepository.findByCatalogTypeIgnoreCase("language").stream()
+        // Protege os 6 idiomas estruturais contra desativação ou remoção, mas permite personalizar sua bandeira
+        CatalogOption coreEnglish = catalogOptionRepository.findByCatalogTypeIgnoreCase("language").stream()
             .filter(o -> "Inglês".equalsIgnoreCase(o.getValue()))
-            .map(CatalogOption::getId)
             .findFirst()
             .orElseThrow();
+        Long coreEnglishId = coreEnglish.getId();
 
         mockMvc.perform(patch("/api/admin/catalog/" + coreEnglishId + "/toggle"))
             .andExpect(status().isBadRequest());
 
         mockMvc.perform(delete("/api/admin/catalog/" + coreEnglishId))
             .andExpect(status().isBadRequest());
+
+        String updateCoreFlagPayload = """
+            {
+                "catalogType": "LANGUAGE",
+                "value": "Inglês",
+                "active": true,
+                "flagMode": "MANUAL",
+                "flagCode": "gb"
+            }
+        """;
+
+        mockMvc.perform(put("/api/admin/catalog/" + coreEnglishId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateCoreFlagPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.flagMode", is("MANUAL")))
+            .andExpect(jsonPath("$.flagCode", is("gb")));
+
+        // Listagem inclui os 6 idiomas base + Coreano e Português cadastrados pelo admin
+        mockMvc.perform(get("/api/admin/catalog").param("type", "LANGUAGE"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$", hasSize(8)));
+
+        // Alternância e remoção funcionam normalmente em idioma customizado
+        Long koreanId = catalogOptionRepository.findByCatalogTypeIgnoreCase("language").stream()
+            .filter(o -> "Coreano".equalsIgnoreCase(o.getValue()))
+            .map(CatalogOption::getId)
+            .findFirst()
+            .orElseThrow();
+
+        mockMvc.perform(patch("/api/admin/catalog/" + koreanId + "/toggle"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.active", is(false)));
+
+        mockMvc.perform(delete("/api/admin/catalog/" + koreanId))
+            .andExpect(status().isNoContent());
 
         // Criação válida de proficiência no catálogo
         String levelPayload = """
@@ -187,16 +248,12 @@ public class AdminComprehensiveManagementIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.active", is(false)));
 
-        // Listagem estrita dos 6 idiomas oficiais
-        mockMvc.perform(get("/api/admin/catalog").param("type", "LANGUAGE"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$", hasSize(6)));
-
         // Exclusão
         mockMvc.perform(delete("/api/admin/catalog/" + optionId))
             .andExpect(status().isNoContent());
 
         assertFalse(catalogOptionRepository.existsById(optionId));
+        assertTrue(createdAutoJson.contains("Coreano"));
     }
 
     @Test

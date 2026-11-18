@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,12 +47,13 @@ public class ClassTeacherAssignmentController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
         summary = "Atribui professor à turma",
         description = """
             Atribui um professor a uma turma.
             Caso já exista um professor atual, a atribuição anterior
-            será encerrada automaticamente.
+            será encerrada automaticamente. Restrito a administradores.
             """
     )
     public ClassTeacherAssignmentResponseDTO assignTeacher(
@@ -59,10 +61,34 @@ public class ClassTeacherAssignmentController {
             @RequestBody
             ClassTeacherAssignmentRequestDTO request) {
         if (accessControlService != null) {
-            accessControlService.assertCanManageSchoolClass(request.schoolClassId());
+            accessControlService.assertCanManageClassTeachers(request.schoolClassId());
         }
         return DtoMapper.toAssignmentResponse(
             assignmentService.assignTeacher(
+                request.schoolClassId(),
+                request.teacherId(),
+                request.startDate(),
+                request.reason()
+            )
+        );
+    }
+
+    @PostMapping("/additional")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+        summary = "Adiciona mais um professor à turma",
+        description = "Adiciona um professor co-docente à turma sem encerrar os professores atuais. Restrito a administradores."
+    )
+    public ClassTeacherAssignmentResponseDTO addAdditionalTeacher(
+            @Valid
+            @RequestBody
+            ClassTeacherAssignmentRequestDTO request) {
+        if (accessControlService != null) {
+            accessControlService.assertCanManageClassTeachers(request.schoolClassId());
+        }
+        return DtoMapper.toAssignmentResponse(
+            assignmentService.addTeacherToClass(
                 request.schoolClassId(),
                 request.teacherId(),
                 request.startDate(),
@@ -110,6 +136,20 @@ public class ClassTeacherAssignmentController {
         );
     }
 
+    @GetMapping("/class/{schoolClassId}/active")
+    @Operation(summary = "Lista todos os professores ativos da turma")
+    public List<ClassTeacherAssignmentResponseDTO> findActiveTeachers(
+            @PathVariable Long schoolClassId) {
+        if (accessControlService != null) {
+            accessControlService.assertCanViewSchoolClass(schoolClassId);
+        }
+        return assignmentService
+            .findActiveTeachers(schoolClassId)
+            .stream()
+            .map(DtoMapper::toAssignmentResponse)
+            .toList();
+    }
+
     @GetMapping("/teacher/{teacherId}")
     @Operation(summary = "Lista turmas do professor")
     public List<ClassTeacherAssignmentResponseDTO> findByTeacher(
@@ -125,13 +165,14 @@ public class ClassTeacherAssignmentController {
     }
 
     @PostMapping("/class/{schoolClassId}/finish")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Encerra professor atual da turma")
     public ClassTeacherAssignmentResponseDTO finishCurrentAssignment(
             @PathVariable Long schoolClassId,
             @RequestBody(required = false)
             ClassTeacherAssignmentFinishDTO request) {
         if (accessControlService != null) {
-            accessControlService.assertCanManageSchoolClass(schoolClassId);
+            accessControlService.assertCanManageClassTeachers(schoolClassId);
         }
         return DtoMapper.toAssignmentResponse(
             assignmentService.finishCurrentAssignment(
@@ -143,12 +184,13 @@ public class ClassTeacherAssignmentController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Exclui uma atribuição")
     public void delete(
             @PathVariable Long id) {
         if (accessControlService != null) {
             ClassTeacherAssignment assignment = assignmentService.findById(id);
-            accessControlService.assertCanManageSchoolClass(assignment.getSchoolClass());
+            accessControlService.assertCanManageClassTeachers(assignment.getSchoolClass());
         }
         assignmentService.delete(id);
     }

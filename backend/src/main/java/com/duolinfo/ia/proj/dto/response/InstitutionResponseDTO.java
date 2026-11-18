@@ -28,6 +28,26 @@ public record InstitutionResponseDTO(
     @Schema(
         example = "2026-01-05T15:30:00"
     )
-    LocalDateTime updatedAt
+    LocalDateTime updatedAt,
+
+    @Schema(description = "URL da foto/brasão da instituição")
+    String pictureUrl
 ) {
+    public InstitutionResponseDTO(
+            Long id,
+            String name,
+            String code,
+            String email,
+            String phone,
+            String website,
+            String city,
+            String state,
+            String country,
+            String address,
+            String description,
+            Boolean active,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt) {
+        this(id, name, code, email, phone, website, city, state, country, address, description, active, createdAt, updatedAt, null);
+    }
 }

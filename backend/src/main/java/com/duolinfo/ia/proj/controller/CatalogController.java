@@ -6,7 +6,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.duolinfo.ia.proj.dto.response.CatalogOptionResponseDTO;
 import com.duolinfo.ia.proj.repository.CatalogOptionRepository;
+import com.duolinfo.ia.proj.util.CatalogFlagResolver;
 import com.duolinfo.ia.proj.util.SupportedLanguages;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,5 +44,25 @@ public class CatalogController {
     @org.springframework.cache.annotation.Cacheable("catalogProficiencyLevels")
     public List<String> findProficiencyLevels() {
         return List.of("Básico", "Intermediário", "Avançado");
+    }
+
+    @GetMapping("/language-flags")
+    @Operation(summary = "Lista idiomas ativos e seus metadados de bandeira (automática ou manual)")
+    public List<CatalogOptionResponseDTO> findLanguageFlags() {
+        return catalogOptionRepository
+            .findByCatalogTypeIgnoreCaseAndActiveTrueOrderByValueAsc("language")
+            .stream()
+            .map(o -> new CatalogOptionResponseDTO(
+                o.getId(),
+                o.getCatalogType(),
+                o.getValue(),
+                o.isActive(),
+                CatalogFlagResolver.normalizeFlagMode(o.getFlagMode()),
+                (o.getFlagCode() != null && !o.getFlagCode().isBlank())
+                    ? o.getFlagCode()
+                    : CatalogFlagResolver.resolveAutoFlagCode(o.getValue()),
+                o.getFlagUrl()
+            ))
+            .toList();
     }
 }

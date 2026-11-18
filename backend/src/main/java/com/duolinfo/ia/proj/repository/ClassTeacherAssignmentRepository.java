@@ -34,6 +34,16 @@ public interface ClassTeacherAssignmentRepository
     );
 
     @EntityGraph(attributePaths = {"schoolClass", "schoolClass.school", "schoolClass.school.institution", "schoolClass.institution", "teacher", "teacher.institution"})
+    List<ClassTeacherAssignment> findAllBySchoolClassIdAndEndDateIsNullOrderByStartDateAsc(
+        Long schoolClassId
+    );
+
+    boolean existsBySchoolClassIdAndTeacherIdAndEndDateIsNull(
+        Long schoolClassId,
+        Long teacherId
+    );
+
+    @EntityGraph(attributePaths = {"schoolClass", "schoolClass.school", "schoolClass.school.institution", "schoolClass.institution", "teacher", "teacher.institution"})
     List<ClassTeacherAssignment> findBySchoolClassIdOrderByStartDateDesc(
         Long schoolClassId
     );

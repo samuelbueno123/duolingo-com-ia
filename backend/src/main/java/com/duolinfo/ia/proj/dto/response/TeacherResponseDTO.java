@@ -41,6 +41,27 @@ public record TeacherResponseDTO(
 
     String approvalStatus,
 
-    String institutionName
+    String institutionName,
+
+    String institutionPictureUrl
 ) {
+    public TeacherResponseDTO(
+            Long id,
+            String name,
+            String email,
+            String googleId,
+            Long institutionId,
+            List<String> taughtLanguages,
+            List<String> specializationAreas,
+            String bibliography,
+            boolean approved,
+            String gender,
+            boolean institutionAdmin,
+            boolean primaryInstitutionAdmin,
+            String approvalStatus,
+            String institutionName) {
+        this(id, name, email, googleId, institutionId, taughtLanguages, specializationAreas,
+                bibliography, approved, gender, institutionAdmin, primaryInstitutionAdmin,
+                approvalStatus, institutionName, null);
+    }
 }

@@ -5,9 +5,16 @@
     <conversionRule conversionWord="wex" converterClass="org.springframework.boot.logging.logback.WhitespaceThrowableProxyConverter" />
     <conversionRule conversionWord="wEx" converterClass="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter" />
 
+    <springProperty scope="context" name="LOG_DIR" source="app.logging.dir" defaultValue="./logs" />
+    <springProperty scope="context" name="LOG_RETENTION_DAYS" source="app.logging.retention-days" defaultValue="30" />
+
     <!-- Padrão estruturado de console contendo Timestamp ISO-8601, Nível, Thread, Correlation ID do MDC, Logger e Mensagem -->
     <property name="CONSOLE_LOG_PATTERN"
               value="%clr(%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}){faint} %clr(%-5level) %clr([%15.15t]){faint} %clr([%X{correlationId:-NO_CORR_ID}]){cyan} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n%wEx"/>
+
+    <!-- Padrão limpo para arquivos rotacionados (sem sequências ANSI) -->
+    <property name="FILE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%15.15t] [%X{correlationId:-NO_CORR_ID}] %-40.40logger{39} : %m%n%wEx"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
@@ -16,8 +23,62 @@
         </encoder>
     </appender>
 
+    <!-- Canal 1: Aplicação Geral (rotação diária + tamanho, retenção de 30 dias / 1 mês) -->
+    <appender name="APPLICATION_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/application.log</file>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/application-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>20MB</maxFileSize>
+            <maxHistory>${LOG_RETENTION_DAYS}</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Canal 2: Erros e Alertas (WARN e ERROR separados para triagem rápida) -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/errors.log</file>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/errors-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>20MB</maxFileSize>
+            <maxHistory>${LOG_RETENTION_DAYS}</maxHistory>
+            <totalSizeCap>512MB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Canal 3: Segurança e Auditoria (autenticação, ações administrativas e compliance) -->
+    <appender name="SECURITY_AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/security-audit.log</file>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/security-audit-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>20MB</maxFileSize>
+            <maxHistory>${LOG_RETENTION_DAYS}</maxHistory>
+            <totalSizeCap>512MB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+
     <!-- Níveis de Log específicos -->
     <logger name="com.duolinfo.ia.proj" level="INFO" />
+    <logger name="com.duolinfo.ia.proj.SECURITY_AUDIT" level="INFO" additivity="true">
+        <appender-ref ref="SECURITY_AUDIT_FILE" />
+    </logger>
     <logger name="org.springframework.web" level="INFO" />
     <logger name="org.springframework.security" level="INFO" />
     <logger name="org.hibernate.SQL" level="WARN" />
@@ -26,6 +87,8 @@
 
     <root level="INFO">
         <appender-ref ref="CONSOLE" />
+        <appender-ref ref="APPLICATION_FILE" />
+        <appender-ref ref="ERROR_FILE" />
     </root>
 
 </configuration>

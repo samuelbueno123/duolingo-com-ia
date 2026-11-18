@@ -1,8 +1,12 @@
 package com.duolinfo.ia.proj.controller;
 
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -44,6 +48,9 @@ import com.duolinfo.ia.proj.dto.response.CatalogOptionResponseDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionAdminDashboardDTO;
 import com.duolinfo.ia.proj.dto.response.InstitutionRequestResponseDTO;
 import com.duolinfo.ia.proj.dto.response.StudentAchievementsOverviewDTO;
+import com.duolinfo.ia.proj.dto.response.SystemLogCleanupResponseDTO;
+import com.duolinfo.ia.proj.dto.response.SystemLogFileContentResponseDTO;
+import com.duolinfo.ia.proj.dto.response.SystemLogFileListResponseDTO;
 import com.duolinfo.ia.proj.dto.response.TeacherDocumentAdminDTO;
 import com.duolinfo.ia.proj.dto.response.TeacherResponseDTO;
 import com.duolinfo.ia.proj.entity.InstitutionRequest.Status;
@@ -52,6 +59,7 @@ import com.duolinfo.ia.proj.service.AchievementService;
 import com.duolinfo.ia.proj.service.AdminService;
 import com.duolinfo.ia.proj.service.AuditLogService;
 import com.duolinfo.ia.proj.service.InstitutionRequestService;
+import com.duolinfo.ia.proj.service.SystemLogFileService;
 
 import jakarta.validation.Valid;
 
@@ -65,12 +73,21 @@ public class AdminController {
     private final InstitutionRequestService institutionRequestService;
     private final AchievementService achievementService;
     private final AuditLogService auditLogService;
+    private final SystemLogFileService systemLogFileService;
 
     public AdminController(
             AdminService adminService,
             InstitutionRequestService institutionRequestService,
             AchievementService achievementService) {
-        this(adminService, institutionRequestService, achievementService, null);
+        this(adminService, institutionRequestService, achievementService, null, null);
+    }
+
+    public AdminController(
+            AdminService adminService,
+            InstitutionRequestService institutionRequestService,
+            AchievementService achievementService,
+            AuditLogService auditLogService) {
+        this(adminService, institutionRequestService, achievementService, auditLogService, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -78,11 +95,13 @@ public class AdminController {
             AdminService adminService,
             InstitutionRequestService institutionRequestService,
             AchievementService achievementService,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            SystemLogFileService systemLogFileService) {
         this.adminService = adminService;
         this.institutionRequestService = institutionRequestService;
         this.achievementService = achievementService;
         this.auditLogService = auditLogService;
+        this.systemLogFileService = systemLogFileService;
     }
 
     @GetMapping("/tables")
@@ -288,6 +307,65 @@ public class AdminController {
         return auditLogService.searchLogs(category, severity, result, actorEmail, search, startDate, endDate, page, size);
     }
 
+    @GetMapping("/logs/files")
+    public SystemLogFileListResponseDTO listSystemLogFiles(
+            @RequestParam(required = false) String channel,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
+        return systemLogFileService.listLogFiles(channel);
+    }
+
+    @GetMapping("/logs/files/{filename}")
+    public SystemLogFileContentResponseDTO readSystemLogFile(
+            @PathVariable String filename,
+            @RequestParam(required = false) String severity,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int limit,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
+        return systemLogFileService.readLogFile(filename, severity, search, page, limit);
+    }
+
+    @GetMapping("/logs/files/{filename}/download")
+    public ResponseEntity<Resource> downloadSystemLogFile(
+            @PathVariable String filename,
+            Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
+        Path filePath = systemLogFileService.resolveSafeLogPath(filename);
+        String safeFileName = filePath.getFileName().toString().replaceAll("[\\r\\n\"\\\\]", "_");
+        MediaType mediaType = safeFileName.toLowerCase().endsWith(".gz")
+            ? MediaType.parseMediaType("application/gzip")
+            : MediaType.TEXT_PLAIN;
+        return ResponseEntity.ok()
+            .contentType(mediaType)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeFileName + "\"")
+            .body(new FileSystemResource(filePath));
+    }
+
+    @PostMapping("/logs/files/cleanup")
+    public SystemLogCleanupResponseDTO cleanupExpiredLogFiles(Authentication authentication) {
+        adminService.requireSuperAdmin(authentication.getName());
+        SystemLogCleanupResponseDTO result = systemLogFileService.purgeExpiredLogs();
+        if (auditLogService != null) {
+            auditLogService.recordEvent(
+                "ADMIN",
+                "INFO",
+                "LOG_RETENTION_CLEANUP",
+                authentication.getName(),
+                "SUPER_ADMIN",
+                "SystemLogFiles",
+                "retention-" + result.retentionDays() + "d",
+                "SUCCESS",
+                null,
+                null,
+                "Limpeza manual de arquivos de log expirados: " + result.deletedFiles()
+                    + " arquivo(s) removidos, " + result.freedBytes() + " bytes liberados."
+            );
+        }
+        return result;
+    }
+
     @PatchMapping("/users/{id}/toggle-active")
     public AdminUserResponseDTO toggleUserActive(@PathVariable Long id, Authentication authentication) {
         return adminService.toggleUserActive(id, authentication.getName());
@@ -307,6 +385,14 @@ public class AdminController {
             @Valid @RequestBody CatalogOptionRequestDTO request,
             Authentication authentication) {
         return adminService.createCatalogOption(request, authentication.getName());
+    }
+
+    @PutMapping("/catalog/{id}")
+    public CatalogOptionResponseDTO updateCatalogOption(
+            @PathVariable Long id,
+            @Valid @RequestBody CatalogOptionRequestDTO request,
+            Authentication authentication) {
+        return adminService.updateCatalogOption(id, request, authentication.getName());
     }
 
     @PatchMapping("/catalog/{id}/toggle")

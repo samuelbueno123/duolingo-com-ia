@@ -95,6 +95,9 @@ public class SchoolClass {
     @Column(name = "language_name", nullable = false, length = 64)
     private String languageName = "Inglês";
 
+    @Column(name = "picture_url", length = 2048)
+    private String pictureUrl;
+
     /**
      * Escola responsável pela turma.
      */

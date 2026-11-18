@@ -21,14 +21,17 @@ import javax.sql.DataSource;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.duolinfo.ia.proj.util.SupportedLanguages;
 import com.zaxxer.hikari.HikariDataSource;
 
+import jakarta.annotation.PostConstruct;
+
 /**
- * Coleta métricas reais de execução (HTTP, JVM, Threads, GC, HikariCP e distribuição por idioma)
- * com histórico em ring buffer para os gráficos em tempo real do painel administrativo.
+ * Coleta métricas reais de execução (HTTP, CPU de sistema/JVM, Heap, Threads Java vs vCPUs de hardware,
+ * GC, HikariCP e distribuição por idioma) com histórico contínuo em ring buffer.
  */
 @Service
 public class SystemTelemetryService {
@@ -60,6 +63,31 @@ public class SystemTelemetryService {
 
     private volatile long lastRequestSnapshotAtMs = 0L;
     private volatile long lastRequestCountAtSample = 0L;
+
+    // Fallback por delta de tempo de CPU do processo caso getProcessCpuLoad() retorne -1 na primeira leitura
+    private final Object cpuSampleLock = new Object();
+    private long prevProcessCpuTimeNs = -1L;
+    private long prevCpuSampleWallNs = 0L;
+    private double lastValidProcessCpuPercent = 0.0;
+    private double lastValidSystemCpuPercent = 0.0;
+
+    @PostConstruct
+    public void warmUpTelemetry() {
+        try {
+            // Primeira leitura aquece os contadores do OperatingSystemMXBean para cálculos delta precisos
+            readSystemAndProcessCpu();
+            captureSnapshot(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    @Scheduled(fixedRate = 5000, initialDelay = 5000)
+    public void captureScheduledSample() {
+        try {
+            captureSnapshot(true);
+        } catch (Exception ignored) {
+        }
+    }
 
     public void onRequestStart() {
         activeInFlight.incrementAndGet();
@@ -154,6 +182,7 @@ public class SystemTelemetryService {
         long heapCommittedMb = heap.getCommitted() / (1024 * 1024);
         long heapMaxMb = (heap.getMax() > 0 ? heap.getMax() : Runtime.getRuntime().maxMemory()) / (1024 * 1024);
         double heapUsedPct = heapMaxMb > 0 ? round1((heapUsedMb * 100.0) / heapMaxMb) : 0.0;
+        double heapCommittedPct = heapCommittedMb > 0 ? round1((heapUsedMb * 100.0) / heapCommittedMb) : 0.0;
         long nonHeapUsedMb = Math.max(0L, nonHeap.getUsed() / (1024 * 1024));
 
         long gcCount = 0;
@@ -163,23 +192,49 @@ public class SystemTelemetryService {
             if (gc.getCollectionTime() > 0) gcTimeMs += gc.getCollectionTime();
         }
 
-        double cpuProcessPct = readProcessCpuPercent();
+        int logicalCpus = Math.max(1, Runtime.getRuntime().availableProcessors());
+        double[] cpuLoads = readSystemAndProcessCpu();
+        double systemCpuPct = cpuLoads[0];
+        double cpuProcessPct = cpuLoads[1];
         double systemLoadAvg = ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage();
+
+        int jvmActiveThreads = threadMXBean.getThreadCount();
+        long hostTotalMemMb = 0L;
+        long hostFreeMemMb = 0L;
+        double hostMemUsedPct = 0.0;
+        OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
+        if (osBean instanceof com.sun.management.OperatingSystemMXBean sunOs) {
+            long totalBytes = sunOs.getTotalMemorySize();
+            long freeBytes = sunOs.getFreeMemorySize();
+            if (totalBytes > 0) {
+                hostTotalMemMb = totalBytes / (1024 * 1024);
+                hostFreeMemMb = Math.max(0L, freeBytes / (1024 * 1024));
+                long usedBytes = Math.max(0L, totalBytes - Math.max(0L, freeBytes));
+                hostMemUsedPct = round1((usedBytes * 100.0) / totalBytes);
+            }
+        }
 
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("heapUsedMb", heapUsedMb);
         map.put("heapCommittedMb", heapCommittedMb);
         map.put("heapMaxMb", heapMaxMb);
         map.put("heapUsedPercent", heapUsedPct);
+        map.put("heapCommittedPercent", heapCommittedPct);
         map.put("nonHeapUsedMb", nonHeapUsedMb);
-        map.put("threadCount", threadMXBean.getThreadCount());
+        map.put("threadCount", jvmActiveThreads);
+        map.put("jvmActiveThreads", jvmActiveThreads);
         map.put("peakThreadCount", threadMXBean.getPeakThreadCount());
         map.put("daemonThreadCount", threadMXBean.getDaemonThreadCount());
         map.put("gcCount", gcCount);
         map.put("gcTimeMs", gcTimeMs);
         map.put("processCpuPercent", cpuProcessPct);
+        map.put("systemCpuPercent", systemCpuPct);
         map.put("systemLoadAverage", systemLoadAvg >= 0 ? round2(systemLoadAvg) : 0.0);
-        map.put("availableProcessors", Runtime.getRuntime().availableProcessors());
+        map.put("availableProcessors", logicalCpus);
+        map.put("logicalProcessors", logicalCpus);
+        map.put("hostTotalMemoryMb", hostTotalMemMb);
+        map.put("hostFreeMemoryMb", hostFreeMemMb);
+        map.put("hostMemoryUsedPercent", hostMemUsedPct);
         return map;
     }
 
@@ -285,10 +340,12 @@ public class SystemTelemetryService {
         point.put("heapUsedPercent", jvm.get("heapUsedPercent"));
         point.put("heapUsedMb", jvm.get("heapUsedMb"));
         point.put("processCpuPercent", jvm.get("processCpuPercent"));
+        point.put("systemCpuPercent", jvm.get("systemCpuPercent"));
         point.put("avgLatencyMs", http.get("avgLatencyMs"));
         point.put("p95LatencyMs", http.get("p95LatencyMs"));
         point.put("dbPingMs", Math.max(0.0, round2(dbPingMs)));
         point.put("threadCount", jvm.get("threadCount"));
+        point.put("logicalProcessors", jvm.get("logicalProcessors"));
         point.put("requestsDelta", reqDelta);
         point.put("totalRequests", currentTotalReqs);
         point.put("hikariActive", pool.getOrDefault("activeConnections", 0));
@@ -326,15 +383,51 @@ public class SystemTelemetryService {
         return sorted.get(idx).doubleValue();
     }
 
-    private double readProcessCpuPercent() {
-        OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
-        if (osBean instanceof com.sun.management.OperatingSystemMXBean sunOs) {
-            double cpu = sunOs.getProcessCpuLoad();
-            if (cpu >= 0.0) {
-                return round1(cpu * 100.0);
+    private double[] readSystemAndProcessCpu() {
+        synchronized (cpuSampleLock) {
+            OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
+            int logicalCpus = Math.max(1, Runtime.getRuntime().availableProcessors());
+            double processPct = lastValidProcessCpuPercent;
+            double systemPct = lastValidSystemCpuPercent;
+
+            if (osBean instanceof com.sun.management.OperatingSystemMXBean sunOs) {
+                double rawProc = sunOs.getProcessCpuLoad();
+                if (rawProc >= 0.0 && !Double.isNaN(rawProc)) {
+                    processPct = clampPercent(round1(rawProc * 100.0));
+                    lastValidProcessCpuPercent = processPct;
+                } else {
+                    long nowNs = System.nanoTime();
+                    long procTimeNs = sunOs.getProcessCpuTime();
+                    if (procTimeNs >= 0 && prevProcessCpuTimeNs >= 0 && nowNs > prevCpuSampleWallNs) {
+                        double deltaProc = procTimeNs - prevProcessCpuTimeNs;
+                        double deltaWall = nowNs - prevCpuSampleWallNs;
+                        processPct = clampPercent(round1((deltaProc / (deltaWall * logicalCpus)) * 100.0));
+                        lastValidProcessCpuPercent = processPct;
+                    }
+                    prevProcessCpuTimeNs = procTimeNs;
+                    prevCpuSampleWallNs = nowNs;
+                }
+
+                double rawSys = sunOs.getCpuLoad();
+                if (rawSys >= 0.0 && !Double.isNaN(rawSys)) {
+                    systemPct = clampPercent(round1(rawSys * 100.0));
+                    lastValidSystemCpuPercent = systemPct;
+                } else {
+                    double loadAvg = osBean.getSystemLoadAverage();
+                    if (loadAvg >= 0.0) {
+                        systemPct = clampPercent(round1((loadAvg / logicalCpus) * 100.0));
+                        lastValidSystemCpuPercent = systemPct;
+                    } else {
+                        systemPct = Math.max(systemPct, processPct);
+                    }
+                }
             }
+            return new double[] { systemPct, processPct };
         }
-        return 0.0;
+    }
+
+    private static double clampPercent(double val) {
+        return Math.max(0.0, Math.min(100.0, val));
     }
 
     private static double round1(double val) {

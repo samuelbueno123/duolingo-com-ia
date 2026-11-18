@@ -119,11 +119,13 @@ public final class DtoMapper {
 
         Long institutionId = null;
         String institutionName = null;
+        String institutionPictureUrl = null;
         if (student.getInstitution() != null) {
             try {
                 institutionId = student.getInstitution().getId();
                 if (org.hibernate.Hibernate.isInitialized(student.getInstitution())) {
                     institutionName = student.getInstitution().getName();
+                    institutionPictureUrl = student.getInstitution().getPictureUrl();
                 }
             } catch (Exception ignored) {
                 // Safe fallback
@@ -136,6 +138,7 @@ public final class DtoMapper {
                     try {
                         institutionId = e.getSchoolClass().getSchool().getInstitution().getId();
                         institutionName = e.getSchoolClass().getSchool().getInstitution().getName();
+                        institutionPictureUrl = e.getSchoolClass().getSchool().getInstitution().getPictureUrl();
                         break;
                     } catch (Exception ignored) {}
                 }
@@ -152,7 +155,8 @@ public final class DtoMapper {
             languageScores,
             student.getNormalizedGender(),
             institutionId,
-            institutionName
+            institutionName,
+            institutionPictureUrl
         );
     }
 
@@ -165,12 +169,14 @@ public final class DtoMapper {
 
         Long institutionId = null;
         String institutionName = null;
+        String institutionPictureUrl = null;
 
         if (teacher.getInstitution() != null) {
             try {
                 institutionId = teacher.getInstitution().getId();
                 if (org.hibernate.Hibernate.isInitialized(teacher.getInstitution())) {
                     institutionName = teacher.getInstitution().getName();
+                    institutionPictureUrl = teacher.getInstitution().getPictureUrl();
                 }
             } catch (Exception ignored) {
                 // Safe fallback
@@ -204,7 +210,8 @@ public final class DtoMapper {
             teacher.isInstitutionAdmin(),
             teacher.isPrimaryInstitutionAdmin(),
             status,
-            institutionName
+            institutionName,
+            institutionPictureUrl
         );
     }
 
@@ -229,7 +236,8 @@ public final class DtoMapper {
             institution.getDescription(),
             institution.getActive(),
             institution.getCreatedAt(),
-            institution.getUpdatedAt()
+            institution.getUpdatedAt(),
+            institution.getPictureUrl()
         );
     }
 
@@ -280,7 +288,8 @@ public final class DtoMapper {
             schoolClass.getActive(),
             languageName,
             schoolClass.getCreatedAt(),
-            schoolClass.getUpdatedAt()
+            schoolClass.getUpdatedAt(),
+            schoolClass.getPictureUrl()
         );
     }
 
@@ -302,12 +311,14 @@ public final class DtoMapper {
         Long classId = null;
         String className = null;
         String classLanguage = null;
+        String classPictureUrl = null;
 
         if (enrollment.getSchoolClass() != null) {
             classId = enrollment.getSchoolClass().getId();
             className = enrollment.getSchoolClass().getName();
             classLanguage = SupportedLanguages.normalize(enrollment.getSchoolClass().getLanguageName())
                 .orElse(SupportedLanguages.inferFromClassNameOrDefault(className));
+            classPictureUrl = enrollment.getSchoolClass().getPictureUrl();
         }
 
         return new EnrollmentResponseDTO(
@@ -320,7 +331,8 @@ public final class DtoMapper {
             enrollment.getEnrollmentDate(),
             enrollment.getCancellationDate(),
             enrollment.getStatus(),
-            enrollment.getNotes()
+            enrollment.getNotes(),
+            classPictureUrl
         );
     }
 
@@ -333,10 +345,12 @@ public final class DtoMapper {
 
         Long classId = null;
         String className = null;
+        String classPictureUrl = null;
 
         if (assignment.getSchoolClass() != null) {
             classId = assignment.getSchoolClass().getId();
             className = assignment.getSchoolClass().getName();
+            classPictureUrl = assignment.getSchoolClass().getPictureUrl();
         }
 
         Long teacherId = null;
@@ -355,7 +369,8 @@ public final class DtoMapper {
             teacherName,
             assignment.getStartDate(),
             assignment.getEndDate(),
-            assignment.getReason()
+            assignment.getReason(),
+            classPictureUrl
         );
     }
 }

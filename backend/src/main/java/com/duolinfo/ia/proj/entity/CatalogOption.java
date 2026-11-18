@@ -36,9 +36,19 @@ public class CatalogOption {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(name = "flag_mode", nullable = false, length = 20)
+    private String flagMode = "AUTO";
+
+    @Column(name = "flag_code", length = 32)
+    private String flagCode;
+
+    @Column(name = "flag_url", length = 500)
+    private String flagUrl;
+
     public CatalogOption(String catalogType, String value) {
         this.catalogType = catalogType;
         this.value = value;
         this.active = true;
+        this.flagMode = "AUTO";
     }
 }

@@ -85,18 +85,20 @@ public class AiExerciseGeneratorService {
 
         String stylesInstruction = request.questionStyles() != null && !request.questionStyles().isEmpty()
                 ? "Priorize os seguintes formatos de questão: " + String.join(", ", request.questionStyles()) + "."
-                : "Varie os formatos entre Objetiva, Verdadeiro ou Falso, Completar lacuna e Resposta aberta.";
+                : "Varie os formatos entre Múltipla Escolha, Verdadeiro ou Falso, Correspondência, Completar e Discursiva.";
 
         String systemPrompt = """
                 Você é um especialista pedagógico de idiomas criando questões revisáveis para professores na plataforma Duolinfo.
                 Retorne EXCLUSIVAMENTE um array JSON válido (sem markdown, sem texto antes ou depois) com %d questões para o idioma "%s", nível "%s", categoria "%s" e tema "%s".
                 %s
                 Cada item do array JSON deve conter exatamente estas propriedades:
-                - "style": um dentre ["Objetiva", "Verdadeiro ou Falso", "Completar lacuna", "Ordenar frase", "Áudio", "Resposta aberta"]
-                - "question": enunciado claro da questão no idioma adequado (ou enunciado em português com pergunta no idioma)
-                - "options": lista com 4 alternativas para "Objetiva", ["Verdadeiro", "Falso"] para "Verdadeiro ou Falso", ou [] para os demais estilos
-                - "correctAnswer": resposta exata correta (para "Objetiva" ou "Verdadeiro ou Falso")
-                - "expectedAnswer": resposta esperada ou explicação pedagógica (para "Completar lacuna", "Ordenar frase", "Áudio" ou "Resposta aberta")
+                - "style": um dentre ["Múltipla Escolha", "Verdadeiro ou Falso", "Correspondência", "Completar", "Tradução", "Áudio", "Discursiva"]
+                - "question": enunciado claro da questão (para "Áudio", escreva apenas a instrução, ex: "Ouça o áudio e escreva a frase")
+                - "options": lista com 4 alternativas para "Múltipla Escolha", ["Verdadeiro", "Falso"] para "Verdadeiro ou Falso", lista de 3 ou 4 pares no formato "Esquerda => Direita" para "Correspondência", ou [] para os demais estilos
+                - "audioText": frase exata no idioma-alvo que será sintetizada em voz quando "style" for "Áudio" (ou null para outros estilos)
+                - "correctAnswer": resposta exata correta (para "Múltipla Escolha", "Verdadeiro ou Falso" ou pares separados por " | " para "Correspondência")
+                - "expectedAnswer": resposta esperada (para "Completar", "Tradução", "Discursiva" ou "Áudio")
+                - "mascotHelpMessage": dica pedagógica curta em português para ajudar o aluno especificamente nesta questão (1 frase, sem revelar a resposta)
                 Instrução do professor: %s
                 """.formatted(count, language, level, category, theme, stylesInstruction, promptOrInstructions);
 
@@ -310,12 +312,20 @@ public class AiExerciseGeneratorService {
                 if (correct == null || correct.isBlank()) {
                     correct = expected;
                 }
+                String mascotTip = item.mascotHelpMessage() != null && !item.mascotHelpMessage().isBlank()
+                        ? item.mascotHelpMessage().trim()
+                        : null;
+                String audioText = item.audioText() != null && !item.audioText().isBlank()
+                        ? item.audioText().trim()
+                        : null;
                 normalized.add(new ExerciseQuestionRequestDTO(
                         style,
                         item.question().trim(),
                         options,
                         correct,
-                        expected
+                        expected,
+                        mascotTip,
+                        audioText
                 ));
             }
             if (normalized.isEmpty()) {

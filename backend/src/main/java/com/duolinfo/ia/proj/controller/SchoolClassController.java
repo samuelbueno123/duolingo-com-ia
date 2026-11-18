@@ -236,6 +236,30 @@ public class SchoolClassController {
         );
     }
 
+    @RequestMapping(
+        value = "/{id}/picture",
+        method = {
+            org.springframework.web.bind.annotation.RequestMethod.PUT,
+            org.springframework.web.bind.annotation.RequestMethod.PATCH
+        }
+    )
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @Operation(summary = "Atualiza ou remove a foto/ícone da turma")
+    public SchoolClassResponseDTO updatePicture(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        if (accessControlService != null) {
+            accessControlService.assertCanManageSchoolClass(id);
+        }
+        String rawPicture = body == null ? null
+            : body.getOrDefault("pictureUrl",
+                body.getOrDefault("profilePicture",
+                    body.get("picture")));
+        return DtoMapper.toSchoolClassResponse(
+            schoolClassService.updatePicture(id, rawPicture)
+        );
+    }
+
     @PatchMapping("/{id}/activate")
     @Operation(summary = "Ativa turma")
     public SchoolClassResponseDTO activate(
@@ -385,15 +409,18 @@ public class SchoolClassController {
         String notes = Objects.toString(body.getOrDefault("notes", "Convite direto para a turma"), "Convite direto para a turma");
 
         if ("TEACHER".equals(role)) {
+            if (accessControlService != null) {
+                accessControlService.assertCanManageClassTeachers(schoolClass);
+            }
             if (assignmentService == null) {
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Serviço de professores indisponível.");
             }
-            var assigned = assignmentService.assignTeacher(id, targetUserId, java.time.LocalDate.now(), notes);
+            var assigned = assignmentService.addTeacherToClass(id, targetUserId, java.time.LocalDate.now(), notes);
             return Map.of(
                 "status", "INVITED",
                 "role", "TEACHER",
                 "assignmentId", assigned.getId(),
-                "message", "Professor convidado e atribuído à turma com sucesso!"
+                "message", "Professor adicionado à turma com sucesso!"
             );
         }
 

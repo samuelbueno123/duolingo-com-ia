@@ -217,7 +217,7 @@ class UserServiceTest {
         userService.deleteById(50L);
 
         // Verify valid cleanup statements executed on jdbcTemplate and auth cache evicted
-        verify(jdbcTemplate, times(30)).update(anyString(), eq(50L));
+        verify(jdbcTemplate, times(31)).update(anyString(), eq(50L));
         verify(userAuthCache).evict(50L);
         verify(userAuthCache).evictByEmail("student@example.com");
         verify(entityManager).flush();

@@ -336,6 +336,10 @@ public class AccessControlService {
         if (current.isSuperAdmin()) {
             return;
         }
+        Long classInstId = getSchoolClassInstitutionId(schoolClass);
+        if (classInstId != null && isInstitutionAdminFor(current, classInstId)) {
+            return;
+        }
         Optional<Teacher> teacherOpt = asTeacher(current);
         if (teacherOpt.isPresent()) {
             Teacher teacher = teacherOpt.get();
@@ -343,7 +347,6 @@ public class AccessControlService {
                 return;
             }
             Long teacherInstId = teacher.getInstitution() != null ? teacher.getInstitution().getId() : null;
-            Long classInstId = getSchoolClassInstitutionId(schoolClass);
             if (teacherInstId == null && classInstId == null) {
                 return;
             }
@@ -420,6 +423,51 @@ public class AccessControlService {
         throw new ResponseStatusException(
                 HttpStatus.FORBIDDEN,
                 "Acesso negado: apenas administradores desta instituição ou administrador geral podem gerenciá-la."
+        );
+    }
+
+    public void assertCanUpdateInstitutionPicture(Long institutionId) {
+        User current = getCurrentUserOrThrow();
+        if (current.isSuperAdmin()) {
+            return;
+        }
+        if (institutionId != null && isInstitutionAdminFor(current, institutionId)) {
+            return;
+        }
+        Optional<Teacher> teacherOpt = asTeacher(current);
+        if (teacherOpt.isPresent()) {
+            Teacher teacher = teacherOpt.get();
+            Long teacherInstId = teacher.getInstitution() != null ? teacher.getInstitution().getId() : null;
+            if (institutionId != null
+                    && Objects.equals(teacherInstId, institutionId)
+                    && Boolean.TRUE.equals(teacher.getApproved())) {
+                return;
+            }
+        }
+        throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Acesso negado: apenas professores aprovados ou administradores desta instituição podem alterar a foto."
+        );
+    }
+
+    public void assertCanManageClassTeachers(Long schoolClassId) {
+        SchoolClass schoolClass = schoolClassRepository.findById(schoolClassId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Turma não encontrada."));
+        assertCanManageClassTeachers(schoolClass);
+    }
+
+    public void assertCanManageClassTeachers(SchoolClass schoolClass) {
+        User current = getCurrentUserOrThrow();
+        if (current.isSuperAdmin()) {
+            return;
+        }
+        Long classInstId = getSchoolClassInstitutionId(schoolClass);
+        if (classInstId != null && isInstitutionAdminFor(current, classInstId)) {
+            return;
+        }
+        throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Acesso negado: apenas administradores da instituição ou administrador geral podem gerenciar professores da turma."
         );
     }
 

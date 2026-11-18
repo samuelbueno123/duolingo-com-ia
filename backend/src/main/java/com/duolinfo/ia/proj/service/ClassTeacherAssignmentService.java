@@ -37,23 +37,7 @@ public class ClassTeacherAssignmentService {
 
         Teacher teacher = findTeacher(teacherId);
 
-        /*
-         * A turma e o professor precisam pertencer à mesma instituição.
-         */
-        Long classInstitutionId = null;
-        if (schoolClass.getSchool() != null && schoolClass.getSchool().getInstitution() != null) {
-            classInstitutionId = schoolClass.getSchool().getInstitution().getId();
-        } else if (schoolClass.getInstitution() != null) {
-            classInstitutionId = schoolClass.getInstitution().getId();
-        }
-
-        Long teacherInstitutionId = teacher.getInstitution() != null ? teacher.getInstitution().getId() : null;
-
-        if (classInstitutionId == null || teacherInstitutionId == null || !classInstitutionId.equals(teacherInstitutionId)) {
-            throw new BusinessException(
-                "O professor não pertence à mesma instituição da turma."
-            );
-        }
+        validateSameInstitution(schoolClass, teacher);
 
         LocalDate date =
             startDate != null
@@ -63,12 +47,7 @@ public class ClassTeacherAssignmentService {
         /*
          * Procura o professor atual.
          */
-        ClassTeacherAssignment current =
-            assignmentRepository
-                .findBySchoolClassIdAndEndDateIsNull(
-                    schoolClassId
-                )
-                .orElse(null);
+        ClassTeacherAssignment current = resolveCurrentAssignment(schoolClassId);
 
         if (current != null) {
 
@@ -112,6 +91,51 @@ public class ClassTeacherAssignmentService {
         return initializeAssociations(assignmentRepository.save(assignment));
     }
 
+    @Transactional
+    public ClassTeacherAssignment addTeacherToClass(
+        Long schoolClassId,
+        Long teacherId,
+        LocalDate startDate,
+        String reason
+    ) {
+        SchoolClass schoolClass = findSchoolClass(schoolClassId);
+        Teacher teacher = findTeacher(teacherId);
+        validateSameInstitution(schoolClass, teacher);
+
+        boolean alreadyAssigned = assignmentRepository
+            .existsBySchoolClassIdAndTeacherIdAndEndDateIsNull(schoolClassId, teacherId)
+            || findActiveAssignmentsInternal(schoolClassId).stream()
+                .anyMatch(a -> a.getTeacher() != null && teacherId.equals(a.getTeacher().getId()));
+        if (alreadyAssigned) {
+            throw new BusinessException(
+                "Esse professor já está atribuído à turma."
+            );
+        }
+
+        LocalDate date = startDate != null ? startDate : LocalDate.now();
+        String effectiveReason = (reason != null && !reason.isBlank())
+            ? reason.trim()
+            : "Professor adicional atribuído à turma";
+
+        ClassTeacherAssignment assignment =
+            ClassTeacherAssignment.builder()
+                .schoolClass(schoolClass)
+                .teacher(teacher)
+                .startDate(date)
+                .reason(effectiveReason)
+                .build();
+
+        return initializeAssociations(assignmentRepository.save(assignment));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ClassTeacherAssignment> findActiveTeachers(Long schoolClassId) {
+        findSchoolClass(schoolClassId);
+        return findActiveAssignmentsInternal(schoolClassId).stream()
+            .map(ClassTeacherAssignmentService::initializeAssociations)
+            .toList();
+    }
+
     @Transactional(readOnly = true)
     public ClassTeacherAssignment findById(Long id) {
 
@@ -141,13 +165,13 @@ public class ClassTeacherAssignmentService {
 
         findSchoolClass(schoolClassId);
 
-        return assignmentRepository
-            .findBySchoolClassIdAndEndDateIsNull(
-                schoolClassId
-            )
-            .orElseThrow(() -> new ResourceNotFoundException(
+        ClassTeacherAssignment current = resolveCurrentAssignment(schoolClassId);
+        if (current == null) {
+            throw new ResourceNotFoundException(
                 "A turma não possui professor atualmente."
-            ));
+            );
+        }
+        return current;
     }
 
     @Transactional(readOnly = true)
@@ -169,14 +193,12 @@ public class ClassTeacherAssignmentService {
         LocalDate endDate
     ) {
 
-        ClassTeacherAssignment current =
-            assignmentRepository
-                .findBySchoolClassIdAndEndDateIsNull(
-                    schoolClassId
-                )
-                .orElseThrow(() -> new ResourceNotFoundException(
-                    "A turma não possui professor atual."
-                ));
+        ClassTeacherAssignment current = resolveCurrentAssignment(schoolClassId);
+        if (current == null) {
+            throw new ResourceNotFoundException(
+                "A turma não possui professor atual."
+            );
+        }
 
         LocalDate date =
             endDate != null
@@ -255,5 +277,41 @@ public class ClassTeacherAssignmentService {
             .orElseThrow(() -> new ResourceNotFoundException(
                 "Professor não encontrado: " + id
             ));
+    }
+
+    private void validateSameInstitution(SchoolClass schoolClass, Teacher teacher) {
+        Long classInstitutionId = null;
+        if (schoolClass.getSchool() != null && schoolClass.getSchool().getInstitution() != null) {
+            classInstitutionId = schoolClass.getSchool().getInstitution().getId();
+        } else if (schoolClass.getInstitution() != null) {
+            classInstitutionId = schoolClass.getInstitution().getId();
+        }
+
+        Long teacherInstitutionId = teacher.getInstitution() != null ? teacher.getInstitution().getId() : null;
+
+        if (classInstitutionId == null || teacherInstitutionId == null || !classInstitutionId.equals(teacherInstitutionId)) {
+            throw new BusinessException(
+                "O professor não pertence à mesma instituição da turma."
+            );
+        }
+    }
+
+    private List<ClassTeacherAssignment> findActiveAssignmentsInternal(Long schoolClassId) {
+        List<ClassTeacherAssignment> active =
+            assignmentRepository.findAllBySchoolClassIdAndEndDateIsNullOrderByStartDateAsc(schoolClassId);
+        if (active != null && !active.isEmpty()) {
+            return active;
+        }
+        return assignmentRepository.findBySchoolClassIdAndEndDateIsNull(schoolClassId)
+            .map(List::of)
+            .orElseGet(List::of);
+    }
+
+    private ClassTeacherAssignment resolveCurrentAssignment(Long schoolClassId) {
+        List<ClassTeacherAssignment> active = findActiveAssignmentsInternal(schoolClassId);
+        if (active.isEmpty()) {
+            return null;
+        }
+        return active.get(active.size() - 1);
     }
 }

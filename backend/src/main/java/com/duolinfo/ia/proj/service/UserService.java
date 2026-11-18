@@ -427,6 +427,7 @@ public class UserService {
             "DELETE FROM student_mistakes WHERE student_id = ?",
             "DELETE FROM student_vocabularies WHERE student_id = ?",
             "DELETE FROM student_notifications WHERE student_id = ?",
+            "DELETE FROM teacher_notifications WHERE teacher_id = ?",
             "DELETE FROM teacher_student_notes WHERE student_id = ?",
             "DELETE FROM teacher_student_notes WHERE teacher_id = ?",
             "DELETE FROM class_announcements WHERE teacher_id = ?"

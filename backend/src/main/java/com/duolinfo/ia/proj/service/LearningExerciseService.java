@@ -7,11 +7,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -31,8 +33,11 @@ import com.duolinfo.ia.proj.dto.response.ExerciseSubmissionResponseDTO.QuestionF
 import com.duolinfo.ia.proj.dto.response.LearningExerciseResponseDTO;
 import com.duolinfo.ia.proj.dto.response.LearningRankingEntryResponseDTO;
 import com.duolinfo.ia.proj.dto.response.StudentProgressSummaryResponseDTO;
+import com.duolinfo.ia.proj.entity.ClassTeacherAssignment;
+import com.duolinfo.ia.proj.entity.Enrollment;
 import com.duolinfo.ia.proj.entity.EnrollmentStatus;
 import com.duolinfo.ia.proj.entity.ExerciseSubmission;
+import com.duolinfo.ia.proj.entity.Institution;
 import com.duolinfo.ia.proj.entity.LearningExercise;
 import com.duolinfo.ia.proj.entity.SchoolClass;
 import com.duolinfo.ia.proj.entity.Student;
@@ -78,12 +83,26 @@ public class LearningExerciseService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private StudentStreakService studentStreakService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private StudentNotificationService studentNotificationService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private TeacherNotificationService teacherNotificationService;
+
     public void setStudentMistakeService(StudentMistakeService studentMistakeService) {
         this.studentMistakeService = studentMistakeService;
     }
 
     public void setStudentStreakService(StudentStreakService studentStreakService) {
         this.studentStreakService = studentStreakService;
+    }
+
+    public void setStudentNotificationService(StudentNotificationService studentNotificationService) {
+        this.studentNotificationService = studentNotificationService;
+    }
+
+    public void setTeacherNotificationService(TeacherNotificationService teacherNotificationService) {
+        this.teacherNotificationService = teacherNotificationService;
     }
 
     public LearningExerciseService(
@@ -456,6 +475,9 @@ public class LearningExerciseService {
             if (expected == null) {
                 expected = clean(question.expectedAnswer());
             }
+            if (expected == null && isListeningStyle(style)) {
+                expected = clean(question.audioText());
+            }
 
             if (isOpenEndedStyle(style)) {
                 if (rawAnswer.isEmpty()) {
@@ -481,6 +503,38 @@ public class LearningExerciseService {
                         "PENDING_REVIEW",
                         "Resposta discursiva registrada para avaliação do professor."
                     ));
+                }
+            } else if (isMatchingStyle(style)) {
+                Map<String, String> expectedPairs = extractNormalizedPairMap(question.options(), expected);
+                Map<String, String> studentPairs = extractNormalizedPairMap(List.of(), rawAnswer);
+                if (!expectedPairs.isEmpty() && expectedPairs.equals(studentPairs)) {
+                    correct++;
+                    questionResults.add(new QuestionFeedbackDTO(
+                        index,
+                        style,
+                        "CORRECT",
+                        "Todos os pares associados corretamente!"
+                    ));
+                } else {
+                    questionResults.add(new QuestionFeedbackDTO(
+                        index,
+                        style,
+                        "INCORRECT",
+                        "Alguns pares não correspondem. Revise as associações e tente novamente."
+                    ));
+                    if (studentMistakeService != null) {
+                        try {
+                            studentMistakeService.recordMistake(
+                                student.getId(),
+                                exercise.getId(),
+                                question.question(),
+                                rawAnswer,
+                                expected != null ? expected : String.join(" | ", question.options() != null ? question.options() : List.of()),
+                                null
+                            );
+                        } catch (Exception ignored) {
+                        }
+                    }
                 }
             } else {
                 if (expected != null && !rawAnswer.isEmpty()
@@ -774,6 +828,30 @@ public class LearningExerciseService {
     public List<LearningRankingEntryResponseDTO> findRanking(
             String period,
             boolean groupRanking) {
+        return findScopedRanking(
+            groupRanking ? "app_classes" : "app_students",
+            period,
+            null,
+            null,
+            null
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<LearningRankingEntryResponseDTO> findScopedRanking(
+            String scope,
+            String period,
+            Long schoolClassId,
+            Long institutionId,
+            String viewerEmail) {
+        String canonicalScope = normalizeRankingScope(scope);
+        Long targetClassId = schoolClassId != null
+            ? schoolClassId
+            : resolveDefaultClassId(viewerEmail, canonicalScope);
+        Long targetInstitutionId = institutionId != null
+            ? institutionId
+            : resolveUserInstitutionId(viewerEmail, targetClassId);
+
         Instant cutoff = cutoffFor(period);
         List<ExerciseSubmission> recentSubmissions =
             submissionRepository.findBySubmittedAtAfterOrderBySubmittedAtDesc(cutoff);
@@ -781,6 +859,7 @@ public class LearningExerciseService {
         Map<String, Integer> maxXpPerStudentExercise = new HashMap<>();
         Map<String, ExerciseSubmission> representativeSubmission = new HashMap<>();
         for (ExerciseSubmission sub : recentSubmissions) {
+            if (sub.getStudent() == null || sub.getExercise() == null) continue;
             String pairKey = sub.getStudent().getId() + ":" + sub.getExercise().getId();
             int rawXp = Math.max(sub.getXpEarned(), sub.getCorrectCount() * 10);
             int previousMax = maxXpPerStudentExercise.getOrDefault(pairKey, -1);
@@ -790,39 +869,280 @@ public class LearningExerciseService {
             }
         }
 
+        boolean teacherMode = canonicalScope.endsWith("_teachers");
+        Map<Long, List<Teacher>> activeClassTeachers = teacherMode
+            ? loadActiveTeachersByClass()
+            : Map.of();
+
         Map<String, RankingTotal> totals = new HashMap<>();
         for (Map.Entry<String, ExerciseSubmission> entry : representativeSubmission.entrySet()) {
             ExerciseSubmission submission = entry.getValue();
             int effectiveXp = maxXpPerStudentExercise.getOrDefault(entry.getKey(), 0);
-            String key = groupRanking
-                ? "class:" + submission.getExercise().getSchoolClass().getId()
-                : "student:" + submission.getStudent().getId();
-            RankingTotal total = totals.computeIfAbsent(key, ignored -> new RankingTotal(
-                groupRanking ? null : submission.getStudent().getName(),
-                groupRanking ? submission.getExercise().getSchoolClass().getName() : null
-            ));
-            total.xp += effectiveXp;
-            total.activities++;
-            total.correct += submission.getCorrectCount();
-            total.questions += submission.getQuestionCount();
+            SchoolClass sc = submission.getExercise().getSchoolClass();
+            Institution classInst = resolveClassInstitution(sc);
+            Student student = submission.getStudent();
+            Institution studentInst = student.getInstitution() != null ? student.getInstitution() : classInst;
+
+            switch (canonicalScope) {
+                case "class_students" -> {
+                    if (sc == null || targetClassId == null || !Objects.equals(sc.getId(), targetClassId)) {
+                        continue;
+                    }
+                    String key = "student:" + student.getId();
+                    RankingTotal total = totals.computeIfAbsent(key, ignored -> new RankingTotal(
+                        student.getId(),
+                        student.getName(),
+                        sc.getName(),
+                        student.getProfilePicture(),
+                        classInst != null ? classInst.getName() : null
+                    ));
+                    total.accumulate(effectiveXp, submission.getCorrectCount(), submission.getQuestionCount());
+                }
+                case "school_students" -> {
+                    if (targetInstitutionId == null || studentInst == null
+                            || !Objects.equals(studentInst.getId(), targetInstitutionId)) {
+                        continue;
+                    }
+                    String key = "student:" + student.getId();
+                    RankingTotal total = totals.computeIfAbsent(key, ignored -> new RankingTotal(
+                        student.getId(),
+                        student.getName(),
+                        null,
+                        student.getProfilePicture(),
+                        studentInst.getName()
+                    ));
+                    total.accumulate(effectiveXp, submission.getCorrectCount(), submission.getQuestionCount());
+                }
+                case "app_students" -> {
+                    String key = "student:" + student.getId();
+                    RankingTotal total = totals.computeIfAbsent(key, ignored -> new RankingTotal(
+                        student.getId(),
+                        student.getName(),
+                        null,
+                        student.getProfilePicture(),
+                        studentInst != null ? studentInst.getName() : null
+                    ));
+                    total.accumulate(effectiveXp, submission.getCorrectCount(), submission.getQuestionCount());
+                }
+                case "school_classes" -> {
+                    if (sc == null || targetInstitutionId == null || classInst == null
+                            || !Objects.equals(classInst.getId(), targetInstitutionId)) {
+                        continue;
+                    }
+                    String key = "class:" + sc.getId();
+                    RankingTotal total = totals.computeIfAbsent(key, ignored -> new RankingTotal(
+                        sc.getId(),
+                        null,
+                        sc.getName(),
+                        null,
+                        classInst.getName()
+                    ));
+                    total.accumulate(effectiveXp, submission.getCorrectCount(), submission.getQuestionCount());
+                }
+                case "app_classes" -> {
+                    if (sc == null) continue;
+                    String key = "class:" + sc.getId();
+                    RankingTotal total = totals.computeIfAbsent(key, ignored -> new RankingTotal(
+                        sc.getId(),
+                        null,
+                        sc.getName(),
+                        null,
+                        classInst != null ? classInst.getName() : null
+                    ));
+                    total.accumulate(effectiveXp, submission.getCorrectCount(), submission.getQuestionCount());
+                }
+                case "schools" -> {
+                    Institution inst = classInst != null ? classInst : studentInst;
+                    if (inst == null) continue;
+                    String key = "school:" + inst.getId();
+                    String loc = (inst.getCity() != null && !inst.getCity().isBlank())
+                        ? inst.getCity()
+                        : inst.getCode();
+                    RankingTotal total = totals.computeIfAbsent(key, ignored -> new RankingTotal(
+                        inst.getId(),
+                        inst.getName(),
+                        loc,
+                        null,
+                        inst.getName()
+                    ));
+                    total.accumulate(effectiveXp, submission.getCorrectCount(), submission.getQuestionCount());
+                }
+                case "class_teachers", "school_teachers", "app_teachers" -> {
+                    if (sc == null) continue;
+                    if ("class_teachers".equals(canonicalScope)
+                            && (targetClassId == null || !Objects.equals(sc.getId(), targetClassId))) {
+                        continue;
+                    }
+                    List<Teacher> teachersForClass = resolveTeachersForSubmission(
+                        sc.getId(),
+                        submission.getExercise().getTeacher(),
+                        activeClassTeachers
+                    );
+                    for (Teacher t : teachersForClass) {
+                        Institution tInst = t.getInstitution() != null ? t.getInstitution() : classInst;
+                        if ("school_teachers".equals(canonicalScope)
+                                && (targetInstitutionId == null || tInst == null
+                                    || !Objects.equals(tInst.getId(), targetInstitutionId))) {
+                            continue;
+                        }
+                        String key = "teacher:" + t.getId();
+                        RankingTotal total = totals.computeIfAbsent(key, ignored -> new RankingTotal(
+                            t.getId(),
+                            t.getName(),
+                            sc.getName(),
+                            t.getProfilePicture(),
+                            tInst != null ? tInst.getName() : null
+                        ));
+                        total.addClassLabel(sc.getName());
+                        total.accumulate(effectiveXp, submission.getCorrectCount(), submission.getQuestionCount());
+                    }
+                }
+                default -> {
+                    String key = "student:" + student.getId();
+                    RankingTotal total = totals.computeIfAbsent(key, ignored -> new RankingTotal(
+                        student.getId(),
+                        student.getName(),
+                        null,
+                        student.getProfilePicture(),
+                        studentInst != null ? studentInst.getName() : null
+                    ));
+                    total.accumulate(effectiveXp, submission.getCorrectCount(), submission.getQuestionCount());
+                }
+            }
         }
+
+        Comparator<RankingTotal> comparator = teacherMode
+            ? Comparator.comparingDouble(RankingTotal::teacherPerformanceScore)
+                .thenComparingInt((RankingTotal item) -> item.xp)
+                .thenComparingInt((RankingTotal item) -> item.correct)
+                .reversed()
+            : Comparator.comparingInt((RankingTotal item) -> item.xp)
+                .thenComparingInt((RankingTotal item) -> item.correct)
+                .reversed();
+
         List<RankingTotal> ordered = totals.values().stream()
-            .sorted(Comparator.comparingInt((RankingTotal item) -> item.xp).reversed())
+            .sorted(comparator)
             .toList();
+
         List<LearningRankingEntryResponseDTO> result = new ArrayList<>();
         for (int index = 0; index < ordered.size(); index++) {
             RankingTotal item = ordered.get(index);
+            String labelClass = (teacherMode && !item.distinctClasses.isEmpty())
+                ? String.join(", ", item.distinctClasses)
+                : item.className;
             result.add(new LearningRankingEntryResponseDTO(
                 index + 1,
                 item.studentName,
-                item.className,
+                labelClass,
                 item.xp,
                 item.activities,
                 item.correct,
-                item.questions
+                item.questions,
+                item.profilePicture,
+                item.schoolName,
+                item.entityId,
+                item.accuracyPercent()
             ));
         }
         return result;
+    }
+
+    private static String normalizeRankingScope(String raw) {
+        if (raw == null || raw.isBlank()) return "app_students";
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "class_students", "individual_turma", "student_class" -> "class_students";
+            case "school_students", "individual_escola", "student_school" -> "school_students";
+            case "app_students", "individual", "individual_app", "student_app" -> "app_students";
+            case "school_classes", "turma_escola", "class_school", "groups_school" -> "school_classes";
+            case "app_classes", "groups", "turma_app", "class_app", "groups_app" -> "app_classes";
+            case "schools", "escolas", "institutions", "school" -> "schools";
+            case "class_teachers", "professor_turma", "teacher_class" -> "class_teachers";
+            case "school_teachers", "professor_escola", "teacher_school" -> "school_teachers";
+            case "app_teachers", "teachers", "professor_app", "teacher_app" -> "app_teachers";
+            default -> "app_students";
+        };
+    }
+
+    private Long resolveDefaultClassId(String email, String scope) {
+        if (email == null || email.isBlank() || (!"class_students".equals(scope) && !"class_teachers".equals(scope))) {
+            return null;
+        }
+        String cleanEmail = email.trim().toLowerCase(Locale.ROOT);
+        Student student = studentRepository.findByEmailIgnoreCase(cleanEmail).orElse(null);
+        if (student != null) {
+            List<Enrollment> active = enrollmentRepository.findByStudentIdAndStatus(student.getId(), EnrollmentStatus.ACTIVE);
+            if (!active.isEmpty() && active.get(0).getSchoolClass() != null) {
+                return active.get(0).getSchoolClass().getId();
+            }
+        }
+        Teacher teacher = teacherRepository.findByEmailIgnoreCase(cleanEmail).orElse(null);
+        if (teacher != null) {
+            return assignmentRepository.findByTeacherIdOrderByStartDateDesc(teacher.getId()).stream()
+                .filter(a -> a.getEndDate() == null && a.getSchoolClass() != null)
+                .map(a -> a.getSchoolClass().getId())
+                .findFirst()
+                .orElse(null);
+        }
+        return null;
+    }
+
+    private Long resolveUserInstitutionId(String email, Long fallbackClassId) {
+        if (email != null && !email.isBlank()) {
+            String cleanEmail = email.trim().toLowerCase(Locale.ROOT);
+            Student student = studentRepository.findByEmailIgnoreCase(cleanEmail).orElse(null);
+            if (student != null) {
+                if (student.getInstitution() != null) return student.getInstitution().getId();
+                List<Enrollment> enrollments = enrollmentRepository.findByStudentId(student.getId());
+                for (Enrollment e : enrollments) {
+                    Institution inst = resolveClassInstitution(e.getSchoolClass());
+                    if (inst != null) return inst.getId();
+                }
+            }
+            Teacher teacher = teacherRepository.findByEmailIgnoreCase(cleanEmail).orElse(null);
+            if (teacher != null && teacher.getInstitution() != null) {
+                return teacher.getInstitution().getId();
+            }
+        }
+        if (fallbackClassId != null) {
+            return schoolClassRepository.findById(fallbackClassId)
+                .map(LearningExerciseService::resolveClassInstitution)
+                .map(Institution::getId)
+                .orElse(null);
+        }
+        return null;
+    }
+
+    private static Institution resolveClassInstitution(SchoolClass sc) {
+        if (sc == null) return null;
+        if (sc.getInstitution() != null) return sc.getInstitution();
+        return sc.getSchool() != null ? sc.getSchool().getInstitution() : null;
+    }
+
+    private Map<Long, List<Teacher>> loadActiveTeachersByClass() {
+        Map<Long, List<Teacher>> byClass = new HashMap<>();
+        for (ClassTeacherAssignment cta : assignmentRepository.findAll()) {
+            if (cta.getEndDate() == null && cta.getSchoolClass() != null && cta.getTeacher() != null) {
+                byClass.computeIfAbsent(cta.getSchoolClass().getId(), ignored -> new ArrayList<>())
+                    .add(cta.getTeacher());
+            }
+        }
+        return byClass;
+    }
+
+    private static List<Teacher> resolveTeachersForSubmission(
+            Long classId,
+            Teacher fallbackCreator,
+            Map<Long, List<Teacher>> activeByClass) {
+        List<Teacher> assigned = activeByClass.get(classId);
+        if (assigned != null && !assigned.isEmpty()) {
+            // Avoid duplicates while preserving order
+            Map<Long, Teacher> unique = new java.util.LinkedHashMap<>();
+            for (Teacher t : assigned) {
+                if (t != null && t.getId() != null) unique.putIfAbsent(t.getId(), t);
+            }
+            if (!unique.isEmpty()) return new ArrayList<>(unique.values());
+        }
+        return fallbackCreator != null ? List.of(fallbackCreator) : List.of();
     }
 
     private static Instant cutoffFor(String period) {
@@ -837,16 +1157,49 @@ public class LearningExerciseService {
     }
 
     private static final class RankingTotal {
+        private final Long entityId;
         private final String studentName;
         private final String className;
+        private final String profilePicture;
+        private final String schoolName;
+        private final Set<String> distinctClasses = new LinkedHashSet<>();
         private int xp;
         private int activities;
         private int correct;
         private int questions;
 
-        private RankingTotal(String studentName, String className) {
+        private RankingTotal(
+                Long entityId,
+                String studentName,
+                String className,
+                String profilePicture,
+                String schoolName) {
+            this.entityId = entityId;
             this.studentName = studentName;
             this.className = className;
+            this.profilePicture = profilePicture;
+            this.schoolName = schoolName;
+        }
+
+        private void addClassLabel(String name) {
+            if (name != null && !name.isBlank()) {
+                distinctClasses.add(name);
+            }
+        }
+
+        private void accumulate(int addXp, int addCorrect, int addQuestions) {
+            this.xp += addXp;
+            this.activities++;
+            this.correct += addCorrect;
+            this.questions += addQuestions;
+        }
+
+        private double accuracyPercent() {
+            return questions > 0 ? Math.round((correct * 1000.0) / questions) / 10.0 : 0.0;
+        }
+
+        private double teacherPerformanceScore() {
+            return accuracyPercent() * 10.0 + xp;
         }
     }
 
@@ -1032,13 +1385,45 @@ public class LearningExerciseService {
             boolean includeAnswers) {
         List<ExerciseQuestionResponseDTO> questions = readQuestions(exercise)
             .stream()
-            .map(question -> new ExerciseQuestionResponseDTO(
-                question.style(),
-                question.question(),
-                question.options() == null ? List.of() : question.options(),
-                includeAnswers ? question.correctAnswer() : null,
-                includeAnswers ? question.expectedAnswer() : null
-            ))
+            .map(question -> {
+                List<String> responseOptions = question.options() == null ? List.of() : question.options();
+                if (isMatchingStyle(question.style()) && !includeAnswers) {
+                    String fallbackCombined = clean(question.correctAnswer()) != null
+                        ? question.correctAnswer()
+                        : question.expectedAnswer();
+                    List<String[]> pairs = extractRawPairs(question.options(), fallbackCombined);
+                    if (!pairs.isEmpty()) {
+                        List<String> lefts = new ArrayList<>(pairs.size());
+                        List<String> rights = new ArrayList<>(pairs.size());
+                        for (String[] pair : pairs) {
+                            lefts.add("LEFT::" + pair[0]);
+                            rights.add("RIGHT::" + pair[1]);
+                        }
+                        List<String> originalRights = new ArrayList<>(rights);
+                        long seed = (exercise.getId() != null ? exercise.getId() : 17L) * 31L
+                            + (question.question() != null ? question.question().hashCode() : 0L);
+                        Collections.shuffle(rights, new Random(seed));
+                        if (rights.size() > 1 && rights.equals(originalRights)) {
+                            Collections.rotate(rights, 1);
+                        }
+                        List<String> merged = new ArrayList<>(lefts.size() + rights.size());
+                        merged.addAll(lefts);
+                        merged.addAll(rights);
+                        responseOptions = merged;
+                    }
+                } else if (isTrueFalseStyle(question.style()) && responseOptions.isEmpty()) {
+                    responseOptions = List.of("Verdadeiro", "Falso");
+                }
+                return new ExerciseQuestionResponseDTO(
+                    question.style(),
+                    question.question(),
+                    responseOptions,
+                    includeAnswers ? question.correctAnswer() : null,
+                    includeAnswers ? question.expectedAnswer() : null,
+                    clean(question.mascotHelpMessage()),
+                    clean(question.audioText())
+                );
+            })
             .toList();
         return new LearningExerciseResponseDTO(
             exercise.getId(),
@@ -1128,6 +1513,11 @@ public class LearningExerciseService {
                 status = existing.status();
             } else if (isOpenEndedStyle(style)) {
                 status = "PENDING_REVIEW";
+            } else if (isMatchingStyle(style)) {
+                List<String> opts = q != null && q.options() != null ? q.options() : List.of();
+                Map<String, String> expMap = extractNormalizedPairMap(opts, expected);
+                Map<String, String> ansMap = extractNormalizedPairMap(List.of(), studentAns);
+                status = (!expMap.isEmpty() && expMap.equals(ansMap)) ? "CORRECT" : "INCORRECT";
             } else if (expected != null && normalize(expected).equals(normalize(studentAns))) {
                 status = "CORRECT";
             } else {
@@ -1197,12 +1587,99 @@ public class LearningExerciseService {
         return lower.contains("aberta") || lower.contains("discursiva") || lower.contains("open");
     }
 
+    private static boolean isTrueFalseStyle(String style) {
+        if (style == null) return false;
+        String lower = style.trim().toLowerCase(Locale.ROOT);
+        return lower.contains("verdadeiro") || lower.contains("falso")
+            || lower.contains("true_false") || lower.contains("true/false");
+    }
+
+    private static boolean isMatchingStyle(String style) {
+        if (style == null) return false;
+        String lower = style.trim().toLowerCase(Locale.ROOT);
+        return lower.contains("correspond") || lower.contains("match")
+            || lower.contains("associ") || lower.contains("ligar");
+    }
+
+    private static boolean isListeningStyle(String style) {
+        if (style == null) return false;
+        String lower = style.trim().toLowerCase(Locale.ROOT);
+        return lower.contains("áudio") || lower.contains("audio")
+            || lower.contains("escuta") || lower.contains("listening");
+    }
+
+    private static List<String[]> extractRawPairs(List<String> options, String combined) {
+        List<String> tokens = new ArrayList<>();
+        if (options != null) {
+            for (String item : options) {
+                if (item != null && !item.isBlank()) {
+                    tokens.add(item.trim());
+                }
+            }
+        }
+        if (tokens.isEmpty() && combined != null && !combined.isBlank()) {
+            for (String chunk : combined.split("[|;\\n]+")) {
+                if (!chunk.isBlank()) {
+                    tokens.add(chunk.trim());
+                }
+            }
+        }
+        List<String[]> pairs = new ArrayList<>();
+        for (String token : tokens) {
+            String[] split = splitPairToken(token);
+            if (split != null) {
+                pairs.add(split);
+            }
+        }
+        return pairs;
+    }
+
+    private static Map<String, String> extractNormalizedPairMap(List<String> options, String combined) {
+        Map<String, String> map = new LinkedHashMap<>();
+        // Prefer combined expected answer if provided (especially when options hold shuffled tokens)
+        if (combined != null && !combined.isBlank()) {
+            for (String[] pair : extractRawPairs(List.of(), combined)) {
+                String k = normalize(pair[0]);
+                String v = normalize(pair[1]);
+                if (!k.isEmpty() && !v.isEmpty()) {
+                    map.put(k, v);
+                }
+            }
+            if (!map.isEmpty()) {
+                return map;
+            }
+        }
+        for (String[] pair : extractRawPairs(options, null)) {
+            String k = normalize(pair[0]);
+            String v = normalize(pair[1]);
+            if (!k.isEmpty() && !v.isEmpty()) {
+                map.put(k, v);
+            }
+        }
+        return map;
+    }
+
+    private static String[] splitPairToken(String token) {
+        if (token == null || token.isBlank()) return null;
+        for (String sep : new String[]{"=>", "->", "↔", "::", "="}) {
+            int idx = token.indexOf(sep);
+            if (idx > 0 && idx + sep.length() < token.length()) {
+                String left = token.substring(0, idx).trim();
+                String right = token.substring(idx + sep.length()).trim();
+                if (!left.isEmpty() && !right.isEmpty()) {
+                    return new String[]{left, right};
+                }
+            }
+        }
+        return null;
+    }
+
     private static String clean(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
     private void notifyStudentsNewExercise(LearningExercise exercise) {
-        if (exercise == null || exercise.getSchoolClass() == null || sseEmitterService == null) return;
+        if (exercise == null || exercise.getSchoolClass() == null) return;
         try {
             var enrollments = enrollmentRepository.findBySchoolClassIdAndStatusOrderByEnrollmentDateAsc(
                 exercise.getSchoolClass().getId(), EnrollmentStatus.ACTIVE);
@@ -1211,36 +1688,119 @@ public class LearningExerciseService {
                 .distinct()
                 .toList();
 
-            Map<String, Object> data = new HashMap<>();
-            data.put("exerciseId", exercise.getId());
-            data.put("classId", exercise.getSchoolClass().getId());
-            data.put("title", exercise.getTitle());
-            data.put("language", exercise.getLanguageName());
-            data.put("proficiencyLevel", exercise.getProficiencyLevel());
+            if (sseEmitterService != null) {
+                Map<String, Object> data = new HashMap<>();
+                data.put("exerciseId", exercise.getId());
+                data.put("classId", exercise.getSchoolClass().getId());
+                data.put("title", exercise.getTitle());
+                data.put("language", exercise.getLanguageName());
+                data.put("proficiencyLevel", exercise.getProficiencyLevel());
+                sseEmitterService.sendToUsers(studentIds, "EXERCISE_CREATED", data);
+            }
 
-            sseEmitterService.sendToUsers(studentIds, "EXERCISE_CREATED", data);
+            if (studentNotificationService != null && !studentIds.isEmpty()) {
+                String className = exercise.getSchoolClass().getName() != null
+                    ? exercise.getSchoolClass().getName()
+                    : "sua turma";
+                String message = String.format(
+                    Locale.ROOT,
+                    "\"%s\" foi publicado na turma %s (%s).",
+                    exercise.getTitle(),
+                    className,
+                    exercise.getLanguageName()
+                );
+                for (Long studentId : studentIds) {
+                    try {
+                        studentNotificationService.notifyStudent(
+                            studentId,
+                            "Novo exercício publicado",
+                            message,
+                            "NEW_EXERCISE",
+                            "/exercises"
+                        );
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
         } catch (Exception ignored) {
         }
     }
 
     private void notifyExerciseSubmitted(ExerciseSubmission submission, int xpDelta) {
-        if (submission == null || sseEmitterService == null) return;
+        if (submission == null) return;
         try {
             LearningExercise ex = submission.getExercise();
-            if (ex != null && ex.getTeacher() != null) {
+            if (ex != null) {
+                Map<Long, Teacher> recipients = new LinkedHashMap<>();
+                if (ex.getTeacher() != null && ex.getTeacher().getId() != null) {
+                    recipients.put(ex.getTeacher().getId(), ex.getTeacher());
+                }
+                if (ex.getSchoolClass() != null && ex.getSchoolClass().getId() != null && assignmentRepository != null) {
+                    for (ClassTeacherAssignment cta : assignmentRepository.findBySchoolClassIdOrderByStartDateDesc(ex.getSchoolClass().getId())) {
+                        if (cta.getEndDate() == null && cta.getTeacher() != null && cta.getTeacher().getId() != null) {
+                            recipients.putIfAbsent(cta.getTeacher().getId(), cta.getTeacher());
+                        }
+                    }
+                }
+
+                String studentName = submission.getStudent() != null && submission.getStudent().getName() != null
+                    ? submission.getStudent().getName()
+                    : "Um aluno";
+                String exTitle = ex.getTitle() != null ? ex.getTitle() : "Atividade";
+                boolean needsTeacherReview = "PENDING_REVIEW".equalsIgnoreCase(submission.getReviewStatus());
+
                 Map<String, Object> teacherData = new HashMap<>();
                 teacherData.put("submissionId", submission.getId());
                 teacherData.put("exerciseId", ex.getId());
-                teacherData.put("exerciseTitle", ex.getTitle());
-                teacherData.put("studentId", submission.getStudent().getId());
-                teacherData.put("studentName", submission.getStudent().getName());
+                teacherData.put("exerciseTitle", exTitle);
+                if (submission.getStudent() != null) {
+                    teacherData.put("studentId", submission.getStudent().getId());
+                }
+                teacherData.put("studentName", studentName);
                 teacherData.put("reviewStatus", submission.getReviewStatus());
                 teacherData.put("xpEarned", submission.getXpEarned());
 
-                sseEmitterService.sendToUser(ex.getTeacher().getId(), "EXERCISE_SUBMITTED", teacherData);
+                String classSuffix = (ex.getSchoolClass() != null && ex.getSchoolClass().getName() != null)
+                    ? " (" + ex.getSchoolClass().getName() + ")"
+                    : "";
+                String pendingMessage = String.format(
+                    Locale.ROOT,
+                    "%s respondeu \"%s\"%s e aguarda sua correção.",
+                    studentName,
+                    exTitle,
+                    classSuffix
+                );
+
+                for (Long teacherId : recipients.keySet()) {
+                    if (sseEmitterService != null) {
+                        sseEmitterService.sendToUser(teacherId, "EXERCISE_SUBMITTED", teacherData);
+                    }
+                    if (needsTeacherReview) {
+                        if (teacherNotificationService != null) {
+                            try {
+                                teacherNotificationService.notifyTeacher(
+                                    teacherId,
+                                    "Correção pendente",
+                                    pendingMessage,
+                                    "CORRECTION_PENDING",
+                                    "/review-exercises"
+                                );
+                            } catch (Exception ignored) {
+                            }
+                        } else if (sseEmitterService != null) {
+                            Map<String, Object> notifPayload = new HashMap<>();
+                            notifPayload.put("teacherId", teacherId);
+                            notifPayload.put("title", "Correção pendente");
+                            notifPayload.put("message", pendingMessage);
+                            notifPayload.put("type", "CORRECTION_PENDING");
+                            notifPayload.put("actionUrl", "/review-exercises");
+                            sseEmitterService.sendToUser(teacherId, "NOTIFICATION_ADDED", notifPayload);
+                        }
+                    }
+                }
             }
 
-            if (submission.getStudent() != null) {
+            if (sseEmitterService != null && submission.getStudent() != null) {
                 Map<String, Object> rankData = new HashMap<>();
                 rankData.put("studentId", submission.getStudent().getId());
                 rankData.put("xpDelta", xpDelta);
@@ -1265,23 +1825,47 @@ public class LearningExerciseService {
     }
 
     private void notifySubmissionReviewed(ExerciseSubmission submission) {
-        if (submission == null || sseEmitterService == null || submission.getStudent() == null) return;
+        if (submission == null || submission.getStudent() == null) return;
         try {
-            Map<String, Object> studentData = new HashMap<>();
-            studentData.put("submissionId", submission.getId());
-            studentData.put("exerciseId", submission.getExercise() != null ? submission.getExercise().getId() : null);
-            studentData.put("exerciseTitle", submission.getExercise() != null ? submission.getExercise().getTitle() : "");
-            studentData.put("reviewStatus", submission.getReviewStatus());
-            studentData.put("feedback", submission.getFeedback() != null ? submission.getFeedback() : "");
-            studentData.put("correctCount", submission.getCorrectCount());
-            studentData.put("questionCount", submission.getQuestionCount());
-            studentData.put("xpEarned", submission.getXpEarned());
+            Long studentId = submission.getStudent().getId();
+            String exTitle = submission.getExercise() != null ? submission.getExercise().getTitle() : "Exercício";
+            if (sseEmitterService != null) {
+                Map<String, Object> studentData = new HashMap<>();
+                studentData.put("submissionId", submission.getId());
+                studentData.put("exerciseId", submission.getExercise() != null ? submission.getExercise().getId() : null);
+                studentData.put("exerciseTitle", exTitle);
+                studentData.put("reviewStatus", submission.getReviewStatus());
+                studentData.put("feedback", submission.getFeedback() != null ? submission.getFeedback() : "");
+                studentData.put("correctCount", submission.getCorrectCount());
+                studentData.put("questionCount", submission.getQuestionCount());
+                studentData.put("xpEarned", submission.getXpEarned());
 
-            sseEmitterService.sendToUser(submission.getStudent().getId(), "SUBMISSION_GRADED", studentData);
-            sseEmitterService.sendToUser(submission.getStudent().getId(), "RANKING_UPDATED", Map.of(
-                "studentId", submission.getStudent().getId(),
-                "xpEarned", submission.getXpEarned()
-            ));
+                sseEmitterService.sendToUser(studentId, "SUBMISSION_GRADED", studentData);
+                sseEmitterService.sendToUser(studentId, "RANKING_UPDATED", Map.of(
+                    "studentId", studentId,
+                    "xpEarned", submission.getXpEarned()
+                ));
+            }
+            if (studentNotificationService != null) {
+                String feedbackNote = submission.getFeedback() != null && !submission.getFeedback().isBlank()
+                    ? " Comentário: " + submission.getFeedback().trim()
+                    : "";
+                studentNotificationService.notifyStudent(
+                    studentId,
+                    "Correção disponível",
+                    String.format(
+                        Locale.ROOT,
+                        "\"%s\": %d/%d acertos (+%d XP).%s",
+                        exTitle,
+                        submission.getCorrectCount(),
+                        submission.getQuestionCount(),
+                        submission.getXpEarned(),
+                        feedbackNote
+                    ),
+                    "EXERCISE_GRADED",
+                    "/exercises"
+                );
+            }
         } catch (Exception ignored) {
         }
     }

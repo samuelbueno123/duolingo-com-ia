@@ -25,6 +25,21 @@ public record SchoolClassResponseDTO(
 
     LocalDateTime createdAt,
 
-    LocalDateTime updatedAt
+    LocalDateTime updatedAt,
+
+    String pictureUrl
 ) {
+    public SchoolClassResponseDTO(
+            Long id,
+            String name,
+            String schoolYear,
+            String shift,
+            String gradeLevel,
+            Long schoolId,
+            Boolean active,
+            String languageName,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt) {
+        this(id, name, schoolYear, shift, gradeLevel, schoolId, active, languageName, createdAt, updatedAt, null);
+    }
 }

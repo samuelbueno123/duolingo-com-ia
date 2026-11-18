@@ -7,6 +7,28 @@ public record ExerciseQuestionResponseDTO(
     String question,
     List<String> options,
     String correctAnswer,
-    String expectedAnswer
+    String expectedAnswer,
+    String mascotHelpMessage,
+    String audioText
 ) {
+    public ExerciseQuestionResponseDTO(
+        String style,
+        String question,
+        List<String> options,
+        String correctAnswer,
+        String expectedAnswer
+    ) {
+        this(style, question, options, correctAnswer, expectedAnswer, null, null);
+    }
+
+    public ExerciseQuestionResponseDTO(
+        String style,
+        String question,
+        List<String> options,
+        String correctAnswer,
+        String expectedAnswer,
+        String mascotHelpMessage
+    ) {
+        this(style, question, options, correctAnswer, expectedAnswer, mascotHelpMessage, null);
+    }
 }

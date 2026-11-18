@@ -55,6 +55,18 @@ public class SchoolClassService {
     @Autowired(required = false)
     private AccessControlService accessControlService;
 
+    @Autowired(required = false)
+    private ProfilePictureStorageService profilePictureStorageService;
+
+    private String storePictureIfProvided(String rawPicture) {
+        if (rawPicture == null || rawPicture.isBlank()) {
+            return null;
+        }
+        return profilePictureStorageService != null
+            ? profilePictureStorageService.store(rawPicture)
+            : rawPicture.trim();
+    }
+
     @Transactional
     public SchoolClass create(
         Long schoolId,
@@ -86,6 +98,9 @@ public class SchoolClassService {
         );
         schoolClass.setSchool(school);
         schoolClass.setInstitution(school.getInstitution());
+        if (schoolClass.getPictureUrl() != null && !schoolClass.getPictureUrl().isBlank()) {
+            schoolClass.setPictureUrl(storePictureIfProvided(schoolClass.getPictureUrl()));
+        }
 
         return initializeAssociations(schoolClassRepository.save(schoolClass));
     }
@@ -236,7 +251,8 @@ public class SchoolClassService {
                 enrollment.getEnrollmentDate(),
                 sCount,
                 sAcc,
-                sXp
+                sXp,
+                student.getProfilePicture()
             ));
         }
 
@@ -270,6 +286,9 @@ public class SchoolClassService {
         String classLang = SupportedLanguages.normalize(schoolClass.getLanguageName())
             .orElse(SupportedLanguages.inferFromClassNameOrDefault(schoolClass.getName()));
 
+        List<ClassDashboardResponseDTO.ClassPerformancePointDTO> performanceSeries =
+            buildPerformanceSeries(exercises, submissions, activeCount, totalXp);
+
         return new ClassDashboardResponseDTO(
             schoolClass.getId(),
             schoolClass.getName(),
@@ -290,8 +309,103 @@ public class SchoolClassService {
             avgQuestions,
             totalXp,
             studentSummaries,
-            exerciseSummaries
+            exerciseSummaries,
+            performanceSeries,
+            schoolClass.getPictureUrl(),
+            inst != null ? inst.getPictureUrl() : null
         );
+    }
+
+    private List<ClassDashboardResponseDTO.ClassPerformancePointDTO> buildPerformanceSeries(
+            List<LearningExercise> exercises,
+            List<ExerciseSubmission> submissions,
+            int activeStudentsCount,
+            int totalXpEarned) {
+        List<ExerciseSubmission> orderedSubs = submissions.stream()
+            .sorted((a, b) -> {
+                if (a.getSubmittedAt() != null && b.getSubmittedAt() != null) {
+                    return a.getSubmittedAt().compareTo(b.getSubmittedAt());
+                }
+                if (a.getSubmittedAt() != null) return -1;
+                if (b.getSubmittedAt() != null) return 1;
+                return Long.compare(
+                    a.getId() != null ? a.getId() : 0L,
+                    b.getId() != null ? b.getId() : 0L
+                );
+            })
+            .toList();
+
+        List<ClassDashboardResponseDTO.ClassPerformancePointDTO> points = new ArrayList<>();
+        if (orderedSubs.isEmpty()) {
+            return points;
+        }
+
+        int totalOpportunities = Math.max(1, activeStudentsCount) * Math.max(1, exercises.size());
+        int xpMilestone = Math.max(20, Math.max(totalXpEarned, Math.max(1, activeStudentsCount) * 40));
+        java.time.format.DateTimeFormatter fmt =
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm")
+                .withZone(java.time.ZoneId.of("America/Sao_Paulo"));
+
+        // Include baseline origin when only 1 submission exists so a curve is rendered immediately
+        if (orderedSubs.size() == 1) {
+            points.add(new ClassDashboardResponseDTO.ClassPerformancePointDTO(
+                "Início",
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0,
+                0
+            ));
+        }
+
+        int step = orderedSubs.size() > 24 ? (int) Math.ceil(orderedSubs.size() / 24.0) : 1;
+        int cumCorrect = 0;
+        int cumQuestions = 0;
+        int cumXp = 0;
+
+        for (int i = 0; i < orderedSubs.size(); i++) {
+            ExerciseSubmission s = orderedSubs.get(i);
+            cumCorrect += s.getCorrectCount();
+            cumQuestions += s.getQuestionCount();
+            cumXp += s.getXpEarned();
+
+            boolean includePoint = (i % step == 0) || (i == orderedSubs.size() - 1);
+            if (!includePoint) {
+                continue;
+            }
+
+            double accuracy = cumQuestions == 0
+                ? 0.0
+                : Math.min(100.0, Math.round(((cumCorrect * 100.0) / cumQuestions) * 10.0) / 10.0);
+            double participation = Math.min(
+                100.0,
+                Math.round((((i + 1) * 100.0) / totalOpportunities) * 10.0) / 10.0
+            );
+            double xpProg = Math.min(
+                100.0,
+                Math.round(((cumXp * 100.0) / xpMilestone) * 10.0) / 10.0
+            );
+            double overall = Math.min(
+                100.0,
+                Math.round(((accuracy * 0.45) + (participation * 0.30) + (xpProg * 0.25)) * 10.0) / 10.0
+            );
+
+            String label = s.getSubmittedAt() != null
+                ? fmt.format(s.getSubmittedAt())
+                : ("#" + (i + 1));
+
+            points.add(new ClassDashboardResponseDTO.ClassPerformancePointDTO(
+                label,
+                accuracy,
+                participation,
+                xpProg,
+                overall,
+                i + 1,
+                cumXp
+            ));
+        }
+        return points;
     }
 
     @Transactional(readOnly = true)
@@ -424,10 +538,21 @@ public class SchoolClassService {
             current.setLanguageName(SupportedLanguages.inferFromClassNameOrDefault(data.getName()));
         }
 
+        if (data.getPictureUrl() != null) {
+            current.setPictureUrl(storePictureIfProvided(data.getPictureUrl()));
+        }
+
         if (data.getActive() != null) {
             current.setActive(data.getActive());
         }
 
+        return initializeAssociations(schoolClassRepository.save(current));
+    }
+
+    @Transactional
+    public SchoolClass updatePicture(Long id, String rawPicture) {
+        SchoolClass current = findById(id);
+        current.setPictureUrl(storePictureIfProvided(rawPicture));
         return initializeAssociations(schoolClassRepository.save(current));
     }
 

@@ -552,8 +552,14 @@ public class SchoolClassService {
     @Transactional
     public SchoolClass updatePicture(Long id, String rawPicture) {
         SchoolClass current = findById(id);
-        current.setPictureUrl(storePictureIfProvided(rawPicture));
-        return initializeAssociations(schoolClassRepository.save(current));
+        String previous = current.getPictureUrl();
+        String next = storePictureIfProvided(rawPicture);
+        current.setPictureUrl(next);
+        SchoolClass saved = initializeAssociations(schoolClassRepository.save(current));
+        if (profilePictureStorageService != null && previous != null && !previous.equals(next)) {
+            profilePictureStorageService.delete(previous);
+        }
+        return saved;
     }
 
     @Transactional

@@ -187,8 +187,14 @@ public class InstitutionService {
     @Transactional
     public Institution updatePicture(Long id, String rawPicture) {
         Institution institution = findById(id);
-        institution.setPictureUrl(normalizePictureIfProvided(rawPicture));
-        return institutionRepository.save(institution);
+        String previous = institution.getPictureUrl();
+        String next = normalizePictureIfProvided(rawPicture);
+        institution.setPictureUrl(next);
+        Institution saved = institutionRepository.save(institution);
+        if (profilePictureStorageService != null && previous != null && !previous.equals(next)) {
+            profilePictureStorageService.delete(previous);
+        }
+        return saved;
     }
 
     @Transactional

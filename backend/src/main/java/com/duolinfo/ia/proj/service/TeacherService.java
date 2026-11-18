@@ -307,12 +307,14 @@ public class TeacherService {
                 "A instituição padrão do CEFET não foi inicializada."));
 
         entityManager.flush();
-        entityManager.createNativeQuery(
-            "INSERT INTO teachers (id, institution_id, bibliography, approved, approval_status, institution_admin, primary_institution_admin, created_at) "
-                + "VALUES (:id, :institutionId, '', true, 'APPROVED', false, false, CURRENT_TIMESTAMP) ON CONFLICT (id) DO NOTHING")
-            .setParameter("id", userId)
-            .setParameter("institutionId", institution.getId())
-            .executeUpdate();
+        if (!teacherRepository.existsById(userId)) {
+            entityManager.createNativeQuery(
+                "INSERT INTO teachers (id, institution_id, bibliography, approved, approval_status, institution_admin, primary_institution_admin, created_at) "
+                    + "VALUES (:id, :institutionId, '', true, 'APPROVED', false, false, CURRENT_TIMESTAMP)")
+                .setParameter("id", userId)
+                .setParameter("institutionId", institution.getId())
+                .executeUpdate();
+        }
         if (userAuthCache != null) {
             userAuthCache.evict(userId);
         }

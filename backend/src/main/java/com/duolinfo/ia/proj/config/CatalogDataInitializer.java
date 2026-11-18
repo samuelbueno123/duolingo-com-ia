@@ -18,6 +18,7 @@ import com.duolinfo.ia.proj.repository.AchievementRepository;
 import com.duolinfo.ia.proj.repository.CatalogOptionRepository;
 import com.duolinfo.ia.proj.repository.InstitutionRepository;
 import com.duolinfo.ia.proj.repository.UserRepository;
+import com.duolinfo.ia.proj.service.DefaultThreeInfoSeedService;
 import com.duolinfo.ia.proj.service.InstitutionService;
 import com.duolinfo.ia.proj.util.CatalogFlagResolver;
 import com.duolinfo.ia.proj.util.SupportedLanguages;
@@ -34,6 +35,7 @@ public class CatalogDataInitializer {
             PasswordEncoder passwordEncoder,
             JdbcTemplate jdbcTemplate,
             Environment environment,
+            DefaultThreeInfoSeedService defaultThreeInfoSeedService,
             @Value("${app.admin.initial-password:}") String configuredAdminPassword) {
         return args -> {
             Institution defaultInst = ensureDefaultInstitution(institutionRepository);
@@ -48,6 +50,9 @@ public class CatalogDataInitializer {
             syncProficiencyLevels(repository);
             seedDefaultAchievements(achievementRepository);
             ensureIndexesAndBackfill(jdbcTemplate, defaultInst.getId());
+            if (defaultThreeInfoSeedService != null) {
+                defaultThreeInfoSeedService.ensureDefaultThreeInfoSetup(defaultInst.getId());
+            }
         };
     }
 

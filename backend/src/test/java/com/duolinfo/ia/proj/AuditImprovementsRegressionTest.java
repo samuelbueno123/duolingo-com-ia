@@ -78,6 +78,7 @@ class AuditImprovementsRegressionTest {
     @Autowired private com.duolinfo.ia.proj.service.LearningPathService learningPathService;
     @Autowired private com.duolinfo.ia.proj.config.UserAuthCache userAuthCache;
     @Autowired private com.duolinfo.ia.proj.repository.SpacedReviewItemRepository spacedReviewItemRepository;
+    @Autowired private com.duolinfo.ia.proj.service.DefaultThreeInfoSeedService defaultThreeInfoSeedService;
 
     @org.junit.jupiter.api.BeforeEach
     void clearCaches() {
@@ -1155,59 +1156,72 @@ class AuditImprovementsRegressionTest {
         String studentToken = jwtService.generateToken(studentA);
         String adminToken = jwtService.generateToken(adminUser);
 
+        java.io.ByteArrayOutputStream pngBaos = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(
+            new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB),
+            "png",
+            pngBaos
+        );
+        String validDataPng = "data:image/png;base64,"
+            + java.util.Base64.getEncoder().encodeToString(pngBaos.toByteArray());
+
         // Estudante e professor de outra instituição não podem alterar fotos
         mockMvc.perform(put("/api/institutions/" + instA.getId() + "/picture")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"pictureUrl\":\"https://cdn.example.com/a.png\"}"))
+                .content(objectMapper.writeValueAsString(Map.of("pictureUrl", validDataPng))))
             .andExpect(status().isForbidden());
 
         mockMvc.perform(put("/api/institutions/" + instA.getId() + "/picture")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherBToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"pictureUrl\":\"https://cdn.example.com/b.png\"}"))
+                .content(objectMapper.writeValueAsString(Map.of("pictureUrl", validDataPng))))
             .andExpect(status().isForbidden());
 
         mockMvc.perform(put("/api/classes/" + classA.getId() + "/picture")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherBToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"pictureUrl\":\"https://cdn.example.com/cb.png\"}"))
+                .content(objectMapper.writeValueAsString(Map.of("pictureUrl", validDataPng))))
             .andExpect(status().isForbidden());
 
         // Professor aprovado da instituição A atualiza foto da instituição A e da turma A
-        mockMvc.perform(put("/api/institutions/" + instA.getId() + "/picture")
+        String instPicJson = mockMvc.perform(put("/api/institutions/" + instA.getId() + "/picture")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherAToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"pictureUrl\":\"https://cdn.example.com/inst-teacher.png\"}"))
+                .content(objectMapper.writeValueAsString(Map.of("pictureUrl", validDataPng))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.pictureUrl").value("https://cdn.example.com/inst-teacher.png"));
+            .andExpect(jsonPath("$.pictureUrl", containsString("/media/profile-pictures/")))
+            .andReturn().getResponse().getContentAsString();
+        String instPicPath = objectMapper.readTree(instPicJson).get("pictureUrl").asText();
 
-        mockMvc.perform(put("/api/classes/" + classA.getId() + "/picture")
+        String classPicJson = mockMvc.perform(put("/api/classes/" + classA.getId() + "/picture")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherAToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"pictureUrl\":\"https://cdn.example.com/class-teacher.png\"}"))
+                .content(objectMapper.writeValueAsString(Map.of("pictureUrl", validDataPng))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.pictureUrl").value("https://cdn.example.com/class-teacher.png"));
+            .andExpect(jsonPath("$.pictureUrl", containsString("/media/profile-pictures/")))
+            .andReturn().getResponse().getContentAsString();
+        String classPicPath = objectMapper.readTree(classPicJson).get("pictureUrl").asText();
 
-        // Verifica persistência nos GETs de instituição, turma e dashboard da turma
+        // Verifica persistência nos GETs de instituição e dashboard da turma
         mockMvc.perform(get("/api/institutions/" + instA.getId())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.pictureUrl").value("https://cdn.example.com/inst-teacher.png"));
+            .andExpect(jsonPath("$.pictureUrl").value(instPicPath));
 
         mockMvc.perform(get("/api/classes/" + classA.getId() + "/dashboard")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherAToken))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.pictureUrl").value("https://cdn.example.com/class-teacher.png"))
-            .andExpect(jsonPath("$.institutionPictureUrl").value("https://cdn.example.com/inst-teacher.png"));
+            .andExpect(jsonPath("$.pictureUrl").value(classPicPath))
+            .andExpect(jsonPath("$.institutionPictureUrl").value(instPicPath));
 
-        // Admin atualiza e depois remove a foto da instituição
+        // Admin atualiza via PATCH e depois remove a foto da instituição
         mockMvc.perform(patch("/api/institutions/" + instA.getId() + "/picture")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"pictureUrl\":\"https://cdn.example.com/inst-admin.png\"}"))
+                .content(objectMapper.writeValueAsString(Map.of("pictureUrl", validDataPng))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.pictureUrl").value("https://cdn.example.com/inst-admin.png"));
+            .andExpect(jsonPath("$.pictureUrl", containsString("/media/profile-pictures/")));
 
         mockMvc.perform(put("/api/institutions/" + instA.getId() + "/picture")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
@@ -1215,6 +1229,74 @@ class AuditImprovementsRegressionTest {
                 .content("{\"pictureUrl\":\"\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.pictureUrl").value(nullValue()));
+
+        mockMvc.perform(put("/api/classes/" + classA.getId() + "/picture")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + teacherAToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"pictureUrl\":\"\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pictureUrl").value(nullValue()));
+    }
+
+    @Test
+    @DisplayName("Regressão: Turma padrão 3 INFO é criada com admin@duolingo.com e 7 atividades (3 questões variadas cada)")
+    void defaultThreeInfoClassAndSevenVariedExercisesSeededForAdminTeacher() throws Exception {
+        Teacher adminTeacher = teacherRepository.findByEmailIgnoreCase("admin@duolingo.com")
+            .orElseThrow();
+        assertTrue(Boolean.TRUE.equals(adminTeacher.getApproved()));
+
+        SchoolClass threeInfo = schoolClassRepository.findAll().stream()
+            .filter(sc -> "3 INFO".equalsIgnoreCase(sc.getName()))
+            .findFirst()
+            .orElseThrow();
+        assertTrue(Boolean.TRUE.equals(threeInfo.getActive()));
+
+        boolean assignedToAdmin = assignmentRepository.findByTeacherId(adminTeacher.getId()).stream()
+            .anyMatch(a -> a.getSchoolClass() != null
+                && a.getSchoolClass().getId().equals(threeInfo.getId())
+                && a.getEndDate() == null);
+        assertTrue(assignedToAdmin, "admin@duolingo.com deve estar atribuído como professor da turma padrão 3 INFO");
+
+        String adminToken = jwtService.generateToken(adminTeacher);
+        String mineJson = mockMvc.perform(get("/api/exercises")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+            .andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+
+        List<?> allMine = objectMapper.readValue(mineJson, List.class);
+        var threeInfoExercises = allMine.stream()
+            .filter(Map.class::isInstance)
+            .map(m -> (Map<?, ?>) m)
+            .filter(m -> threeInfo.getId().equals(((Number) m.get("schoolClassId")).longValue()))
+            .toList();
+
+        assertEquals(7, threeInfoExercises.size(), "Turma padrão 3 INFO deve possuir exatamente 7 atividades iniciais");
+
+        java.util.Set<String> observedStyles = new java.util.HashSet<>();
+        for (Map<?, ?> exMap : threeInfoExercises) {
+            List<?> qs = (List<?>) exMap.get("questions");
+            assertNotNull(qs);
+            assertEquals(3, qs.size(), "Cada atividade da turma 3 INFO deve conter exatamente 3 questões");
+            for (Object qObj : qs) {
+                Map<?, ?> q = (Map<?, ?>) qObj;
+                if (q.get("style") != null) {
+                    observedStyles.add(q.get("style").toString());
+                }
+            }
+        }
+        assertTrue(observedStyles.size() >= 6,
+            "As questões devem conter ampla variação de estilos, encontrados: " + observedStyles);
+        assertTrue(observedStyles.contains("Múltipla Escolha"));
+        assertTrue(observedStyles.contains("Verdadeiro ou Falso"));
+        assertTrue(observedStyles.contains("Correspondência"));
+        assertTrue(observedStyles.contains("Áudio"));
+        assertTrue(observedStyles.contains("Completar"));
+        assertTrue(observedStyles.contains("Discursiva"));
+
+        // Execução repetida do seed deve permanecer idempotente (continua com 7 atividades e 1 vínculo)
+        defaultThreeInfoSeedService.ensureDefaultThreeInfoSetup(threeInfo.getInstitution().getId());
+        long countAfter = exerciseRepository.findBySchoolClass_IdOrderByCreatedAtDesc(threeInfo.getId()).size();
+        assertEquals(7L, countAfter);
     }
 
     @Test
